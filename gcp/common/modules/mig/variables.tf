@@ -1,213 +1,185 @@
-# modules/mig/variables.tf - MIG 모듈 변수 정의
+# modules/mig/variables.tf
+# MIG(Managed Instance Group) 모듈 변수 정의
+# 모든 변수는 default 값 없이 정의되어, 사용 시 명시적 지정이 필요합니다.
+# 단, 선택적 변수의 경우 description에 권장값을 기재합니다.
 
-# [필수] 기본 인스턴스 식별자 이름
-# MIG 및 템플릿에 사용되는 이름으로, 프로젝트 내에서 고유해야 함
-variable "instance_name" {
-  description = "인스턴스 기본 이름 (MIG 및 템플릿에 사용됨)"
-  type        = string
-}
-
-# [필수] 인스턴스 머신 타입
-# GPU가 지원되는 타입을 선택해야 함 (예: n1-standard-4)
-variable "machine_type" {
-  description = "인스턴스 머신 타입 (예: n1-standard-4)"
-  type        = string
-}
-
-# [필수] GCP 프로젝트 ID
-# 모든 리소스가 이 프로젝트에 생성됨
-variable "project_id" {
+# 프로젝트 설정
+variable "project_id" { 
+  type = string
   description = "GCP 프로젝트 ID"
-  type        = string
 }
 
-# [필수] 인스턴스가 배포될 GCP 리전
-# 리전 선택 시 GPU 가용성 고려 필요
-variable "region" {
-  description = "인스턴스가 배포될 GCP 리전"
-  type        = string
+variable "region" { 
+  type = string
+  description = "인스턴스가 배포될 GCP 리전 (예: asia-northeast3, us-central1)"
 }
 
-# 인스턴스가 배포될 특정 영역 (선택사항)
-# 특정 존 지정이 필요한 경우 사용 (예: asia-northeast3-a)
-variable "zone" {
-  description = "인스턴스가 배포될 GCP 영역 (zone)"
-  type        = string
-  # 권장값: 비워두면 리전 내에서 자동 선택
+variable "zones" { 
+  type = list(string)
+  description = "인스턴스가 배포될 수 있는 영역 목록 (예: ['asia-northeast3-a', 'asia-northeast3-b']). 여러 존을 지정하면 GPU 가용성에 따라 자동으로 존이 선택됨"
 }
 
-# 스팟(선점형) 인스턴스 사용 여부
-# 비용 절감을 위해 true 권장, 안정성이 중요하면 false
-variable "spot" {
-  description = "스팟(선점형) 인스턴스 사용 여부"
-  type        = bool
-  # 권장값: true (비용 최적화)
+# 인스턴스 기본 정보
+variable "instance_name" { 
+  type = string
+  description = "인스턴스 기본 이름. MIG 및 템플릿에 사용됨. 프로젝트 내에서 고유해야 함"
 }
 
-# 연결할 네트워크 이름
-# VPC 네트워크 이름 지정
-variable "network" {
-  description = "인스턴스가 연결될 네트워크"
-  type        = string
-  # 권장값: 'default' 또는 기존 VPC 네트워크 이름
+variable "machine_type" { 
+  type = string
+  description = "인스턴스 머신 타입. GPU 유형에 맞는 머신 타입 선택 필요 (L4: g2-standard-4, T4/P100: n1-standard-4 권장)"
 }
 
-# 시작 스크립트 (선택사항)
-# 인스턴스 시작 시 실행할 명령어 (소프트웨어 설치 등)
-variable "startup_script" {
-  description = "인스턴스 시작 시 실행할 스크립트"
-  type        = string
-  # 권장값: 필요한 도구 설치 스크립트 (빈 문자열도 가능)
+variable "spot" { 
+  type = bool
+  description = "스팟(선점형) 인스턴스 사용 여부. 비용 절감을 위해 true 권장, 안정성이 중요하면 false"
 }
 
-# 서비스 계정 이메일 (선택사항)
-# 비어있으면 프로젝트의 기본 컴퓨트 서비스 계정 사용
-variable "service_account_email" {
-  description = "인스턴스에 연결할 서비스 계정 이메일"
-  type        = string
-  # 권장값: 비워두면 프로젝트 기본값 사용
+# 디스크 설정
+variable "source_image" { 
+  type = string
+  description = "부팅 디스크 이미지. GPU 워크로드 최적화 이미지 권장 (예: 'deeplearning-platform-release/tf-latest-gpu')"
 }
 
-# 서비스 계정 권한 범위
-# 인스턴스가 GCP API에 접근하기 위한 권한 범위
-variable "service_account_scopes" {
-  description = "서비스 계정에 부여할 권한 범위 목록"
-  type        = list(string)
-  # 권장값: ["https://www.googleapis.com/auth/cloud-platform"]
+variable "disk_size_gb" { 
+  type = number
+  description = "부팅 디스크 크기(GB). GPU 워크로드는 최소 100GB 권장"
 }
 
-# 네트워크 태그 (선택사항)
-# 방화벽 규칙 등에 사용
-variable "tags" {
-  description = "인스턴스에 적용할 네트워크 태그"
-  type        = list(string)
-  # 권장값: ["gpu", "worker"] 등 용도에 맞게 지정
+variable "disk_type" { 
+  type = string
+  description = "부팅 디스크 유형. 성능을 위해 'pd-ssd' 권장. 비용 절감 필요 시 'pd-standard'"
 }
 
-# 리소스 라벨 (선택사항)
-# 리소스 관리 및 비용 추적 등에 사용
-variable "labels" {
-  description = "인스턴스에 적용할 라벨 (키-값 쌍)"
-  type        = map(string)
-  # 권장값: {"environment" = "prod", "app" = "gpu-worker"} 등
+# GPU 설정
+variable "gpu_type" { 
+  type = string
+  description = "GPU 유형. 'nvidia-l4', 'nvidia-tesla-t4', 'nvidia-tesla-p100' 등. 머신 타입에 맞게 선택 필요"
 }
 
-# 추가 메타데이터 (선택사항)
-# 인스턴스 메타데이터로 추가할 키-값 쌍
-variable "additional_metadata" {
-  description = "인스턴스에 추가할 메타데이터 (키-값 쌍)"
-  type        = map(string)
-  # 권장값: {"enable-oslogin" = "TRUE"} 등 필요에 따라 지정
+variable "gpu_count" { 
+  type = number
+  description = "GPU 개수. 일반적으로 1. 모듈별로 적절히 설정 필요"
 }
 
-# 헬스 체크 설정 - 초기 지연 시간(초)
-variable "initial_delay_sec" {
-  description = "자동 복구 전 초기 지연 시간(초)"
-  type        = number
-  default     = 300  # 5분 - VM 시작 및 GPU 드라이버 설치 시간 고려
+# 메타데이터 및 추가 설정
+variable "additional_metadata" { 
+  type = map(string)
+  description = "추가 메타데이터 (키-값 쌍). 기본값 = {}"
 }
 
-# 헬스 체크 설정 - 확인 간격(초)
-variable "check_interval_sec" {
-  description = "상태 확인 간격(초)"
-  type        = number
-  default     = 5
+# 네트워크 설정
+variable "network" { 
+  type = string
+  description = "인스턴스가 연결될 VPC 네트워크 이름. 일반적으로 'default' 또는 기존 VPC 네트워크"
 }
 
-# 헬스 체크 설정 - 타임아웃(초)
-variable "timeout_sec" {
-  description = "상태 확인 타임아웃(초)"
-  type        = number
-  default     = 5
+variable "subnetwork" { 
+  type = string
+  description = "인스턴스가 연결될 서브넷워크 이름 (선택사항). 비워두면 기본 서브넷 사용. 기본값 = ''"
 }
 
-# 헬스 체크 설정 - 정상 임계값
-variable "healthy_threshold" {
-  description = "정상 상태로 간주하기 위한 연속 성공 횟수"
-  type        = number
-  default     = 2
+# 서비스 계정 설정
+variable "service_account_email" { 
+  type = string
+  description = "인스턴스에 연결할 서비스 계정 이메일. 비워두면 프로젝트의 기본 컴퓨트 서비스 계정 사용"
 }
 
-# 헬스 체크 설정 - 비정상 임계값
-variable "unhealthy_threshold" {
-  description = "비정상 상태로 간주하기 위한 연속 실패 횟수"
-  type        = number
-  default     = 2
+variable "service_account_scopes" { 
+  type = list(string)
+  description = "서비스 계정에 부여할 권한 범위 목록. 권장값: ['https://www.googleapis.com/auth/cloud-platform']"
 }
 
-# 헬스 체크 포트
-variable "health_check_port" {
-  description = "상태 확인에 사용할 포트"
-  type        = number
-  default     = 22  # SSH 포트
+# 스크립트 및 태그
+variable "startup_script" { 
+  type = string
+  description = "인스턴스 시작 시 실행할 스크립트. Cloudflare Tunnel 설정, 앱 설치/실행 등 포함"
 }
 
-# HTTP 포트 설정
-variable "http_port" {
-  description = "HTTP 트래픽을 위한 포트"
-  type        = number
-  default     = 80
+variable "tags" { 
+  type = list(string)
+  description = "인스턴스에 적용할 네트워크 태그. 방화벽 규칙에서 사용. 기본값 = []"
 }
 
-# HTTPS 포트 설정
-variable "https_port" {
-  description = "HTTPS 트래픽을 위한 포트"
-  type        = number
-  default     = 443
+variable "labels" { 
+  type = map(string)
+  description = "인스턴스에 적용할 라벨 (키-값 쌍). 리소스 관리 및 비용 추적에 사용. 기본값 = {}"
 }
 
-# 업데이트 정책 - 유형
-variable "update_type" {
-  description = "MIG 업데이트 정책 유형"
-  type        = string
-  default     = "PROACTIVE"  # 템플릿 변경 시 인스턴스를 적극적으로 업데이트
+# 로드 밸런서 포트 설정
+variable "http_port" { 
+  type = number
+  description = "HTTP 트래픽을 위한 포트. 기본값 = 80"
 }
 
-# 업데이트 정책 - 인스턴스 재분배 유형
-variable "instance_redistribution_type" {
-  description = "인스턴스 재분배 유형"
-  type        = string
-  default     = "NONE"  # 인스턴스 재분배 안 함 (영역 간 이동 방지)
+variable "https_port" { 
+  type = number
+  description = "HTTPS 트래픽을 위한 포트. 기본값 = 443"
 }
 
-# 업데이트 정책 - 최소 액션
-variable "minimal_action" {
-  description = "업데이트 시 최소 액션"
-  type        = string
-  default     = "REPLACE"  # 인스턴스를 교체하는 방식으로 업데이트
+# 헬스 체크 설정
+variable "health_check_port" { 
+  type = number
+  description = "상태 확인에 사용할 포트. 일반적으로 SSH 포트(22) 사용. 기본값 = 22"
 }
 
-# 업데이트 정책 - 가장 파괴적인 허용 액션
-variable "most_disruptive_allowed_action" {
-  description = "업데이트 시 허용되는 가장 파괴적인 액션"
-  type        = string
-  default     = "REPLACE"  # 인스턴스 교체 허용
+variable "initial_delay_sec" { 
+  type = number
+  description = "자동 복구 전 초기 지연 시간(초). 인스턴스 부팅 및 초기화에 충분한 시간 필요. 기본값 = 300"
 }
 
-# 업데이트 정책 - 최대 동시 추가 인스턴스 수
-variable "max_surge_fixed" {
-  description = "업데이트 중 추가할 수 있는 최대 인스턴스 수"
-  type        = number
-  default     = 0  # 새 인스턴스 생성 전 기존 인스턴스 제거
+variable "check_interval_sec" { 
+  type = number
+  description = "상태 확인 간격(초). 기본값 = 10"
 }
 
-# 업데이트 정책 - 최대 동시 이용 불가 인스턴스 수
-variable "max_unavailable_fixed" {
-  description = "업데이트 중 이용 불가능한 상태가 될 수 있는 최대 인스턴스 수"
-  type        = number
-  default     = 1  # 최대 1개 인스턴스가 사용 불가능한 상태 허용
+variable "timeout_sec" { 
+  type = number
+  description = "상태 확인 타임아웃(초). 기본값 = 5"
 }
 
-# 업데이트 정책 - 대체 방법
-variable "replacement_method" {
-  description = "인스턴스 대체 방법"
-  type        = string
-  default     = "SUBSTITUTE"  # GPU 할당량 문제 시 다른 템플릿으로 대체 가능
+variable "healthy_threshold" { 
+  type = number
+  description = "정상 상태로 간주하기 위한 연속 성공 횟수. 기본값 = 2"
 }
 
-# 인스턴스 생성 완료 대기 여부
-variable "wait_for_instances" {
-  description = "인스턴스 생성 완료 대기 여부"
-  type        = bool
-  default     = true  # 인스턴스 생성 완료 후 Terraform 실행 완료
+variable "unhealthy_threshold" { 
+  type = number
+  description = "비정상 상태로 간주하기 위한 연속 실패 횟수. 기본값 = 3"
+}
+
+# MIG 및 업데이트 정책 설정
+variable "target_size" { 
+  type = number
+  description = "생성할 인스턴스 수. L4는 1, T4/P100 백업 MIG는 0으로 시작. 기본값 = 0"
+}
+
+variable "wait_for_instances" { 
+  type = bool
+  description = "인스턴스 생성 완료 대기 여부. true로 설정하면 모든 인스턴스가 생성될 때까지 Terraform 실행이 대기함. 기본값 = true"
+}
+
+variable "update_type" { 
+  type = string
+  description = "MIG 업데이트 정책 유형. PROACTIVE: 템플릿 변경 시 적극적 업데이트, OPPORTUNISTIC: 다른 이유로 재생성 시에만 업데이트. 기본값 = PROACTIVE"
+}
+
+variable "instance_redistribution_type" { 
+  type = string
+  description = "인스턴스 재분배 유형. NONE: 존 간 이동 방지, PROACTIVE: 존 간 밸런싱. 기본값 = NONE"
+}
+
+variable "minimal_action" { 
+  type = string
+  description = "업데이트 시 최소 액션. REPLACE: 인스턴스 교체. 기본값 = REPLACE"
+}
+
+variable "most_disruptive_allowed_action" { 
+  type = string
+  description = "업데이트 시 허용되는 가장 파괴적인 액션. REPLACE, RESTART 등. 기본값 = REPLACE"
+}
+
+variable "max_surge_fixed" { 
+  type = number
+  description = "업데이트 중 추가할 수 있는 최대 인스턴스 수. 할당량 문제 방지를 위해 0 권장. 기본값 = 0"
 }
