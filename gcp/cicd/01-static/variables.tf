@@ -1,6 +1,8 @@
-# variables.tf - CloudFlare 및 Discord 관련 변수
+# variables.tf - 변수 정의 파일
 
+# ---------------------------------------
 # Cloudflare 터널 정보 (보안 값, secrets.auto.tfvars에서 로드)
+# ---------------------------------------
 variable "cloudflare_tunnel_uuid" {
   description = "Cloudflare 터널 UUID (보안을 위해 secrets.auto.tfvars에 저장)"
   type        = string
@@ -14,3 +16,8 @@ variable "discord_webhook_url" {
   sensitive   = true # 보안 값으로 취급
 }
 
+variable "github_actions_token" {
+  description = "GitHub Actions 러너 등록 토큰"
+  type        = string
+  sensitive   = true
+}

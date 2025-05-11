@@ -66,3 +66,9 @@ output "gpu_info" {
     count = var.gpu_count
   }
 }
+
+# 리전 정보
+output "region" {
+  description = "MIG가 배포된 리전"
+  value       = var.region
+}

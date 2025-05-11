@@ -38,7 +38,8 @@ variable "spot" {
 # 디스크 설정
 variable "source_image" { 
   type = string
-  description = "부팅 디스크 이미지. GPU 워크로드 최적화 이미지 권장 (예: 'deeplearning-platform-release/tf-latest-gpu')"
+  description = "부팅 디스크 이미지 전체 경로 (ex: projects/my-project/global/images/my-image). source_image_family와 함께 사용 시 source_image가 우선함"
+  default = null
 }
 
 variable "disk_size_gb" { 
@@ -49,6 +50,20 @@ variable "disk_size_gb" {
 variable "disk_type" { 
   type = string
   description = "부팅 디스크 유형. 성능을 위해 'pd-ssd' 권장. 비용 절감 필요 시 'pd-standard'"
+}
+
+# 이미지 패밀리 추가
+variable "source_image_family" { 
+  type = string
+  description = "부팅 디스크 이미지 패밀리 (ex: pytorch-latest-gpu). source_image가 설정된 경우 무시됨"
+  default = null
+}
+
+# 이미지 프로젝트 추가
+variable "source_image_project" { 
+  type = string
+  description = "부팅 디스크 이미지가 속한 프로젝트 (ex: deeplearning-platform-release). source_image가 설정된 경우 무시됨"
+  default = null
 }
 
 # GPU 설정
@@ -93,12 +108,12 @@ variable "service_account_scopes" {
 # 스크립트 및 태그
 variable "startup_script" { 
   type = string
-  description = "인스턴스 시작 시 실행할 스크립트. Cloudflare Tunnel 설정, 앱 설치/실행 등 포함"
+  description = "인스턴스 시작 시 실행할 스크립트. 커스텀 이미지 사용 시 빈 문자열 또는 null 설정 가능"
 }
 
 variable "tags" { 
   type = list(string)
-  description = "인스턴스에 적용할 네트워크 태그. 방화벽 규칙에서 사용. 기본값 = []"
+  description = "인스턴스에 적용할 네트워크 태그. 기본값 = []"
 }
 
 variable "labels" { 
@@ -182,4 +197,49 @@ variable "most_disruptive_allowed_action" {
 variable "max_surge_fixed" { 
   type = number
   description = "업데이트 중 추가할 수 있는 최대 인스턴스 수. 할당량 문제 방지를 위해 0 권장. 기본값 = 0"
+}
+
+# 스테이트풀 디스크 설정
+variable "stateful_disks" {
+  type = list(object({
+    device_name = string       # 인스턴스 내에서 사용할 디바이스 이름
+    source      = string       # 기존 디스크의 전체 경로
+    mode        = string       # READ_ONLY 또는 READ_WRITE
+    auto_delete = string       # NEVER 또는 ON_PERMANENT_INSTANCE_DELETION
+  }))
+  description = "MIG에 연결할 스테이트풀 디스크 목록 (영구 디스크). 설정하지 않으면 스테이트리스 디스크만 사용"
+  default     = []
+}
+
+variable "static_ip" {
+  type        = string
+  description = "인스턴스에 할당할 고정 IP 주소"
+  default     = null
+}
+
+variable "additional_named_ports" {
+  type = list(object({
+    name = string
+    port = number
+  }))
+  description = "추가 포트 설정 (이름과 포트 번호)"
+  default     = []
+}
+
+variable "add_stateful_disk" {
+  type        = bool
+  description = "인스턴스 템플릿에 stateful 디스크 슬롯을 추가할지 여부"
+  default     = false
+}
+
+variable "persistent_disk_name" {
+  type        = string
+  description = "스테이트풀로 연결할 영구 디스크 이름"
+}
+
+variable "zone" {
+   type        = string
+   description = "인스턴스가 배포될 영역 (zonal 리소스 참조용)"
+   # 00-common 또는 01-static에서 받아올 수 있습니다.
+   # 01-static의 outputs에서 zone 값을 가져오도록 설정 필요
 }

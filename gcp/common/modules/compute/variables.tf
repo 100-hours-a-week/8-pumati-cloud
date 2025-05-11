@@ -34,7 +34,7 @@ variable "spot" {
 }
 
 # 디스크 관련 변수
-variable "image" {
+variable "boot_disk_image" {
   description = "부팅 디스크 이미지"
   type        = string
 }
@@ -63,6 +63,11 @@ variable "gpu_count" {
 # 네트워크 설정
 variable "network" {
   description = "사용할 네트워크"
+  type        = string
+}
+
+variable "static_ip_name" {
+  description = "고정 IP 이름"
   type        = string
 }
 
@@ -97,4 +102,25 @@ variable "tags" {
 variable "labels" {
   description = "인스턴스 라벨 (리소스 관리 및 비용 추적에 사용)"
   type        = map(string)
+}
+
+# 방화벽 설정
+variable "firewall_rules" {
+  description = "방화벽 규칙 설정"
+  type = object({
+    name         = string
+    protocol     = string
+    ports        = list(string)
+    source_ranges = list(string)
+  })
+}
+
+# 외부 디스크 연결 설정
+variable "external_disk" {
+  description = "외부에서 생성된 디스크 연결 설정"
+  type = object({
+    source      = string  # 디스크의 self_link
+    device_name = string  # 디바이스 이름
+  })
+  default = null
 } 
