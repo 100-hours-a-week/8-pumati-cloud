@@ -36,7 +36,7 @@ data "terraform_remote_state" "compute" {
   backend = "s3"
   config = {
     bucket = "s3-terraform-ktb8team"
-    prefix = "gcp/dev/02-compute/terraform.tfstate"
+    prefix = "gcp/dev/compute/terraform.tfstate"
   }
 }
 

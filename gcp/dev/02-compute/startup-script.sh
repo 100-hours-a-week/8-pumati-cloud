@@ -324,9 +324,20 @@ else
 fi
 
 ##################################
-# 4. Docker 설정 (이미 설치됨)
+# 4. Docker 설정
 ##################################
-
+# Docker 네트워크 설정 최적화 (bridge-nf-call 경고 해결)
+log_message "▶ Docker 네트워크 bridge-nf-call 설정 활성화 중..."
+modprobe br_netfilter
+echo 1 > /proc/sys/net/bridge/bridge-nf-call-iptables
+echo 1 > /proc/sys/net/bridge/bridge-nf-call-ip6tables
+# 부팅 후에도 유지되도록 설정
+cat > /etc/sysctl.d/90-docker-bridge.conf << EOF
+net.bridge.bridge-nf-call-iptables = 1
+net.bridge.bridge-nf-call-ip6tables = 1
+EOF
+sysctl -p /etc/sysctl.d/90-docker-bridge.conf
+log_message "✅ Docker 네트워크 설정 완료"
 
 ###################################
 # 6. 모니터링 에이전트 설치
@@ -976,107 +987,161 @@ check_disk_space() {
 }
 
 # 함수 출력과 로그 분리를 위해 수정된 원격 다이제스트 함수
+# 원격 다이제스트 조회 함수 (수정)
 get_remote_digest() {
-  local image_name="$1"
-  local digest=""
-  
-  # 로그 직접 출력 대신 임시 변수에 저장
-  log_message "🔍 gcloud CLI로 원격 다이제스트 조회 시도 중..."
-  
-  # gcloud CLI로 이미지 정보 조회
-  local LATEST_IMAGE_INFO=$(gcloud artifacts docker images list "$image_name" --include-tags --format=json 2>/dev/null | jq -r '.[] | select(.tags | contains(["latest"]))' 2>/dev/null)
-  
-  if [ -n "$LATEST_IMAGE_INFO" ]; then
-    digest=$(echo "$LATEST_IMAGE_INFO" | jq -r '.digest' 2>/dev/null)
-    if [ -n "$digest" ] && [ "$digest" != "null" ]; then
-      log_message "✅ gcloud CLI로 다이제스트 획득 성공: $digest"
+  image_name="$1"
+  log_message "🔍 Artifact Registry에서 'latest' 태그 다이제스트 조회 시도: $image_name" >&2
+
+  # 1) gcloud artifacts docker images describe 방식 시도
+  log_message "▶ 방법 1: gcloud artifacts docker images describe 시도" >&2
+  gcloud_result=$(gcloud artifacts docker images describe "$image_name:latest" --format="get(image_summary.digest)" 2>/dev/null)
+  if [ -n "$gcloud_result" ] && [ "$gcloud_result" != "null" ]; then
+    log_message "✅ gcloud describe로 다이제스트 획득 성공: $gcloud_result" >&2
+    echo "$gcloud_result"
+    return 0
+  else
+    log_message "⚠️ gcloud describe 방식 실패, 다음 방법 시도" >&2
+  fi
+
+  # 2) gcloud tags list 방식 시도
+  log_message "▶ 방법 2: gcloud artifacts docker tags list 시도" >&2
+  tags_json=$(gcloud artifacts docker tags list "$image_name" --format=json 2>/dev/null)
+  if [ -n "$tags_json" ]; then
+    # jq 결과 디버깅을 위한 임시 변수
+    jq_debug=$(echo "$tags_json" | jq -r '.[] | select(.tags|index("latest")) | .digest' 2>/dev/null)
+    log_message "jq 처리 결과: '$jq_debug'" >&2
+    
+    if [ -n "$jq_debug" ] && [ "$jq_debug" != "null" ]; then
+      log_message "✅ gcloud tags list로 다이제스트 획득 성공: $jq_debug" >&2
+      echo "$jq_debug"
+      return 0
     else
-      log_message "⚠️ gcloud CLI로 다이제스트 획득 실패: 널 값 반환"
-      digest=""
+      log_message "⚠️ tags list에서 latest 태그를 찾지 못함" >&2
     fi
   else
-    log_message "⚠️ gcloud CLI 조회 결과 없음"
+    log_message "⚠️ tags list 결과 없음" >&2
   fi
-  
-  # API 호출로 시도
-  if [ -z "$digest" ]; then
-    log_message "🔄 마지막 방법: 인증 토큰으로 API 직접 호출 시도..."
-    local TOKEN=$(gcloud auth print-access-token 2>/dev/null)
-    if [ -n "$TOKEN" ]; then
-      local REGISTRY=$(echo "$image_name" | cut -d'/' -f1)
-      local PROJECT=$(echo "$image_name" | cut -d'/' -f2)
-      local REPO=$(echo "$image_name" | cut -d'/' -f3-)
-      
-      local HTTP_RESPONSE=$(curl -sI \
-        -H "Authorization: Bearer $TOKEN" \
-        -H "Accept: application/vnd.docker.distribution.manifest.v2+json" \
-        "https://$REGISTRY/v2/$PROJECT/$REPO/manifests/latest" 2>&1)
-      
-      digest=$(echo "$HTTP_RESPONSE" | grep -i Docker-Content-Digest | awk '{print $2}' | tr -d $'\r')
-      
-      if [ -n "$digest" ]; then
-        log_message "✅ API 직접 호출로 다이제스트 획득: $digest"
-      else
-        log_message "❌ API 호출 실패"
-      fi
-    fi
+
+  # 3) HTTP API fallback
+  log_message "▶ 방법 3: HTTP API 직접 호출 시도" >&2
+  TOKEN=$(gcloud auth print-access-token 2>/dev/null)
+  if [ -z "$TOKEN" ]; then
+    log_message "❌ API 인증 토큰 획득 실패" >&2
+    echo ""
+    return 1
   fi
+  log_message "✅ API 인증 토큰 획득 성공" >&2
+
+  # URL 구성 - 정확히 파싱
+  registry=$(echo "$image_name" | cut -d/ -f1)
+  project=$(echo "$image_name" | cut -d/ -f2)
+  repo_path=$(echo "$image_name" | cut -d/ -f3-)
+  url="https://$registry/v2/$project/$repo_path/manifests/latest"
+  log_message "▶ API 요청 URL: $url" >&2
+
+  # curl 디버깅 활성화
+  log_message "▶ curl 요청 시작..." >&2
+  http_response=$(curl -v -sS -H "Authorization: Bearer $TOKEN" \
+     -H "Accept: application/vnd.docker.distribution.manifest.v2+json" \
+     "$url" 2>&1)
   
-  # 다이제스트만 출력 (echo는 함수 마지막에 한 번만)
-  # 불필요한 공백 및 개행 문자를 확실히 제거
-  echo "$digest" | tr -d '[:space:]'
+  # 응답 헤더에서 다이제스트 추출
+  digest=$(echo "$http_response" | grep -i "Docker-Content-Digest:" | head -n 1 | awk '{print $2}' | tr -d '\r')
+  
+  if [ -n "$digest" ]; then
+    log_message "✅ API 직접 호출로 다이제스트 획득 성공: $digest" >&2
+    echo "$digest"
+    return 0
+  else
+    # 오류 분석을 위해 응답 일부 로깅
+    response_sample=$(echo "$http_response" | head -n 20)
+    log_message "❌ API 호출 실패. 응답 샘플:" >&2
+    log_message "$response_sample" >&2
+    echo ""
+    return 1
+  fi
 }
 
-# 로컬 다이제스트 가져오는 함수 수정 - 이미지 ID를 사용하여 다이제스트 찾기
+# 로컬 다이제스트 조회 함수 (수정)
 get_local_digest() {
-  local image="$1"
-  local digest=""
+  image="$1"
+  # 중복 :latest 제거
+  image=$(echo "$image" | sed 's/:latest:latest/:latest/g')
+  digest=""
   
-  # 실행 중인 컨테이너의 이미지 ID 확인
-  local CONTAINER_ID=$(docker ps -q -f name="$NAME")
+  # 실행 중인 컨테이너 확인 (정확한 이름 일치)
+  log_message "▶ 컨테이너 '$NAME' 상태 확인 중..." >&2
+  container_status=$(docker ps -a --filter "name=^$NAME$" --format "{{.Status}}")
   
-  if [ -n "$CONTAINER_ID" ]; then
-    # 실행 중인 컨테이너의 이미지 ID 가져오기
-    local IMAGE_ID=$(docker inspect --format='{{.Image}}' "$CONTAINER_ID" 2>/dev/null)
-    log_message "ℹ️ 실행 중인 컨테이너($NAME )의 이미지 ID: $IMAGE_ID "
+  if [ -n "$container_status" ]; then
+    log_message "✅ 컨테이너 '$NAME' 발견: $container_status" >&2
+    # 컨테이너 ID 가져오기
+    cid=$(docker ps -q -f "name=^$NAME$")
     
-    # 이미지 ID에 해당하는 이미지 다이제스트 찾기
-    local REPO_DIGEST=$(docker inspect --format='{{index .RepoDigests 0}}' "$IMAGE_ID" 2>/dev/null)
-    
-    if [ -n "$REPO_DIGEST" ]; then
-      # 다이제스트 부분만 추출 (이미지명@sha256:해시값 형태에서 해시값만)
-      digest=$(echo "$REPO_DIGEST" | cut -d':' -f2-)
-      if [ -n "$digest" ]; then
-        log_message "✅ 실행 중인 컨테이너 이미지에서 다이제스트 획득 성공: sha256:$digest"
-        digest="sha256:$digest"
+    if [ -n "$cid" ]; then
+      log_message "✅ 실행 중인 컨테이너 ID: $cid" >&2
+      
+      # 이미지 ID 먼저 확인
+      image_id=$(docker inspect --format='{{.Image}}' "$cid" 2>/dev/null)
+      log_message "✅ 컨테이너 이미지 ID: $image_id" >&2
+      
+      # RepoDigests 정보 가져오기 (전체 목록)
+      repo_digests=$(docker inspect --format='{{json .RepoDigests}}' "$image_id" 2>/dev/null)
+      log_message "▶ RepoDigests 정보: $repo_digests" >&2
+      
+      # 첫 번째 RepoDigest 추출 시도
+      first_digest=$(docker inspect --format='{{index .RepoDigests 0}}' "$image_id" 2>/dev/null)
+      
+      if [ -n "$first_digest" ]; then
+        # @ 기준으로 오른쪽 부분(다이제스트)만 추출
+        digest=$(echo "$first_digest" | cut -d '@' -f 2)
+        log_message "✅ 컨테이너에서 다이제스트 획득 성공: $digest" >&2
+      else
+        log_message "⚠️ 컨테이너 이미지에 RepoDigests 정보 없음" >&2
       fi
+    else
+      log_message "⚠️ 컨테이너 '$NAME'이 정지 상태임" >&2
     fi
+  else
+    log_message "⚠️ 컨테이너 '$NAME'을 찾을 수 없음" >&2
   fi
   
-  # 실행 중인 컨테이너에서 다이제스트를 찾지 못했다면 이미지 직접 조회
+  # 컨테이너에서 다이제스트를 찾지 못한 경우 이미지에서 직접 조회
   if [ -z "$digest" ]; then
-    # docker inspect로 이미지 정보 직접 조회
-    local REPO_DIGESTS=$(docker inspect "$image" 2>/dev/null | jq -r '.[0].RepoDigests[]' 2>/dev/null)
+    log_message "▶ 이미지 '$image' 직접 검사 시도" >&2
     
-    # 원하는 이미지 경로와 일치하는 다이제스트 찾기
-    for rd in $REPO_DIGESTS; do
-      if [[ "$rd" == *"$IMAGE"* ]]; then
-        digest=$(echo "$rd" | cut -d'@' -f2)
-        log_message "ℹ️ 이미지명 일치하는 다이제스트 찾음: $digest"
-        break
+    # 이미지가 존재하는지 먼저 확인
+    if docker inspect "$image" &>/dev/null; then
+      log_message "✅ 이미지 '$image' 발견" >&2
+      
+      # RepoDigests 직접 조회
+      repo_digests=$(docker inspect --format='{{json .RepoDigests}}' "$image" 2>/dev/null)
+      log_message "▶ 이미지 RepoDigests: $repo_digests" >&2
+      
+      # 첫 번째 RepoDigest 추출
+      first_digest=$(docker inspect --format='{{index .RepoDigests 0}}' "$image" 2>/dev/null)
+      
+      if [ -n "$first_digest" ]; then
+        # @ 기준으로 오른쪽 부분(다이제스트)만 추출
+        digest=$(echo "$first_digest" | cut -d '@' -f 2)
+        log_message "✅ 이미지에서 다이제스트 획득 성공: $digest" >&2
+      else
+        log_message "⚠️ 이미지에 RepoDigests 정보 없음" >&2
       fi
-    done
-    
-    # 일치하는게 없으면 첫 번째 사용
-    if [ -z "$digest" ] && [ -n "$REPO_DIGESTS" ]; then
-      digest=$(echo "$REPO_DIGESTS" | head -1 | cut -d'@' -f2)
-      log_message "ℹ️ 이미지명 일치하는 다이제스트 없음, 첫 번째 사용: $digest"
+    else
+      log_message "❌ 이미지 '$image'를 찾을 수 없음" >&2
     fi
   fi
   
-  # 다이제스트 값만 반환
-  # 불필요한 공백 및 개행 문자를 확실히 제거
-  echo "$digest" | tr -d '[:space:]'
+  # 다이제스트 값 반환
+  if [ -n "$digest" ]; then
+    echo "$digest"
+    return 0
+  else
+    log_message "❌ 다이제스트를 찾을 수 없음" >&2
+    echo ""
+    return 1
+  fi
 }
 
 while true; do
@@ -1269,7 +1334,7 @@ while true; do
     fi
     
     # 5. 정확한 Schema-2 Manifest 다이제스트 비교
-    if [ "$REMOTE_DIGEST" = "$LOCAL_DIGEST" ]; then # 이제 비교가 정확해질 것으로 예상
+    if [ "$REMOTE_DIGEST" = "$LOCAL_DIGEST" ]; then
       log_message "✅ 다이제스트 일치 - 업데이트 불필요"
       # 일치 시에도 현재 작동 이미지 저장 (롤백 대비)
       save_working_image "$CONTAINER_RUNNING"
@@ -1319,7 +1384,7 @@ while true; do
             "text": "🔄 이미지 업데이트 시작"
           }
         }]
-      }' "$WEBHOOK_URL"
+      }' "$WEBHOOK_URL_AI"
       
       # 업데이트 전에 현재 작동 중인 이미지 저장 (롤백용)
       save_working_image "$CONTAINER_RUNNING"
@@ -1419,7 +1484,7 @@ while true; do
                 "text": "🏆 ktb8team AI 서비스 배포 시스템 - '"$(hostname)"' 🛠️"
               }
             }]
-          }' "$WEBHOOK_URL"
+          }' "$WEBHOOK_URL_AI"
           
           # 이미지 배포 후 오래된 이미지 정리 (최신 3개 유지)
           OLD_IMAGES=$(docker images "$IMAGE" --format "{{.ID}}" | grep -v "$(docker inspect -f '{{.Id}}' "$IMAGE:latest")" | tail -n +4)
