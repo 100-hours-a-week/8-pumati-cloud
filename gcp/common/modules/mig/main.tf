@@ -33,16 +33,6 @@ resource "google_compute_instance_template" "this" {
     disk_type    = var.disk_type    # pd-ssd가 성능 향상에 도움
   }
 
-  # 영구 디스크 슬롯 정의 (새로 추가 또는 기존 dynamic 블록 수정)
-  # 이 부분은 인스턴스 템플릿에 "pd"라는 이름의 추가 디스크가 있음을 알리는 역할
-  disk {
-    device_name = "pd" # MIG의 stateful_disks에서 참조할 이름
-    auto_delete = false # 인스턴스 삭제 시 디스크 삭제 안 함
-    boot        = false # 부팅 디스크 아님
-    # source 또는 source_image는 여기서 지정하지 않습니다.
-    # 실제 연결될 디스크는 MIG의 stateful_policy에서 지정됩니다.
-  }
-
   # GPU 설정
   # 인스턴스에 할당할 GPU 유형과 개수
   guest_accelerator {
@@ -133,11 +123,10 @@ resource "google_compute_instance_group_manager" "this" {
   # 템플릿 변경 시 인스턴스가 업데이트되는 방식 정의
   update_policy {
     type                           = var.update_type
-    instance_redistribution_type   = var.instance_redistribution_type
     minimal_action                 = var.minimal_action
     most_disruptive_allowed_action = var.most_disruptive_allowed_action
     max_surge_fixed                = var.max_surge_fixed
-    max_unavailable_fixed          = length(var.zones)
+    max_unavailable_fixed          = var.max_unavailable_fixed_zonal
     replacement_method             = "RECREATE"
   }
 
@@ -158,20 +147,6 @@ resource "google_compute_instance_group_manager" "this" {
     health_check      = google_compute_health_check.this.id
     initial_delay_sec = var.initial_delay_sec # 초기 대기 시간 (VM 부팅 완료 대기)
   }
-
-  # 스테이트풀 정책 정의 (올바른 위치 - auto_healing_policies 블록 바로 다음에 위치)
-  stateful_policy {
-    preserved_state {
-      # 인스턴스 템플릿에 정의된 "pd"라는 디바이스 이름의 디스크에 대해 정책 적용
-      disk {
-        device_name = "pd"
-        source      = "projects/${var.project_id}/zones/${var.zone}/disks/${var.persistent_disk_name}"
-        delete_rule = "NEVER" # MIG 인스턴스 삭제 시 디스크 삭제 안 함
-      }
-    }
-
-  }
-  # stateful_policy 블록 끝
 
   # 변경 무시 설정
   # 외부 스크립트가 target_size를 동적으로 조절할 때 Terraform이 덮어쓰지 않도록 함

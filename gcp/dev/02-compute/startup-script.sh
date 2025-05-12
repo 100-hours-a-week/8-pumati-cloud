@@ -10,7 +10,148 @@ log_message() {
 
 log_message "✅ [시작] 스타트업 스크립트 실행 - 호스트명: $(hostname)"
 
-# 시스템 패키지 업데이트
+###################################
+# 1. 영구 디스크 연결 및 마운트 (우선순위 상향)
+###################################
+log_message "▶ 영구 디스크 연결 및 마운트 시작"
+
+# 메타데이터 서버에서 인스턴스 정보 가져오기
+ZONE=${DISK_ZONE}
+PROJECT_ID=${PROJECT_ID}
+INSTANCE_NAME=$(curl -s "http://metadata.google.internal/computeMetadata/v1/instance/name" -H "Metadata-Flavor: Google")
+DISK_NAME=${DISK_NAME}
+
+
+# Terraform에서 전달받은 디스크 정보 사용
+log_message "▶ 디스크 정보: 이름=${DISK_NAME}, 영역=$ZONE"
+
+# 기본 구성 설정
+gcloud config set project $PROJECT_ID
+gcloud config set compute/zone $ZONE
+
+# 현재 인스턴스에 연결된 디스크 목록에서 DISK_NAME 있는지 확인
+if ! gcloud compute instances describe "$INSTANCE_NAME" \
+  --zone "$ZONE" \
+  --format="get(disks.deviceName)" | grep -q "$DISK_NAME"; then
+  log_message "▶ 디스크가 연결되어 있지 않음 → attach 시도"
+  gcloud compute instances attach-disk "$INSTANCE_NAME" \
+    --disk="$DISK_NAME" \
+    --device-name="$DISK_NAME" \
+    --zone="$ZONE"
+    
+  log_message "✅ 영구 디스크 연결 완료"
+  
+  # 디스크 인식 대기
+  log_message "▶ 디스크 인식을 위해 10초 대기 중..."
+  sleep 10
+else
+  log_message "✅ 영구 디스크가 이미 연결되어 있습니다"
+fi
+
+# 모든 디스크 목록 로깅 (디버깅용)
+log_message "▶ 시스템에서 인식된 모든 디스크 목록:"
+lsblk >> $LOGFILE
+
+# 영구 디스크 마운트 지점 설정
+MOUNT_PATH="/mnt/disks/pd"
+DOCKER_DATA_ROOT_ON_PD="$MOUNT_PATH/docker" # PD 내 Docker 데이터 경로 정의
+
+mkdir -p $MOUNT_PATH
+
+# 디스크 장치 찾기 (GCP는 종종 nvme0n2 또는 sdb를 두 번째 디스크로 사용)
+DISK_DEVICE=""
+if [ -b "/dev/disk/by-id/google-${DISK_NAME}" ]; then
+  DISK_DEVICE="/dev/disk/by-id/google-${DISK_NAME}"
+  log_message "✅ 디스크 장치 경로: by-id (google-${DISK_NAME})"
+elif lsblk | grep -q nvme0n2; then
+  DISK_DEVICE="/dev/nvme0n2"
+  log_message "✅ 디스크 장치 경로: nvme0n2"
+elif lsblk | grep -q sdb; then
+  DISK_DEVICE="/dev/sdb"
+  log_message "✅ 디스크 장치 경로: sdb"
+else
+  log_message "⚠️ 디스크 장치를 찾을 수 없습니다. 장치 목록:"
+  ls -la /dev/disk/by-id/ >> $LOGFILE
+  # exit 1 제거 - 디스크 없어도 계속 진행
+fi
+
+# 디스크 장치가 발견된 경우에만 포맷 및 마운트 진행
+if [ -n "$DISK_DEVICE" ]; then
+  # 파티션 존재 여부 확인 및 포맷
+  if ! blkid $DISK_DEVICE; then
+    log_message "▶ 파티션이 없어 포맷 진행"
+    mkfs.ext4 -m 0 -F -E lazy_itable_init=0,lazy_journal_init=0,discard $DISK_DEVICE
+  fi
+
+  # fstab에 마운트 설정 추가
+  UUID=$(blkid -s UUID -o value $DISK_DEVICE)
+  if ! grep -q $UUID /etc/fstab; then
+    log_message "▶ fstab에 마운트 설정 추가"
+    echo "UUID=$UUID $MOUNT_PATH ext4 discard,defaults,nofail 0 2" >> /etc/fstab
+  fi
+
+  # 마운트
+  mount $MOUNT_PATH || mount -a
+
+  # 마운트 확인
+  if mount | grep -q "$MOUNT_PATH"; then
+    log_message "✅ 영구 디스크 마운트 완료: $MOUNT_PATH"
+    df -h $MOUNT_PATH >> $LOGFILE
+
+    #############################################
+    # 1-1. Docker 데이터 경로 PD로 설정 (추가됨)
+    #############################################
+    log_message "▶ Docker 데이터 경로를 영구 디스크($DOCKER_DATA_ROOT_ON_PD)로 설정 시도"
+
+    # 1. PD 내 Docker 데이터 디렉토리 생성
+    if mkdir -p "$DOCKER_DATA_ROOT_ON_PD"; then
+      log_message "✅ Docker 데이터 디렉토리 생성 완료: $DOCKER_DATA_ROOT_ON_PD"
+    else
+      log_message "❌ Docker 데이터 디렉토리 생성 실패: $DOCKER_DATA_ROOT_ON_PD. Docker 경로 변경 건너뜀."
+      # 실패 시 기존 경로 사용하도록 여기서 더 이상 진행하지 않을 수 있음 (선택)
+      # 또는 오류 로깅 후 계속 진행하여 Docker 기본 경로를 사용하게 둘 수 있음
+    fi
+
+    # 2. Docker 데몬 설정 파일 생성 (/etc/docker/daemon.json)
+    log_message "▶ Docker 데몬 설정 파일(/etc/docker/daemon.json) 생성 중..."
+    # 기존 설정이 있을 수 있으므로 jq로 병합하는 것이 안전하나,
+    # 스타트업 스크립트에서는 덮어쓰는 것이 간단할 수 있음.
+    # 여기서는 간단하게 cat으로 생성 (기존 파일이 있다면 덮어써짐)
+    cat <<EOF > /etc/docker/daemon.json
+{
+  "data-root": "$DOCKER_DATA_ROOT_ON_PD"
+}
+EOF
+
+    if [ $? -eq 0 ]; then
+      log_message "✅ /etc/docker/daemon.json 파일 생성/수정 완료."
+      
+      # 3. Docker 서비스 재시작 (변경된 설정 적용)
+      # Docker 서비스가 이미 실행 중일 수 있으므로 restart 사용
+      log_message "▶ Docker 서비스 재시작하여 새 데이터 경로 적용 중..."
+      if systemctl restart docker; then
+        log_message "✅ Docker 서비스 재시작 성공. 데이터 경로는 이제 $DOCKER_DATA_ROOT_ON_PD 입니다."
+      else
+        log_message "❌ Docker 서비스 재시작 실패. Docker 기본 경로가 사용될 수 있습니다."
+        # 재시작 실패 시 원인 파악 필요 (journalctl -u docker)
+      fi
+    else
+       log_message "❌ /etc/docker/daemon.json 파일 생성 실패. Docker 경로 변경 실패."
+    fi
+    #############################################
+    # Docker 설정 끝
+    #############################################
+
+  else
+    log_message "❌ 디스크 마운트 실패"
+    # 마운트 실패 시 PD 사용 불가, Docker 경로는 기본값(/var/lib/docker) 유지됨
+  fi
+else
+  log_message "❌ 디스크 장치를 찾을 수 없어 마운트 건너뜀"
+  # 디스크 없음, Docker 경로는 기본값(/var/lib/docker) 유지됨
+fi
+
+# 시스템 패키지 업데이트 (원래 스크립트에서 이 부분이 앞에 있었음)
 log_message "▶ 시스템 패키지 업데이트 중..."
 if apt-get update && apt-get upgrade -y; then
   log_message "✅ 시스템 패키지 업데이트 완료"
@@ -19,19 +160,42 @@ else
 fi
 
 ##########################
-# 1. NVIDIA 드라이버 설치
+# 2. NVIDIA 드라이버 설치
 ##########################
-log_message "▶ NVIDIA 드라이버 및 CUDA는 이미 딥러닝 VM 이미지에 설치되어 있음"
-# 설치 확인
+log_message "▶ NVIDIA 드라이버 확인 및 필요시 설치 시작"
+
+# 먼저 드라이버가 이미 설치되어 있는지 확인
 if nvidia-smi &> /dev/null; then
-  log_message "✅ NVIDIA 드라이버 확인 완료"
+  log_message "✅ NVIDIA 드라이버가 이미 설치되어 있고 정상 작동 중입니다"
 else
-  log_message "❌ NVIDIA 드라이버 확인 실패! 시스템에 설치되지 않았거나 문제가 있습니다."
-  # Discord로 알림 전송
-  curl -H "Content-Type: application/json" \
-       -X POST \
-       -d '{"content": "🚨 NVIDIA 드라이버 문제 발생: GPU를 사용할 수 없습니다."}' \
-       "${WEBHOOK_URL}"
+  log_message "⚠️ NVIDIA 드라이버가 설치되지 않았거나 작동하지 않습니다"
+  
+  # 드라이버 설치 스크립트가 있는지 확인
+  if [ -f /opt/deeplearning/install-driver.sh ]; then
+    log_message "▶ NVIDIA 드라이버 자동 설치 시작..."
+    
+    # 드라이버 자동 설치 실행 (--silent 옵션으로 프롬프트 없이 설치)
+    /opt/deeplearning/install-driver.sh --silent
+    
+    # 설치 후 다시 확인
+    if nvidia-smi &> /dev/null; then
+      log_message "✅ NVIDIA 드라이버 설치 및 확인 완료"
+    else
+      log_message "❌ NVIDIA 드라이버 설치 시도했으나 여전히 작동하지 않습니다"
+      # Discord로 알림 전송
+      curl -H "Content-Type: application/json" \
+           -X POST \
+           -d '{"content": "🚨 NVIDIA 드라이버 문제 발생: 자동 설치 시도했으나 GPU를 사용할 수 없습니다."}' \
+           "${WEBHOOK_URL}"
+    fi
+  else
+    log_message "❌ NVIDIA 드라이버 설치 스크립트를 찾을 수 없습니다: /opt/deeplearning/install-driver.sh"
+    # Discord로 알림 전송
+    curl -H "Content-Type: application/json" \
+         -X POST \
+         -d '{"content": "🚨 NVIDIA 드라이버 문제 발생: 설치 스크립트를 찾을 수 없어 GPU를 사용할 수 없습니다."}' \
+         "${WEBHOOK_URL}"
+  fi
 fi
 
 # 8080 포트를 점유하는 주피터 끄기. ( 딥러닝 이미지에 있는거임)
@@ -162,78 +326,7 @@ fi
 ##################################
 # 4. Docker 설정 (이미 설치됨)
 ##################################
-# 영구 디스크 감지 및 마운트 스크립트
-log_message "▶ 영구 디스크 감지 및 마운트 시작"
-DISK_NAME="spot-persistent-disk"
-MOUNT_PATH="/mnt/disks/pd"
 
-# 디스크 존재 여부 확인
-if lsblk | grep -q "google-$DISK_NAME"; then
-  log_message "✅ 영구 디스크 찾음: $DISK_NAME"
-  
-  # 마운트 지점 생성
-  mkdir -p $MOUNT_PATH
-  
-  # 파티션 존재 여부 확인
-  if ! blkid /dev/disk/by-id/google-$DISK_NAME; then
-    log_message "▶ 파티션이 없어 포맷 진행"
-    mkfs.ext4 -m 0 -F -E lazy_itable_init=0,lazy_journal_init=0,discard /dev/disk/by-id/google-$DISK_NAME
-  fi
-  
-  # fstab에 마운트 설정 추가
-  echo "UUID=$(blkid -s UUID -o value /dev/disk/by-id/google-$DISK_NAME) $MOUNT_PATH ext4 discard,defaults,nofail 0 2" >> /etc/fstab
-  
-  # 마운트
-  mount $MOUNT_PATH
-  
-  log_message "✅ 영구 디스크 마운트 완료: $MOUNT_PATH"
-else
-  log_message "⚠️ 영구 디스크를 찾을 수 없음: $DISK_NAME"
-fi
-# Docker 데이터 디렉토리를 영구 디스크로 변경
-if [ -d "/mnt/disks/pd" ]; then
-  # 영구 디스크에 Docker 디렉토리 생성
-  mkdir -p /mnt/disks/pd/docker
-  
-  # Docker 서비스 중지
-  systemctl stop docker
-  
-  # Docker 설정 파일 수정 (데이터 루트 변경)
-  cat > /etc/docker/daemon.json <<EOF
-{
-  "data-root": "/mnt/disks/pd/docker",
-  "runtimes": {
-    "nvidia": {
-      "path": "nvidia-container-runtime",
-      "runtimeArgs": []
-    }
-  }
-}
-EOF
-  
-  # 기존 이미지 옮기기 (선택사항)
-  if [ -d "/var/lib/docker" ] && [ ! -L "/var/lib/docker" ]; then
-    rsync -aqxP /var/lib/docker/ /mnt/disks/pd/docker/
-  fi
-  
-  # Docker 서비스 재시작
-  systemctl daemon-reload
-  systemctl start docker
-  
-  log_message "✅ Docker 데이터 디렉토리를 영구 디스크로 변경 완료"
-fi
-log_message "▶ Docker 및 NVIDIA Container Toolkit은 이미 딥러닝 VM 이미지에 설치되어 있음"
-# 설정 확인
-if docker info | grep -i nvidia &> /dev/null; then
-  log_message "✅ Docker NVIDIA 설정 확인 완료 - GPU 사용 가능"
-else
-  log_message "❌ Docker에서 NVIDIA 런타임을 찾을 수 없습니다. GPU 컨테이너 실행이 불가능할 수 있습니다."
-  # Discord로 알림 전송
-  curl -H "Content-Type: application/json" \
-       -X POST \
-       -d '{"content": "🚨 Docker NVIDIA 설정 문제: 서버 $(hostname)에서 Docker가 GPU를 인식하지 못합니다."}' \
-       "${WEBHOOK_URL}"
-fi
 
 ###################################
 # 6. 모니터링 에이전트 설치
@@ -245,27 +338,40 @@ mkdir -p /opt/monitoring
 cd /opt/monitoring
 
 # 1. NVIDIA DCGM Exporter 설치 - GPU 메트릭 수집
-# NVIDIA DCGM Exporter 실행 개선
-log_message "▶ NVIDIA DCGM Exporter 실행 중..."
-# 먼저 이전 컨테이너 제거 (있는 경우)
-docker rm -f dcgm-exporter 2>/dev/null || true
+log_message "▶ NVIDIA DCGM Exporter 실행 시도 중..."
+# 이전 컨테이너가 남아있을 수 있으므로 실행 전 삭제
+docker rm -f dcgm-exporter > /dev/null 2>&1 || true
 
-# 최신 안정 버전 사용 및 재시도 로직 추가
+# ───────────────────────────────────────────────────────────
+# 수정된 버전: --privileged 추가, KUBERNETES=0 설정
+# ───────────────────────────────────────────────────────────
 if docker run -d --restart=unless-stopped \
    --name dcgm-exporter \
    --gpus all \
+   --privileged \
    -p 9400:9400 \
    -e DCGM_EXPORTER_KUBERNETES=0 \
-   nvidia/dcgm-exporter:2.4.6-2.6.10-ubuntu20.04; then
-   log_message "✅ NVIDIA DCGM Exporter 실행 성공"
+   nvcr.io/nvidia/k8s/dcgm-exporter:4.2.3-4.1.1-ubuntu22.04; then
+   log_message "✅ NVIDIA DCGM Exporter 실행 성공 (nvcr.io/nvidia/k8s/dcgm-exporter:4.2.3-4.1.1-ubuntu22.04)"
 else
-   log_message "⚠️ 최신 버전 DCGM Exporter 실패, 대체 버전 시도..."
-   docker run -d --restart=unless-stopped \
+   log_message "⚠️ 첫 번째 DCGM Exporter 버전 실행 실패, Docker Hub latest로 재시도..."
+   docker rm -f dcgm-exporter > /dev/null 2>&1 || true # 재시도 전에도 삭제 시도
+
+   # Docker Hub latest 태그로 재시도 시에도 동일 옵션 적용
+   if docker run -d --restart=unless-stopped \
      --name dcgm-exporter \
      --gpus all \
+     --privileged \
      -p 9400:9400 \
-     nvidia/dcgm-exporter:latest
+     -e DCGM_EXPORTER_KUBERNETES=0 \
+     nvidia/dcgm-exporter:latest; then
+     log_message "✅ NVIDIA DCGM Exporter 실행 성공 (nvidia/dcgm-exporter:latest)"
+   else
+     log_message "❌ 모든 버전의 DCGM Exporter 실행 실패."
+     # 필요시 실패 알림 추가
+   fi
 fi
+
 # 2. Node Exporter 설치 - 시스템 메트릭 수집
 log_message "▶ Node Exporter 실행 중..."
 docker run -d --restart=unless-stopped \
@@ -474,108 +580,113 @@ curl -H "Content-Type: application/json" \
 ###################################
 log_message "▶ GitHub Actions 셀프호스팅 러너 설치 시작"
 
-# 작업 디렉토리 생성
-mkdir -p /opt/actions-runner
-cd /opt/actions-runner
+# --- 추가: 영구 디스크 마운트 확인 ---
+# 이 섹션이 실행되기 전에 PD가 /mnt/disks/pd 에 마운트되었는지 확인하는 것이 좋습니다.
+# (앞선 섹션 1에서 마운트 실패 시 이 부분을 건너뛰거나 로그를 남길 수 있습니다.)
+if ! mount | grep -q "/mnt/disks/pd"; then
+  log_message "❌ 영구 디스크(/mnt/disks/pd)가 마운트되지 않아 GitHub Actions 러너 설치를 건너<0xEB><0x9A><0x81>니다."
+  # 필요시 여기서 스크립트 실행을 중단하거나 다음 단계로 넘어갈 수 있습니다.
+  # exit 1 # 또는 다른 처리
+else
+  log_message "✅ 영구 디스크 확인됨. 러너를 /mnt/disks/pd/actions-runner 에 설치합니다."
 
-# 러너 패키지 다운로드
-log_message "▶ GitHub Actions 러너 패키지 다운로드 중..."
-curl -o actions-runner-linux-x64-2.323.0.tar.gz -L https://github.com/actions/runner/releases/download/v2.323.0/actions-runner-linux-x64-2.323.0.tar.gz
+  # 작업 디렉토리를 영구 디스크 내에 생성
+  RUNNER_BASE_DIR="/mnt/disks/pd/actions-runner" # PD 내 경로 지정
+  mkdir -p "$RUNNER_BASE_DIR"
+  cd "$RUNNER_BASE_DIR" # 작업 디렉토리를 PD 내로 변경
 
-# 해시 검증
-log_message "▶ 패키지 해시 검증 중..."
-echo "0dbc9bf5a58620fc52cb6cc0448abcca964a8d74b5f39773b7afcad9ab691e19  actions-runner-linux-x64-2.323.0.tar.gz" | shasum -a 256 -c
+  # 러너 패키지 다운로드 (동일)
+  log_message "▶ GitHub Actions 러너 패키지 다운로드 중..."
+  curl -o actions-runner-linux-x64-2.323.0.tar.gz -L https://github.com/actions/runner/releases/download/v2.323.0/actions-runner-linux-x64-2.323.0.tar.gz
 
-# 압축 해제
-log_message "▶ 러너 패키지 압축 해제 중..."
-tar xzf ./actions-runner-linux-x64-2.323.0.tar.gz
+  # 해시 검증 (동일)
+  log_message "▶ 패키지 해시 검증 중..."
+  echo "0dbc9bf5a58620fc52cb6cc0448abcca964a8d74b5f39773b7afcad9ab691e19  actions-runner-linux-x64-2.323.0.tar.gz" | shasum -a 256 -c
 
-# 필요한 패키지 설치
-log_message "▶ 필요한 의존성 패키지 설치 중..."
-apt-get update
-apt-get install -y jq git curl libicu-dev
+  # 압축 해제 (변경된 작업 디렉토리에서 실행)
+  log_message "▶ 러너 패키지 압축 해제 중..."
+  tar xzf ./actions-runner-linux-x64-2.323.0.tar.gz
+  rm ./actions-runner-linux-x64-2.323.0.tar.gz # 압축 해제 후 tar 파일 삭제 (선택 사항)
 
-# Docker 소켓 권한 조정
-log_message "▶ Docker 소켓 권한 조정 중..."
-chmod 666 /var/run/docker.sock
+  # 필요한 패키지 설치 (동일)
+  log_message "▶ 필요한 의존성 패키지 설치 중..."
+  apt-get update
+  apt-get install -y jq git curl libicu-dev
 
-# Docker 서비스 재시작 시에도 권한 유지되도록 설정
-mkdir -p /etc/systemd/system/docker.service.d
-cat > /etc/systemd/system/docker.service.d/override.conf << EOF
+  # Docker 소켓 권한 조정 (동일, 러너가 Docker 사용 시 필요)
+  log_message "▶ Docker 소켓 권한 조정 중..."
+  chmod 666 /var/run/docker.sock
+  # Docker 재시작 시 권한 유지 설정 (동일)
+  mkdir -p /etc/systemd/system/docker.service.d
+  cat > /etc/systemd/system/docker.service.d/override.conf << EOF
 [Service]
 ExecStartPost=/bin/chmod 666 /var/run/docker.sock
 EOF
-systemctl daemon-reload
-systemctl restart docker
+  systemctl daemon-reload
+  systemctl restart docker
 
-# 러너 구성 - 유저 생성 및 권한 설정
-log_message "▶ 러너 실행을 위한 사용자 설정 중..."
-useradd -m github-runner || true
+  # 러너 구성 - 유저 생성 및 권한 설정 (동일)
+  log_message "▶ 러너 실행을 위한 사용자 설정 중..."
+  useradd -m github-runner || true
+  usermod -aG docker github-runner # 러너가 Docker 사용 시 권한 부여
 
-# GitHub Actions 러너 사용자에게 Docker 권한 부여
-log_message "▶ GitHub Actions 러너 사용자에게 Docker 권한 부여 중..."
-usermod -aG docker github-runner
+  # 디렉토리 권한 설정 (변경된 경로에 적용)
+  chown -R github-runner:github-runner "$RUNNER_BASE_DIR"
 
-# 디렉토리 권한 설정
-chown -R github-runner:github-runner /opt/actions-runner
+  # GitHub Token 임시 파일 저장 (동일)
+  echo "${GITHUB_TOKEN}" > /tmp/github_token.txt
+  chmod 600 /tmp/github_token.txt
 
-# GitHub Token을 임시 파일에 저장
-echo "${GITHUB_TOKEN}" > /tmp/github_token.txt
-chmod 600 /tmp/github_token.txt
+  # GitHub 레포 정보 및 러너 토큰 요청 (동일)
+  log_message "▶ GitHub 레포지토리 정보 설정..."
+  OWNER="100-hours-a-week"
+  REPO="8-pumati-ai"
+  log_message "▶ GitHub Actions 러너 토큰 요청 중..."
+  GITHUB_PAT=$(cat /tmp/github_token.txt)
+  RUNNER_TOKEN=$(curl -s -X POST \
+    -H "Authorization: token $GITHUB_PAT" \
+    -H "Accept: application/vnd.github.v3+json" \
+    "https://api.github.com/repos/$OWNER/$REPO/actions/runners/registration-token" \
+    | jq -r .token)
 
-# GitHub 레포지토리 정보 설정 ($ 형식으로 변수 선언)
-log_message "▶ GitHub 레포지토리 정보 설정..."
-OWNER="100-hours-a-week"
-REPO="8-pumati-ai"
+  # 토큰 확인 (동일)
+  if [ -z "$RUNNER_TOKEN" ] || [ "$RUNNER_TOKEN" = "null" ]; then
+    log_message "❌ 러너 토큰을 가져오지 못했습니다. GitHub 토큰 권한을 확인하세요."
+    # ... (오류 처리 및 알림) ...
+    exit 1
+  fi
+  log_message "✅ 러너 토큰을 성공적으로 가져왔습니다."
 
-# API를 통해 러너 등록 토큰 요청 ($ 형식 사용)
-log_message "▶ GitHub Actions 러너 토큰 요청 중..."
-GITHUB_PAT=$(cat /tmp/github_token.txt)
-RUNNER_TOKEN=$(curl -s -X POST \
-  -H "Authorization: token $GITHUB_PAT" \
-  -H "Accept: application/vnd.github.v3+json" \
-  "https://api.github.com/repos/$OWNER/$REPO/actions/runners/registration-token" \
-  | jq -r .token)
+  # 러너 구성 (변경된 작업 디렉토리에서 실행, github-runner 사용자로 실행)
+  log_message "▶ GitHub Actions 러너 구성 중..."
+  # cd "$RUNNER_BASE_DIR" # 이미 해당 디렉토리에 있음
+  sudo -u github-runner ./config.sh --url "https://github.com/$OWNER/$REPO" --token "$RUNNER_TOKEN" --name "gpu-runner-$(hostname)-pd" --labels "gpu,self-hosted,pd-cache" --work "$RUNNER_BASE_DIR/_work" --unattended # 작업 디렉토리 명시 (--work)
 
-# 토큰 확인
-if [ -z "$RUNNER_TOKEN" ] || [ "$RUNNER_TOKEN" = "null" ]; then
-  log_message "❌ 러너 토큰을 가져오지 못했습니다. GitHub 토큰 권한을 확인하세요."
+  # 임시 토큰 파일 삭제 (동일)
+  rm -f /tmp/github_token.txt
+
+  # 러너를 서비스로 설치 (변경된 작업 디렉토리에서 실행)
+  log_message "▶ GitHub Actions 러너를 서비스로 설치 중..."
+  ./svc.sh install github-runner
+
+  # 서비스 시작 (동일)
+  log_message "▶ GitHub Actions 러너 서비스 시작 중..."
+  ./svc.sh start
+
+  # 서비스 상태 확인 (동일)
+  log_message "▶ GitHub Actions 러너 서비스 상태 확인..."
+  ./svc.sh status
+
+  # Discord 알림 전송 (동일)
   curl -H "Content-Type: application/json" \
-       -X POST \
-       -d "{\"content\": \"❌ GitHub Actions 러너 토큰 발급 실패. 호스트: $(hostname)\"}" \
-       "${WEBHOOK_URL}"
-  exit 1
-fi
+      -X POST \
+      -d "{\"content\": \"✅ GitHub Actions 러너가 설치되었습니다. 호스트: $(hostname), 레이블: gpu,self-hosted,pd-cache, 설치 경로: $RUNNER_BASE_DIR\"}" \
+      "${WEBHOOK_URL}"
 
-log_message "✅ 러너 토큰을 성공적으로 가져왔습니다."
+  log_message "✅ GitHub Actions 셀프호스팅 러너 설치 완료 (PD 경로: $RUNNER_BASE_DIR)"
 
-# 러너 구성 ($ 형식 사용)
-log_message "▶ GitHub Actions 러너 구성 중..."
-cd /opt/actions-runner
-sudo -u github-runner ./config.sh --url "https://github.com/$OWNER/$REPO" --token "$RUNNER_TOKEN" --name "gpu-runner-$(hostname)" --labels "gpu,self-hosted" --unattended
+fi # 영구 디스크 마운트 확인 if 블록 종료
 
-# 임시 토큰 파일 삭제
-rm -f /tmp/github_token.txt
-
-# 러너를 서비스로 설치
-log_message "▶ GitHub Actions 러너를 서비스로 설치 중..."
-./svc.sh install github-runner
-
-# 서비스 시작
-log_message "▶ GitHub Actions 러너 서비스 시작 중..."
-./svc.sh start
-
-# 서비스 상태 확인
-log_message "▶ GitHub Actions 러너 서비스 상태 확인..."
-./svc.sh status
-
-# Discord로 알림 전송
-curl -H "Content-Type: application/json" \
-     -X POST \
-     -d "{\"content\": \"✅ GitHub Actions 러너가 설치되었습니다. 호스트: $(hostname), 레이블: gpu,self-hosted\"}" \
-     "${WEBHOOK_URL}"
-
-log_message "✅ GitHub Actions 셀프호스팅 러너 설치 완료"
 ###################################
 # 9. 도커 이미지 가져오기 및 실행
 ###################################
@@ -701,29 +812,29 @@ if docker run --gpus all -d --restart unless-stopped --name ai -p 8080:8080 "$IM
     done
   fi
 
-    # /health 엔드포인트 확인
-  for i in $(seq 1 10); do
-    if curl -sf "http://localhost:8080/health"; then
-      log_message "✅ AI 서비스 응답 확인 (엔드포인트: /health)"
-      HEALTH_SUCCESS=true
-      break
-    fi
-    log_message "⏳ 헬스체크 재시도 $i/10 (엔드포인트: /health)..."
-    sleep 5
-  done
+  #   # /health 엔드포인트 확인
+  # for i in $(seq 1 10); do
+  #   if curl -sf "http://localhost:8080/health"; then
+  #     log_message "✅ AI 서비스 응답 확인 (엔드포인트: /health)"
+  #     HEALTH_SUCCESS=true
+  #     break
+  #   fi
+  #   log_message "⏳ 헬스체크 재시도 $i/10 (엔드포인트: /health)..."
+  #   sleep 5
+  # done
 
-  # 두 번째 실패시 루트 경로 확인
-  if [ "$HEALTH_SUCCESS" = false ]; then
-    for i in $(seq 1 10); do
-      if curl -sf "http://localhost:8080/status"; then
-        log_message "✅ AI 서비스 응답 확인 (엔드포인트: /status)"
-        HEALTH_SUCCESS=true
-        break
-      fi
-      log_message "⏳ 헬스체크 재시도 $i/10 (엔드포인트: /status)..."
-      sleep 5
-    done
-  fi
+  # # 두 번째 실패시 루트 경로 확인
+  # if [ "$HEALTH_SUCCESS" = false ]; then
+  #   for i in $(seq 1 10); do
+  #     if curl -sf "http://localhost:8080/status"; then
+  #       log_message "✅ AI 서비스 응답 확인 (엔드포인트: /status)"
+  #       HEALTH_SUCCESS=true
+  #       break
+  #     fi
+  #     log_message "⏳ 헬스체크 재시도 $i/10 (엔드포인트: /status)..."
+  #     sleep 5
+  #   done
+  # fi
   
   if [ "$HEALTH_SUCCESS" = false ]; then
     log_message "⚠️ 헬스체크 응답 없음: 서비스가 다른 방식으로 실행 중일 수 있음"
@@ -912,7 +1023,8 @@ get_remote_digest() {
   fi
   
   # 다이제스트만 출력 (echo는 함수 마지막에 한 번만)
-  echo "$digest"
+  # 불필요한 공백 및 개행 문자를 확실히 제거
+  echo "$digest" | tr -d '[:space:]'
 }
 
 # 로컬 다이제스트 가져오는 함수 수정 - 이미지 ID를 사용하여 다이제스트 찾기
@@ -963,7 +1075,8 @@ get_local_digest() {
   fi
   
   # 다이제스트 값만 반환
-  echo "$digest"
+  # 불필요한 공백 및 개행 문자를 확실히 제거
+  echo "$digest" | tr -d '[:space:]'
 }
 
 while true; do
@@ -1133,21 +1246,22 @@ while true; do
     fi
   else
     # 3. 원격 저장소에서 이미지 메타데이터 확인 (개선된 함수 사용)
-    REMOTE_DIGEST=$(get_remote_digest "$IMAGE")
-    
+    REMOTE_DIGEST=$(get_remote_digest "$IMAGE" | tr -d '[:space:]') 
+    log_message "  원격 다이제스트 값: <$REMOTE_DIGEST>" # 값 확인용 로그
+
     # 4. 로컬 이미지 정보 가져오기 (개선된 함수 사용)
-    LOCAL_DIGEST=$(get_local_digest "$IMAGE:latest")
-    
-    # 디버깅 로그 개선
-    echo "[$TIMESTAMP] 다이제스트 정보:" | tee -a "$LOGFILE"
-    echo "[$TIMESTAMP] 원격 (Schema-2): $REMOTE_DIGEST" | tee -a "$LOGFILE"
-    echo "[$TIMESTAMP] 로컬 (RepoDigests): $LOCAL_DIGEST" | tee -a "$LOGFILE"
-    
+    LOCAL_DIGEST=$(get_local_digest "$IMAGE:latest" | tr -d '[:space:]')
+    log_message "  로컬 다이제스트 값: <$LOCAL_DIGEST>" # 값 확인용 로그
+
+    # 디버깅 로그 개선 -> log_message 사용으로 변경
+    log_message "[비교] 다이제스트 정보:"
+    log_message "  원격: <$REMOTE_DIGEST>"
+    log_message "  로컬: <$LOCAL_DIGEST>"
+
     # 비교 전 다이제스트 유효성 검사 강화
     if [ -z "$REMOTE_DIGEST" ] || [ -z "$LOCAL_DIGEST" ]; then
-      echo "[$TIMESTAMP] ⚠️ 다이제스트 정보 불완전함 - 업데이트 건너뜀" | tee -a "$LOGFILE"
-      # 유효한 로컬 이미지가 있으면 작동 중인 이미지 ID 저장
-      if [ -n "$LOCAL_DIGEST" ]; then
+      log_message "⚠️ 다이제스트 정보 불완전함 - 업데이트 건너뜀 (원격: '$REMOTE_DIGEST', 로컬: '$LOCAL_DIGEST')"
+      if [ -n "$LOCAL_DIGEST" ] && [ -n "$CONTAINER_RUNNING" ]; then
         save_working_image "$CONTAINER_RUNNING"
       fi
       sleep 60
@@ -1155,12 +1269,15 @@ while true; do
     fi
     
     # 5. 정확한 Schema-2 Manifest 다이제스트 비교
-    if [ "$REMOTE_DIGEST" = "$LOCAL_DIGEST" ]; then
-      echo "[$TIMESTAMP] ✅ 다이제스트 일치 - 업데이트 불필요" | tee -a "$LOGFILE"
+    if [ "$REMOTE_DIGEST" = "$LOCAL_DIGEST" ]; then # 이제 비교가 정확해질 것으로 예상
+      log_message "✅ 다이제스트 일치 - 업데이트 불필요"
+      # 일치 시에도 현재 작동 이미지 저장 (롤백 대비)
+      save_working_image "$CONTAINER_RUNNING"
     else
-      echo "[$TIMESTAMP] 새 이미지 감지됨! 다이제스트 불일치." | tee -a "$LOGFILE"
-      echo "[$TIMESTAMP] 🔄 다이제스트 불일치 감지 - 검증 중..." | tee -a "$LOGFILE"
-      echo "[$TIMESTAMP] 이미지 pull 및 재시작 중..." | tee -a "$LOGFILE"
+      log_message "🔄 다이제스트 불일치 감지!"
+      log_message "  원격: <$REMOTE_DIGEST>"
+      log_message "  로컬: <$LOCAL_DIGEST>"
+      log_message "▶ 이미지 pull 및 재시작 중..."
       
       # 웹훅으로 업데이트 시작 알림 및 다이제스트 정보 전송
       curl -H "Content-Type: application/json" -X POST -d '{
@@ -1202,42 +1319,43 @@ while true; do
             "text": "🔄 이미지 업데이트 시작"
           }
         }]
-      }' "$WEBHOOK_URL_AI"
+      }' "$WEBHOOK_URL"
       
       # 업데이트 전에 현재 작동 중인 이미지 저장 (롤백용)
       save_working_image "$CONTAINER_RUNNING"
       
       # 새 이미지 pull
       if docker pull "$IMAGE:latest" > /dev/null 2>&1; then
-        # 새 이미지가 로드될 시간을 주기 위해 짧게 대기
-        sleep 2
-        
-        # 새 이미지의 다이제스트 확인 (추가 검증)
-        NEW_LOCAL_DIGEST=$(get_local_digest "$IMAGE:latest")
-        
-        echo "[$TIMESTAMP] pull 후 새 로컬 다이제스트: $NEW_LOCAL_DIGEST" | tee -a "$LOGFILE"
-        
-        # 새 이미지 다이제스트 유효성 검사 - 비어있지 않은지만 확인하고 진행
+        sleep 2 # 새 이미지 로드 대기
+
+        # 새 이미지 다이제스트 확인 (불필요 문자 제거 포함)
+        NEW_LOCAL_DIGEST=$(get_local_digest "$IMAGE:latest" | tr -d '[:space:]')
+        log_message "  Pull 후 새 로컬 다이제스트: <$NEW_LOCAL_DIGEST>"
+
+        # 새 이미지 다이제스트 유효성 검사
         if [ -z "$NEW_LOCAL_DIGEST" ]; then
-          echo "[$TIMESTAMP] ⚠️ 새 다이제스트를 가져올 수 없음 - 재시작 건너뜀" | tee -a "$LOGFILE"
+          log_message "⚠️ 새 다이제스트를 가져올 수 없음 - 재시작 건너뜀"
           sleep 10
           continue
         fi
         
         # pull 후에 이미지 변경 감지 (이전 로컬 다이제스트와 새 다이제스트 비교)
+        # 주의: $LOCAL_DIGEST는 루프 시작 시점의 값임
         if [ "$NEW_LOCAL_DIGEST" = "$LOCAL_DIGEST" ]; then
-          echo "[$TIMESTAMP] ⚠️ pull 후에도 다이제스트 변경 없음 - 재시작 건너뜀" | tee -a "$LOGFILE"
-          sleep 10
-          continue
+           log_message "⚠️ pull 후에도 다이제스트 변경 없음 (이전 로컬: <$LOCAL_DIGEST>, 새 로컬: <$NEW_LOCAL_DIGEST>) - 재시작 건너뜀"
+           sleep 10
+           continue
         fi
-        
+
         # 기존 컨테이너 중지 및 제거
+        log_message "▶ 기존 컨테이너 중지/제거 중..."
         docker stop "$NAME" >/dev/null 2>&1
         docker rm "$NAME" >/dev/null 2>&1
-        
+
         # 새 컨테이너 실행
+        log_message "▶ 새 이미지로 컨테이너 시작 중..."
         if docker run --gpus all -d --restart unless-stopped --name "$NAME" -p 8080:8080 "$IMAGE:latest"; then
-          echo "[$TIMESTAMP] ✅ 새 이미지로 컨테이너 재시작 성공" | tee -a "$LOGFILE"
+          log_message "✅ 새 이미지로 컨테이너 재시작 성공"
           
           # 현재 시간 (KST)
           CURRENT_TIME=$(TZ='Asia/Seoul' date '+%Y년 %m월 %d일 %H:%M:%S')
@@ -1301,7 +1419,7 @@ while true; do
                 "text": "🏆 ktb8team AI 서비스 배포 시스템 - '"$(hostname)"' 🛠️"
               }
             }]
-          }' "$WEBHOOK_URL_AI"
+          }' "$WEBHOOK_URL"
           
           # 이미지 배포 후 오래된 이미지 정리 (최신 3개 유지)
           OLD_IMAGES=$(docker images "$IMAGE" --format "{{.ID}}" | grep -v "$(docker inspect -f '{{.Id}}' "$IMAGE:latest")" | tail -n +4)
@@ -1310,7 +1428,7 @@ while true; do
             echo "$OLD_IMAGES" | xargs -r docker rmi -f >> "$LOGFILE" 2>&1
           fi
         else
-          echo "[$TIMESTAMP] ❌ 컨테이너 재시작 실패" | tee -a "$LOGFILE"
+          log_message "❌ 컨테이너 재시작 실패" | tee -a "$LOGFILE"
           
           # 실패 시 로그 수집 (최대 50줄)
           CONTAINER_LOGS="$(docker logs $NAME 2>&1 | tail -n 50 || echo '로그를 가져올 수 없습니다')"
@@ -1369,7 +1487,7 @@ while true; do
             echo "[$TIMESTAMP] 🔄 이전 작동 이미지로 롤백 시도 중: $LAST_WORKING_IMAGE" | tee -a "$LOGFILE"
             
             if docker run --gpus all -d --restart unless-stopped --name "$NAME" -p 8080:8080 "$LAST_WORKING_IMAGE"; then
-              echo "[$TIMESTAMP] ✅ 이전 이미지로 롤백 성공" | tee -a "$LOGFILE"
+              log_message "✅ 이전 이미지로 롤백 성공" | tee -a "$LOGFILE"
               
               # 롤백 성공 알림
               curl -H "Content-Type: application/json" -X POST -d '{
@@ -1403,7 +1521,7 @@ while true; do
                 }]
               }' "$WEBHOOK_URL_AI"
             else
-              echo "[$TIMESTAMP] ❌ 롤백 실패" | tee -a "$LOGFILE"
+              log_message "❌ 롤백 실패" | tee -a "$LOGFILE"
             fi
           fi
         fi
@@ -1416,6 +1534,7 @@ while true; do
   fi
 
   sleep 20  # 검사 주기를 20초로 증가 (부하 감소)
+done # while 루프 종료
 EOT
 
 # 실행 권한 부여

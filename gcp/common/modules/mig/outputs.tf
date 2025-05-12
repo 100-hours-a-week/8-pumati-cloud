@@ -5,21 +5,21 @@
 # 로드 밸런서 연결 등에 사용
 output "instance_group" {
   description = "생성된 인스턴스 그룹 ID (로드 밸런서 백엔드 등에 사용)"
-  value       = google_compute_region_instance_group_manager.this.instance_group
+  value       = google_compute_instance_group_manager.this.instance_group
 }
 
 # 인스턴스 그룹 매니저 ID
 # MIG 식별을 위한 고유 ID
 output "instance_group_manager_id" {
   description = "생성된 인스턴스 그룹 매니저 ID (리소스 참조용)"
-  value       = google_compute_region_instance_group_manager.this.id
+  value       = google_compute_instance_group_manager.this.id
 }
 
 # 인스턴스 그룹 매니저 self_link
 # API 호출 등에 사용
 output "instance_group_manager_self_link" {
   description = "생성된 인스턴스 그룹 매니저 self_link (API 호출에 사용)"
-  value       = google_compute_region_instance_group_manager.this.self_link
+  value       = google_compute_instance_group_manager.this.self_link
 }
 
 # 인스턴스 템플릿 ID
@@ -47,14 +47,14 @@ output "health_check_self_link" {
 # 인스턴스가 어떤 존에 배포될 수 있는지 확인
 output "distribution_zones" {
   description = "MIG가 인스턴스를 배포할 수 있는 영역 목록"
-  value       = var.zones
+  value       = var.zone
 }
 
 # MIG 이름
 # 외부 스크립트에서 gcloud 등으로 조회할 때 사용
 output "mig_name" {
   description = "MIG 이름 (자동화 스크립트에서 사용)"
-  value       = google_compute_region_instance_group_manager.this.name
+  value       = google_compute_instance_group_manager.this.name
 }
 
 # GPU 유형 정보

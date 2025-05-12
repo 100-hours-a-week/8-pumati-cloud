@@ -72,3 +72,8 @@ output "persistent_disk_id" {
   description = "생성된 영구 디스크 ID"
   value       = module.persistent_disk.disk_id
 }
+
+output "persistent_disk_source" {
+  description = "생성된 영구 디스크의 self_link (인스턴스 템플릿 연결용)"
+  value       = module.persistent_disk.disk_source
+}

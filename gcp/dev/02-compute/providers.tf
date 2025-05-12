@@ -53,11 +53,14 @@ data "terraform_remote_state" "static" {
   }
 }
 
-# 01-static에서 생성된 영구 디스크 직접 조회
-data "google_compute_disk" "pd" {
-  name = data.terraform_remote_state.static.outputs.persistent_disk_name
-  zone = local.zone
+# pd 관련
+locals {
+  pd_name = data.terraform_remote_state.static.outputs.persistent_disk_name
+  spot_pd_self_link = data.terraform_remote_state.static.outputs.persistent_disk_source
+  pd_id = data.terraform_remote_state.static.outputs.persistent_disk_id
+  pd_zone = data.terraform_remote_state.static.outputs.persistent_disk_zone
 }
+
 
 # 시크릿 데이터 가져오기
 data "google_secret_manager_secret_version" "discord" {
@@ -110,7 +113,11 @@ locals {
       GITHUB_TOKEN   = local.github_token
       WEBHOOK_URL_AI = local.discord_webhook_ai
       # SA_KEY 대신 Base64 인코딩된 값을 전달
+      PROJECT_ID = local.project_id
       SA_KEY_CONTENT_BASE64 = local.sa_key_base64
+      DISK_NAME = local.pd_name
+      DISK_ID = local.pd_id
+      DISK_ZONE = local.pd_zone
     }
   )
 }
