@@ -6,11 +6,11 @@ variable "project_name" {
 }
 
 variable "environment" {
-  description = "환경 (dev, staging, prod)"
+  description = "환경 (dev, staging, prod, shared)"
   type        = string
   validation {
-    condition     = contains(["dev", "prod"], var.environment)
-    error_message = "environment는 'dev', 'prod' 중 하나여야 합니다."
+    condition     = contains(["dev", "staging", "prod", "shared"], var.environment)
+    error_message = "environment는 'dev', 'staging', 'prod', 'shared' 중 하나여야 합니다."
   }
 }
 
