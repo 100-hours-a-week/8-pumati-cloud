@@ -43,9 +43,9 @@ output "backend_sg_id" {
 }
 
 # ------------------------------------------------------------
-# DB 보안 그룹 출력값
+# Jenkins 보안 그룹 출력값
 # ------------------------------------------------------------
-output "db_sg_id" {
-  description = "DB 보안 그룹 ID"
-  value       = module.security_group.db_sg_id
+output "jenkins_sg_id" {
+  description = "Jenkins 보안 그룹 ID"
+  value       = module.security_group.jenkins_sg_id
 } 

@@ -2,12 +2,14 @@
 # 프론트엔드 인스턴스
 # ------------------------------------------------------------
 resource "aws_instance" "frontend" {
-  count = var.instance_type == "frontend" ? 1 : 0
+  count = var.instance_role == "frontend" ? 1 : 0
 
   ami           = var.instance_ami
-  instance_type = var.instance_size
+  instance_type = var.instance_type
   key_name      = var.instance_key_name
   subnet_id     = var.subnet_id
+
+  iam_instance_profile = var.iam_instance_profile
 
   vpc_security_group_ids = [var.frontend_security_group_id]
 
@@ -28,12 +30,14 @@ resource "aws_instance" "frontend" {
 # 백엔드 인스턴스
 # ------------------------------------------------------------
 resource "aws_instance" "backend" {
-  count = var.instance_type == "backend" ? 1 : 0
+  count = var.instance_role == "backend" ? 1 : 0
 
   ami           = var.instance_ami
-  instance_type = var.instance_size
+  instance_type = var.instance_type
   key_name      = var.instance_key_name
   subnet_id     = var.subnet_id
+
+  iam_instance_profile = var.iam_instance_profile
 
   vpc_security_group_ids = [var.backend_security_group_id]
 
@@ -50,30 +54,31 @@ resource "aws_instance" "backend" {
     Name = "${var.project_name}-${var.environment}-backend"
   })
 }
-
 # ------------------------------------------------------------
-# DB 인스턴스
+# Jenkins 인스턴스
 # ------------------------------------------------------------
-# resource "aws_instance" "db" {
-#   count = var.instance_type == "db" ? 1 : 0
+resource "aws_instance" "jenkins" {
+  count = var.instance_role == "jenkins" ? 1 : 0
 
-#   ami           = var.instance_ami
-#   instance_type = var.instance_size
-#   key_name      = var.instance_key_name
-#   subnet_id     = var.subnet_id
+  ami           = var.instance_ami
+  instance_type = var.instance_type
+  key_name      = var.instance_key_name
+  subnet_id     = var.subnet_id
 
-#   vpc_security_group_ids = [var.db_security_group_id]
+  iam_instance_profile = var.iam_instance_profile
 
-#   root_block_device {
-#     volume_size = var.root_volume_size
-#     volume_type = var.root_volume_type
-#     encrypted   = true
-#     tags        = merge(var.tags, {
-#       Name = "${var.project_name}-${var.environment}-db-root"
-#     })
-#   }
+  vpc_security_group_ids = [var.jenkins_security_group_id]
 
-#   tags = merge(var.tags, {
-#     Name = "${var.project_name}-${var.environment}-db"
-#   })
-# }
+  root_block_device {
+    volume_size = var.root_volume_size
+    volume_type = var.root_volume_type
+    encrypted   = true
+    tags        = merge(var.tags, {
+      Name = "${var.project_name}-${var.environment}-jenkins-root"
+    })
+  }
+
+  tags = merge(var.tags, {
+    Name = "${var.project_name}-${var.environment}-jenkins"
+  })
+}

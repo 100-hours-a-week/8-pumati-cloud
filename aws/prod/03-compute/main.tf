@@ -1,74 +1,55 @@
 # ------------------------------------------------------------
 # 프론트엔드 인스턴스
 # ------------------------------------------------------------
-resource "aws_instance" "frontend" {
-  ami           = var.instance_ami_linux
-  instance_type = var.instance_size
-  key_name      = var.instance_key_name
-  subnet_id     = local.public_subnet_id
+module "frontend" {
+  source = "../../common/module/instance"
 
-  vpc_security_group_ids = [local.frontend_sg_id]
+  # 프로젝트 설정
+  project_name = local.project_name
+  environment  = local.environment
+  tags         = local.common_tags
 
-  root_block_device {
-    volume_size = var.root_volume_size
-    volume_type = var.root_volume_type
-    encrypted   = true
-    tags        = merge(local.common_tags, {
-      Name = "${local.project_name}-${local.environment}-frontend-root"
-    })
-  }
+  # 인스턴스 설정
+  instance_role     = "frontend"
+  instance_type     = var.instance_type
+  instance_ami      = var.instance_ami_linux
+  instance_key_name = var.instance_key_name
 
-  tags = merge(local.common_tags, {
-    Name = "${local.project_name}-${local.environment}-frontend"
-  })
+  # 네트워크 설정
+  subnet_id = local.public_subnet_id
+
+  # 스토리지 설정
+  root_volume_size = var.root_volume_size
+  root_volume_type = var.root_volume_type
+
+  # 보안 그룹 설정
+  frontend_security_group_id = local.frontend_sg_id
 }
 
 # ------------------------------------------------------------
 # 백엔드 인스턴스
 # ------------------------------------------------------------
-resource "aws_instance" "backend" {
-  ami           = var.instance_ami_linux
-  instance_type = var.instance_size
-  key_name      = var.instance_key_name
-  subnet_id     = local.public_subnet_id
+module "backend" {
+  source = "../../common/module/instance"
 
-  vpc_security_group_ids = [local.backend_sg_id]
+  # 프로젝트 설정
+  project_name = local.project_name
+  environment  = local.environment
+  tags         = local.common_tags
 
-  root_block_device {
-    volume_size = var.root_volume_size
-    volume_type = var.root_volume_type
-    encrypted   = true
-    tags        = merge(local.common_tags, {
-      Name = "${local.project_name}-${local.environment}-backend-root"
-    })
-  }
+  # 인스턴스 설정
+  instance_role     = "backend"
+  instance_type     = var.instance_type
+  instance_ami      = var.instance_ami_linux
+  instance_key_name = var.instance_key_name
 
-  tags = merge(local.common_tags, {
-    Name = "${local.project_name}-${local.environment}-backend"
-  })
+  # 네트워크 설정
+  subnet_id = local.public_subnet_id
+
+  # 스토리지 설정
+  root_volume_size = var.root_volume_size
+  root_volume_type = var.root_volume_type
+
+  # 보안 그룹 설정
+  backend_security_group_id = local.backend_sg_id
 }
-
-# ------------------------------------------------------------
-# DB 인스턴스
-# ------------------------------------------------------------
-# resource "aws_instance" "db" {
-#   ami           = var.instance_ami_linux
-#   instance_type = var.instance_size
-#   key_name      = var.instance_key_name
-#   subnet_id     = local.public_subnet_id
-
-#   vpc_security_group_ids = [local.db_sg_id]
-
-#   root_block_device {
-#     volume_size = var.root_volume_size
-#     volume_type = var.root_volume_type
-#     encrypted   = true
-#     tags        = merge(local.common_tags, {
-#       Name = "${local.project_name}-${local.environment}-db-root"
-#     })
-#   }
-
-#   tags = merge(local.common_tags, {
-#     Name = "${local.project_name}-${local.environment}-db"
-#   })
-# }

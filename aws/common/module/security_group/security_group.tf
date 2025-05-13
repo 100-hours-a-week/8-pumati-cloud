@@ -96,11 +96,11 @@ resource "aws_security_group" "backend_sg" {
 }
 
 # ------------------------------------------------------------
-# DB 보안 그룹
+# Jenkins 보안 그룹
 # ------------------------------------------------------------
-resource "aws_security_group" "db_sg" {
-  name        = "${var.project_name}-${var.environment}-db-sg"
-  description = "Security group for database instance"
+resource "aws_security_group" "jenkins_sg" {
+  name        = "${var.project_name}-${var.environment}-jenkins-sg"
+  description = "Security group for Jenkins CI server"
   vpc_id      = var.vpc_id
 
   # SSH 접근 (모든 IP 허용)
@@ -112,25 +112,25 @@ resource "aws_security_group" "db_sg" {
     description = "SSH access from anywhere"
   }
 
-  # DB 접근 (백엔드로부터)
+  # Jenkins 웹 인터페이스 접근 (GitHub 웹훅 포함)
   ingress {
-    from_port       = 3306
-    to_port         = 3306
-    protocol        = "tcp"
-    security_groups = [aws_security_group.backend_sg.id]
-    description     = "MySQL access from backend"
+    from_port   = 8080
+    to_port     = 8080
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]  # GitHub 웹훅은 Jenkins 웹 인터페이스를 통해 들어옴
+    description = "Jenkins web interface and GitHub webhook access"
   }
 
-  # 모든 아웃바운드 트래픽 허용
+  # 모든 아웃바운드 트래픽 허용 (ECR 푸시를 위해 필요)
   egress {
     from_port   = 0
     to_port     = 0
     protocol    = "-1"
     cidr_blocks = ["0.0.0.0/0"]
-    description = "Allow all outbound traffic"
+    description = "Allow all outbound traffic for ECR push"
   }
 
   tags = merge(var.tags, {
-    Name = "${var.project_name}-${var.environment}-db-sg"
+    Name = "${var.project_name}-${var.environment}-jenkins-sg"
   })
-} 
+}

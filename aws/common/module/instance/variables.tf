@@ -20,13 +20,13 @@ variable "tags" {
 # ------------------------------------------------------------
 # 인스턴스 변수
 # ------------------------------------------------------------
-variable "instance_type" {
-  description = "인스턴스 타입 (frontend, backend, db)"
+variable "instance_role" {
+  description = "인스턴스 역할 (frontend, backend, jenkins)"
   type        = string
 }
 
-variable "instance_size" {
-  description = "인스턴스 크기 (예: t3.micro)"
+variable "instance_type" {
+  description = "인스턴스 유형 (예: t3.micro)"
   type        = string
 }
 
@@ -70,8 +70,17 @@ variable "backend_security_group_id" {
   default     = ""
 }
 
-variable "db_security_group_id" {
-  description = "DB 인스턴스에 연결할 보안 그룹 ID"
+variable "jenkins_security_group_id" {
+  description = "Jenkins 인스턴스에 연결할 보안 그룹 ID"
   type        = string
   default     = ""
-} 
+}
+
+# ------------------------------------------------------------
+# IAM 변수
+# ------------------------------------------------------------
+variable "iam_instance_profile" {
+  description = "IAM 인스턴스 프로파일 이름"
+  type        = string
+  default     = ""
+}

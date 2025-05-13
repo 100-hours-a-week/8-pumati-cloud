@@ -35,20 +35,20 @@ output "backend_public_ip" {
   value       = try(aws_instance.backend[0].public_ip, null)
 }
 
-# # ------------------------------------------------------------
-# # DB 인스턴스 출력
-# # ------------------------------------------------------------
-# output "db_instance_id" {
-#   description = "DB 인스턴스 ID"
-#   value       = try(aws_instance.db[0].id, null)
-# }
+# ------------------------------------------------------------
+# Jenkins 인스턴스 출력
+# ------------------------------------------------------------
+output "jenkins_instance_id" {
+  description = "Jenkins 인스턴스 ID"
+  value       = try(aws_instance.jenkins[0].id, null)
+}
 
-# output "db_private_ip" {
-#   description = "DB 인스턴스 프라이빗 IP"
-#   value       = try(aws_instance.db[0].private_ip, null)
-# }
+output "jenkins_private_ip" {
+  description = "Jenkins 인스턴스 프라이빗 IP"
+  value       = try(aws_instance.jenkins[0].private_ip, null)
+}
 
-# output "db_public_ip" {
-#   description = "DB 인스턴스 퍼블릭 IP"
-#   value       = try(aws_instance.db[0].public_ip, null)
-# }
+output "jenkins_public_ip" {
+  description = "Jenkins 인스턴스 퍼블릭 IP"
+  value       = try(aws_instance.jenkins[0].public_ip, null)
+}
