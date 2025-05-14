@@ -15,7 +15,7 @@ data "terraform_remote_state" "common" {
   backend = "s3"
   config = {
     bucket       = "s3-terraform-ktb8team"
-    key          = "gcp/dev/common/terraform.tfstate"
+    key          = "gcp/prod/common/terraform.tfstate"
     region       = "ap-northeast-2"
   }
 }
@@ -35,7 +35,7 @@ data "terraform_remote_state" "static" {
   backend = "s3"
   config = {
     bucket = "s3-terraform-ktb8team"
-    key = "gcp/dev/static/terraform.tfstate"
+    key = "gcp/prod/static/terraform.tfstate"
     region = "ap-northeast-2"
   }
 }
@@ -52,7 +52,7 @@ data "terraform_remote_state" "compute" {
   backend = "s3"
   config = {
     bucket = "s3-terraform-ktb8team"
-    key = "gcp/dev/compute/terraform.tfstate"
+    key = "gcp/prod/compute/terraform.tfstate"
     region = "ap-northeast-2"
   }
 }
@@ -67,5 +67,5 @@ locals {
 provider "google" {
   project     = local.project_id
   region      = local.region
-  credentials = file("${path.module}/../../common/terraform-keys/terraform-key-dev.json")
+  credentials = file("${path.module}/../../common/terraform-keys/terraform-key-prod.json")
 }

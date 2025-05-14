@@ -53,8 +53,13 @@ output "sa_key_secret_id" {
 }
 
 output "discord_webhook_secret_ai_id" {
-  description = "Discord 웹훅 URL 시크릿의 ID"
+  description = "Discord AI 방 웹훅 URL 시크릿의 ID"
   value       = module.discord_webhook_secret_ai.secret_id
+}
+
+output "discord_webhook_secret_all_id" {
+  description = "Discord 푸마티 기본 웹훅 URL 시크릿의 ID"
+  value       = module.discord_webhook_secret_all.secret_id
 }
 
 # 영구 디스크 출력 추가

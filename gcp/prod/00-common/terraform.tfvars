@@ -3,7 +3,7 @@
 # GCP 프로젝트 관련 설정
 project_name = "ktb8team"
 project_id   = "ktb8team"  # 실제 GCP 프로젝트 ID로 변경 필요
-# prod 는 현재 비키 1번아이디!
+# prod는 비키 1번아이디. 첫 ktb8team 이라서 id도 저거임
 
 # 환경 설정
 environment  = "prod"  # dev, staging, prod 중 선택

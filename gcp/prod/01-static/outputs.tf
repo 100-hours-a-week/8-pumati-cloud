@@ -53,6 +53,32 @@ output "sa_key_secret_id" {
 }
 
 output "discord_webhook_secret_ai_id" {
-  description = "Discord 웹훅 URL 시크릿의 ID"
+  description = "Discord AI 방 웹훅 URL 시크릿의 ID"
   value       = module.discord_webhook_secret_ai.secret_id
+}
+
+output "discord_webhook_secret_all_id" {
+  description = "Discord 푸마티 기본 웹훅 URL 시크릿의 ID"
+  value       = module.discord_webhook_secret_all.secret_id
+}
+
+# 영구 디스크 출력 추가
+output "persistent_disk_name" {
+  description = "생성된 영구 디스크 이름"
+  value       = module.persistent_disk.disk_name
+}
+
+output "persistent_disk_zone" {
+  description = "스팟 인스턴스용 영구 디스크 존"
+  value       = local.zone
+}
+
+output "persistent_disk_id" {
+  description = "생성된 영구 디스크 ID"
+  value       = module.persistent_disk.disk_id
+}
+
+output "persistent_disk_source" {
+  description = "생성된 영구 디스크의 self_link (인스턴스 템플릿 연결용)"
+  value       = module.persistent_disk.disk_source
 }

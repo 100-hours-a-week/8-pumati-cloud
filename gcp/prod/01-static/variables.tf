@@ -1,4 +1,18 @@
 # variables.tf - 변수 정의 파일
+
+
+
+# 버킷 관련 변수
+variable "bucket_name" {
+  description = "GCS 버킷 이름 (전역적으로 고유해야 함)"
+  type        = string
+}
+
+variable "storage_class" {
+  description = "스토리지 클래스 (예: STANDARD, NEARLINE, COLDLINE, ARCHIVE)"
+  type        = string
+}
+
 # 버전 관리 관련 변수
 variable "enable_versioning" {
   description = "버전 관리 활성화 여부 (true/false)"
@@ -68,6 +82,13 @@ variable "github_actions_token" {
 # Discord 웹훅 URL - AI 용
 variable "discord_webhook_url_ai" {
   description = "Discord 알림용 웹훅 URL (보안을 위해 secrets.auto.tfvars에 저장)"
+  type        = string
+  sensitive   = true # 보안 값으로 취급
+}
+
+# Discord 웹훅 URL - 모든 알림용
+variable "discord_webhook_url_all" {
+  description = "푸마티 기본 알림용 Discord 웹훅 URL (보안을 위해 secrets.auto.tfvars에 저장)"
   type        = string
   sensitive   = true # 보안 값으로 취급
 }

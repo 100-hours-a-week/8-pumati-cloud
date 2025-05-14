@@ -91,9 +91,9 @@ module "l4_mig" {
   # [추가] 모듈 변수에서 default가 제거되었으므로 명시적으로 값 전달
   static_ip = null # 고정 IP를 사용하지 않는 경우 null
 
-  # 서비스 계정 이메일 - null 설정으로 프로젝트의 기본 컴퓨트 서비스 계정 사용
+  # 서비스 계정 이메일 - null 설정으로 프로젝트의 기본 컴퓨트 서비스 계정 사용ㅅ
   # 모듈 변수에 default = null 이 설정되어 있다면 이 줄은 생략 가능
-  service_account_email = null
+  service_account_email = "terraform@ambient-topic-459110-e6.iam.gserviceaccount.com"
 
   # 서비스 계정 접근 범위 - 클라우드 플랫폼 전체 접근 권한 부여
   service_account_scopes = [

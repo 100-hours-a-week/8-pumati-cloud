@@ -5,17 +5,17 @@ locals {
 
   # 기본 이미지 경로
   default_image = "projects/deeplearning-platform-release/global/images/family/pytorch-latest-cu121-ubuntu-2204-py310"
-  
+
   # 커스텀 이미지 경로 (이미지가 존재한다면 사용)
   pumati_image = "projects/${local.project_id}/global/images/family/pumati-ai"
-  
+
 }
 
 # locals 추가
 locals {
   # 이미지 경로 생성
   custom_image_path = "projects/${local.project_id}/global/images/${var.custom_image_name}"
-  
+
   # 스타트업 스크립트 - 커스텀 이미지가 아닐 때만 사용 (이름 변경)
   final_startup_script = var.use_custom_image ? "" : local.startup_script_content
 }
@@ -36,9 +36,9 @@ locals {
   project_id  = data.terraform_remote_state.common.outputs.project_id
   region      = data.terraform_remote_state.common.outputs.region
   environment = data.terraform_remote_state.common.outputs.environment
-  zone       = data.terraform_remote_state.common.outputs.zone
+  zone        = data.terraform_remote_state.common.outputs.zone
   # 공통 태그와 라벨 가져오기
-  common_tags = data.terraform_remote_state.common.outputs.common_tags
+  common_tags   = data.terraform_remote_state.common.outputs.common_tags
   common_labels = data.terraform_remote_state.common.outputs.common_labels
 }
 
@@ -52,6 +52,15 @@ data "terraform_remote_state" "static" {
     region = "ap-northeast-2"
   }
 }
+
+# pd 관련
+locals {
+  pd_name = data.terraform_remote_state.static.outputs.persistent_disk_name
+  spot_pd_self_link = data.terraform_remote_state.static.outputs.persistent_disk_source
+  pd_id = data.terraform_remote_state.static.outputs.persistent_disk_id
+  pd_zone = data.terraform_remote_state.static.outputs.persistent_disk_zone
+}
+
 
 # 시크릿 데이터 가져오기
 data "google_secret_manager_secret_version" "discord" {
@@ -86,25 +95,29 @@ data "google_secret_manager_secret_version" "discord_ai" {
 
 locals {
   # 시크릿 값을 가져오기
-  discord_webhook = data.google_secret_manager_secret_version.discord.secret_data
-  cloudflare_tunnel = data.google_secret_manager_secret_version.cloudflare.secret_data
-  github_token = data.google_secret_manager_secret_version.github.secret_data
-  sa_key = data.google_secret_manager_secret_version.sa_key.secret_data
+  discord_webhook    = data.google_secret_manager_secret_version.discord.secret_data
+  cloudflare_tunnel  = data.google_secret_manager_secret_version.cloudflare.secret_data
+  github_token       = data.google_secret_manager_secret_version.github.secret_data
+  sa_key             = data.google_secret_manager_secret_version.sa_key.secret_data
   discord_webhook_ai = data.google_secret_manager_secret_version.discord_ai.secret_data
-  
+
   # SA_KEY를 Base64로 인코딩
   sa_key_base64 = base64encode(local.sa_key)
-  
+
   # 스크립트에 값 전달
   startup_script_content = templatefile(
     "${path.module}/startup-script.sh",
     {
-      TUNNEL_UUID        = local.cloudflare_tunnel
-      WEBHOOK_URL        = local.discord_webhook
-      GITHUB_TOKEN       = local.github_token
-      WEBHOOK_URL_AI      = local.discord_webhook_ai
+      TUNNEL_UUID    = local.cloudflare_tunnel
+      WEBHOOK_URL    = local.discord_webhook
+      GITHUB_TOKEN   = local.github_token
+      WEBHOOK_URL_AI = local.discord_webhook_ai
       # SA_KEY 대신 Base64 인코딩된 값을 전달
-      SA_KEY_CONTENT_BASE64 = local.sa_key_base64 
+      PROJECT_ID = local.project_id
+      SA_KEY_CONTENT_BASE64 = local.sa_key_base64
+      DISK_NAME = local.pd_name
+      DISK_ID = local.pd_id
+      DISK_ZONE = local.pd_zone
     }
   )
 }

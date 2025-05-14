@@ -595,7 +595,7 @@ log_message "▶ GitHub Actions 셀프호스팅 러너 설치 시작"
 # 이 섹션이 실행되기 전에 PD가 /mnt/disks/pd 에 마운트되었는지 확인하는 것이 좋습니다.
 # (앞선 섹션 1에서 마운트 실패 시 이 부분을 건너뛰거나 로그를 남길 수 있습니다.)
 if ! mount | grep -q "/mnt/disks/pd"; then
-  log_message "❌ 영구 디스크(/mnt/disks/pd)가 마운트되지 않아 GitHub Actions 러너 설치를 건너<0xEB><0x9A><0x81>니다."
+  log_message "❌ 영구 디스크(/mnt/disks/pd)가 마운트되지 않아 GitHub Actions 러너 설치를 건너뜀니다."
   # 필요시 여기서 스크립트 실행을 중단하거나 다음 단계로 넘어갈 수 있습니다.
   # exit 1 # 또는 다른 처리
 else
@@ -721,20 +721,34 @@ if [ -z "${SA_KEY_CONTENT_BASE64}" ]; then
   exit 1
 fi
 
-# Base64 디코딩하여 파일로 저장
-# 디코딩 실패 시 오류를 명확히 알 수 있도록 set -e 와 유사하게 처리
-if ! echo "${SA_KEY_CONTENT_BASE64}" | base64 --decode > /etc/sa/ktb8team-reader.json; then
+# # Base64 디코딩하여 파일로 저장
+# # 디코딩 실패 시 오류를 명확히 알 수 있도록 set -e 와 유사하게 처리
+# if ! echo "${SA_KEY_CONTENT_BASE64}" | base64 --decode > /etc/sa/ktb8team-reader.json; then
+#   log_message "❌ Base64 디코딩 실패 또는 파일 쓰기 실패."
+#   # 디코딩 시도한 내용의 일부를 로그로 남겨 디버깅 (앞 100자)
+#   log_message "   SA_KEY_CONTENT_BASE64 변수 내용 (일부): $(echo "${SA_KEY_CONTENT_BASE64}" | head -c 100)"
+#   curl -H "Content-Type: application/json" \
+#        -X POST \
+#        -d "{\"content\": \"🚨 서비스 계정 키 Base64 디코딩 실패: 호스트 $(hostname)\"}" \
+#        "${WEBHOOK_URL}"
+#   exit 1
+# fi
+# chmod 600 /etc/sa/ktb8team-reader.json
+
+# 파일 또는 디렉토리 여부 확인 후 확실히 삭제 rm -rf 사용해서.
+log_message "▶ 서비스 계정 키 파일 경로 정리 중..."
+rm -rf "/etc/sa/ktb8team-reader.json"  # 파일이든 디렉토리든 강제 삭제
+
+# 디렉토리 확실히 생성
+mkdir -p "/etc/sa"
+
+# 이제 항상 파일 생성 시도
+# ktb8team-reader.json 에다가 BASE64 디코딩 된 키 내용을 저장.
+log_message "▶ 서비스 계정 키 파일 생성 중..."
+if ! echo "${SA_KEY_CONTENT_BASE64}" | base64 --decode > "/etc/sa/ktb8team-reader.json"; then
   log_message "❌ Base64 디코딩 실패 또는 파일 쓰기 실패."
-  # 디코딩 시도한 내용의 일부를 로그로 남겨 디버깅 (앞 100자)
-  log_message "   SA_KEY_CONTENT_BASE64 변수 내용 (일부): $(echo "${SA_KEY_CONTENT_BASE64}" | head -c 100)"
-  curl -H "Content-Type: application/json" \
-       -X POST \
-       -d "{\"content\": \"🚨 서비스 계정 키 Base64 디코딩 실패: 호스트 $(hostname)\"}" \
-       "${WEBHOOK_URL}"
   exit 1
 fi
-
-chmod 600 /etc/sa/ktb8team-reader.json
 
 # 파일이 정상적으로 생성되었고 내용이 있는지 확인
 if [ ! -s /etc/sa/ktb8team-reader.json ]; then
@@ -766,15 +780,43 @@ fi
 
 # 2. Artifact Registry용 Docker 인증
 log_message "▶ Docker에 Artifact Registry 인증 설정 중..."
-if gcloud auth configure-docker asia-east1-docker.pkg.dev --quiet; then
-  log_message "✅ Docker Artifact Registry 인증 설정 완료"
+
+# /root/.docker 디렉토리가 존재하고 파일이 아니라 디렉토리인지 확인 및 생성
+if [ -f "/root/.docker" ]; then # 만약 /root/.docker 가 파일이라면
+  log_message "⚠️ /root/.docker 가 파일로 잘못 존재하여 삭제하고 디렉토리로 재생성합니다."
+  rm -f "/root/.docker" # 파일을 삭제
+  mkdir -p "/root/.docker" # 디렉토리 생성
+elif [ ! -d "/root/.docker" ]; then # 만약 /root/.docker 디렉토리가 아예 없다면
+  log_message "ℹ️ /root/.docker 디렉토리가 없어 생성합니다."
+  mkdir -p "/root/.docker" # 디렉토리 생성
+fi
+
+# /root/.docker/config.json 이 디렉토리로 잘못 생성되었다면 삭제
+if [ -d "/root/.docker/config.json" ]; then # 만약 /root/.docker/config.json 이 디렉토리라면
+  log_message "⚠️ /root/.docker/config.json 이 디렉토리로 잘못 존재하여 강제로 삭제합니다."
+  rm -rf "/root/.docker/config.json" # 디렉토리를 강제로 삭제 (내용물 포함)
+fi
+
+# gcloud auth configure-docker 대신 docker login 직접 사용 
+# 서비스 계정 키 파일을 사용하여 Docker 로그인 - 이 방식이 Watchtower에 더 잘 작동함
+log_message "▶ Docker에 서비스 계정으로 직접 로그인 중..."
+if cat "$KEY_FILE" | docker login -u _json_key --password-stdin https://asia-east1-docker.pkg.dev; then
+  log_message "✅ Docker Artifact Registry 로그인 성공"
 else
-  log_message "❌ Docker Artifact Registry 인증 설정 실패"
+  log_message "❌ Docker Artifact Registry 로그인 실패"
   curl -H "Content-Type: application/json" \
        -X POST \
-       -d "{\"content\": \"🚨 Docker Artifact Registry 인증 설정 실패: 호스트 $(hostname)\"}" \
+       -d "{\"content\": \"🚨 Docker Artifact Registry 로그인 실패: 호스트 $(hostname)\"}" \
        "${WEBHOOK_URL}"
   exit 1
+fi
+
+# 로그인 확인
+if [ ! -f "/root/.docker/config.json" ]; then
+  log_message "❌ Docker 로그인 후에도 config.json 파일이 생성되지 않았습니다."
+  exit 1
+else
+  log_message "✅ Docker 로그인 설정 파일 생성 확인: /root/.docker/config.json"
 fi
 
 # 3. 이미지 pull & 컨테이너 실행
@@ -799,7 +841,8 @@ docker rm ai >/dev/null 2>&1 || true
 
 # 새 컨테이너 실행
 log_message "▶ AI 서비스 컨테이너 시작 중..."
-if docker run --gpus all -d --restart unless-stopped --name ai -p 8080:8080 "$IMAGE:latest"; then
+# Watchtower가 이 컨테이너를 감시할 수 있도록 라벨 추가: -l com.centurylinklabs.watchtower.enable=true
+if docker run --gpus all -d --restart unless-stopped --name ai -p 8080:8080 -l com.centurylinklabs.watchtower.enable=true "$IMAGE:latest"; then
   log_message "✅ AI 서비스 컨테이너 실행 성공"
   
   # AI 서비스가 충분히 시작할 시간 제공
@@ -900,759 +943,104 @@ fi
 log_message "✅ AI 서비스 설정 완료"
 
 ###################################
-# 10. 주기적 이미지 감지 및 재시작 설정
+# 10. Watchtower 자동 업데이트 설정
 ###################################
-log_message "▶ 도커 이미지 자동 업데이트 감시 서비스 설정 중..."
+log_message "▶ Watchtower 자동 업데이트 설정 시작"
 
-# watcher.sh 파일에 디스크 용량 체크 및 이미지 정리 로직 추가
-cat <<'EOT' > /opt/monitoring/watcher.sh
-#!/bin/bash
+# AI 서비스 컨테이너 이름 (기존 스크립트에서 사용된 이름)
+AI_CONTAINER_NAME="ai"
+# Artifact Registry 인증을 위한 Docker 설정 파일 경로
+# 이 파일은 스크립트의 섹션 9에서 'gcloud auth configure-docker' 명령어를 통해 생성/업데이트되었음.
+# 스크립트가 root로 실행되므로 경로는 /root/.docker/config.json 임.
+DOCKER_CONFIG_JSON_PATH="/root/.docker/config.json"
 
-# 로그 파일 경로 명시적 정의
-LOGFILE="/var/log/image-watcher.log"
-
-# 로그 함수 정의 - 한국 시간대 적용
-log_message() {
-  local message="$1"
-  local timestamp=$(TZ='Asia/Seoul' date '+%Y-%m-%d %H:%M:%S')
-  echo "[$timestamp] $message" | tee -a "$LOGFILE"
-}
-
-# 작동 중인 이미지 ID 저장 함수 (롤백용)
-save_working_image() {
-  local container_id="$1"
-  if [ -n "$container_id" ]; then
-    local image_id=$(docker inspect --format='{{.Image}}' "$container_id" 2>/dev/null)
-    if [ -n "$image_id" ]; then
-      echo "$image_id" > /tmp/last_working_image_id.txt
-      log_message "✅ 작동 중인 이미지 ID 저장 완료: $image_id"
-    fi
-  fi
-}
-
-# 환경 설정 - 환경변수는 systemd 서비스에서 전달받음 (한국 시간대 적용)
-TIMESTAMP=$(TZ='Asia/Seoul' date '+%Y-%m-%d %H:%M:%S')
-echo "[$TIMESTAMP] ▶ AI 서비스 이미지 자동 업데이트 감시 시작" | tee -a "$LOGFILE"
-
-# 인증 설정
-gcloud auth activate-service-account --key-file="$KEY_FILE" >> "$LOGFILE" 2>&1
-gcloud auth configure-docker asia-east1-docker.pkg.dev --quiet >> "$LOGFILE" 2>&1
-
-# jq와 bc 설치 확인 및 설치
-if ! command -v jq &> /dev/null; then
-    apt-get update && apt-get install -y jq
-fi
-
-if ! command -v bc &> /dev/null; then
-    apt-get update && apt-get install -y bc
-fi
-
-# 디스크 용량 확인 및 정리 함수 (한국 시간대 적용)
-check_disk_space() {
-  # 루트 파티션의 가용 공간 확인 (GB 단위)
-  local AVAIL_SPACE=$(df -BG / | awk 'NR==2 {print $4}' | sed 's/G//')
-  
-  echo "[$TIMESTAMP] 디스크 여유 공간: $AVAIL_SPACE GB" >> "$LOGFILE"
-  
-  # 디스크 여유 공간이 50GB 미만이면 정리 시작
-  if [ "$AVAIL_SPACE" -lt 50 ]; then
-    echo "[$TIMESTAMP] ⚠️ 디스크 공간 부족 ($AVAIL_SPACE GB). 도커 이미지 정리 시작..." | tee -a "$LOGFILE"
-    
-    # 사용 중인 컨테이너의 이미지 ID 가져오기 (삭제 제외 대상)
-    RUNNING_IMAGES=$(docker ps -q | xargs -r docker inspect -f '{{.Image}}')
-    
-    # 최신 순으로 이미지 목록 가져오기 (현재 사용 중인 이미지는 제외)
-    ALL_IMAGES=$(docker images "$IMAGE" --format "{{.ID}}" | grep -v "$RUNNING_IMAGES")
-    
-    # 이미지 목록에서 최신 3개를 제외한 나머지 추출
-    OLD_IMAGES=$(echo "$ALL_IMAGES" | tail -n +4)
-    
-    if [ -n "$OLD_IMAGES" ]; then
-      echo "[$TIMESTAMP] 🧹 오래된 이미지 정리 중 (최신 3개 유지)..." | tee -a "$LOGFILE"
-      echo "$OLD_IMAGES" | xargs -r docker rmi -f >> "$LOGFILE" 2>&1
-      echo "[$TIMESTAMP] ✅ 이미지 정리 완료" | tee -a "$LOGFILE"
-    else
-      echo "[$TIMESTAMP] ℹ️ 정리할 이미지가 없습니다." | tee -a "$LOGFILE"
-    fi
-    
-    # 추가로 모든 중단된 컨테이너와 사용되지 않는 이미지 정리
-    echo "[$TIMESTAMP] 🧹 추가 도커 시스템 정리 중..." | tee -a "$LOGFILE"
-    docker container prune -f >> "$LOGFILE" 2>&1
-    docker image prune -f >> "$LOGFILE" 2>&1
-    
-    # 디스크 상태 재확인
-    AVAIL_SPACE_AFTER=$(df -BG / | awk 'NR==2 {print $4}' | sed 's/G//')
-    echo "[$TIMESTAMP] 정리 후 디스크 여유 공간: $AVAIL_SPACE_AFTER GB ($AVAIL_SPACE GB에서 증가)" | tee -a "$LOGFILE"
-  fi
-}
-
-# 함수 출력과 로그 분리를 위해 수정된 원격 다이제스트 함수
-# 원격 다이제스트 조회 함수 (수정)
-get_remote_digest() {
-  image_name="$1"
-  log_message "🔍 Artifact Registry에서 'latest' 태그 다이제스트 조회 시도: $image_name" >&2
-
-  # 1) gcloud artifacts docker images describe 방식 시도
-  log_message "▶ 방법 1: gcloud artifacts docker images describe 시도" >&2
-  gcloud_result=$(gcloud artifacts docker images describe "$image_name:latest" --format="get(image_summary.digest)" 2>/dev/null)
-  if [ -n "$gcloud_result" ] && [ "$gcloud_result" != "null" ]; then
-    log_message "✅ gcloud describe로 다이제스트 획득 성공: $gcloud_result" >&2
-    echo "$gcloud_result"
-    return 0
-  else
-    log_message "⚠️ gcloud describe 방식 실패, 다음 방법 시도" >&2
-  fi
-
-  # 2) gcloud tags list 방식 시도
-  log_message "▶ 방법 2: gcloud artifacts docker tags list 시도" >&2
-  tags_json=$(gcloud artifacts docker tags list "$image_name" --format=json 2>/dev/null)
-  if [ -n "$tags_json" ]; then
-    # jq 결과 디버깅을 위한 임시 변수
-    jq_debug=$(echo "$tags_json" | jq -r '.[] | select(.tags|index("latest")) | .digest' 2>/dev/null)
-    log_message "jq 처리 결과: '$jq_debug'" >&2
-    
-    if [ -n "$jq_debug" ] && [ "$jq_debug" != "null" ]; then
-      log_message "✅ gcloud tags list로 다이제스트 획득 성공: $jq_debug" >&2
-      echo "$jq_debug"
-      return 0
-    else
-      log_message "⚠️ tags list에서 latest 태그를 찾지 못함" >&2
-    fi
-  else
-    log_message "⚠️ tags list 결과 없음" >&2
-  fi
-
-  # 3) HTTP API fallback
-  log_message "▶ 방법 3: HTTP API 직접 호출 시도" >&2
-  TOKEN=$(gcloud auth print-access-token 2>/dev/null)
-  if [ -z "$TOKEN" ]; then
-    log_message "❌ API 인증 토큰 획득 실패" >&2
-    echo ""
-    return 1
-  fi
-  log_message "✅ API 인증 토큰 획득 성공" >&2
-
-  # URL 구성 - 정확히 파싱
-  registry=$(echo "$image_name" | cut -d/ -f1)
-  project=$(echo "$image_name" | cut -d/ -f2)
-  repo_path=$(echo "$image_name" | cut -d/ -f3-)
-  url="https://$registry/v2/$project/$repo_path/manifests/latest"
-  log_message "▶ API 요청 URL: $url" >&2
-
-  # curl 디버깅 활성화
-  log_message "▶ curl 요청 시작..." >&2
-  http_response=$(curl -v -sS -H "Authorization: Bearer $TOKEN" \
-     -H "Accept: application/vnd.docker.distribution.manifest.v2+json" \
-     "$url" 2>&1)
-  
-  # 응답 헤더에서 다이제스트 추출
-  digest=$(echo "$http_response" | grep -i "Docker-Content-Digest:" | head -n 1 | awk '{print $2}' | tr -d '\r')
-  
-  if [ -n "$digest" ]; then
-    log_message "✅ API 직접 호출로 다이제스트 획득 성공: $digest" >&2
-    echo "$digest"
-    return 0
-  else
-    # 오류 분석을 위해 응답 일부 로깅
-    response_sample=$(echo "$http_response" | head -n 20)
-    log_message "❌ API 호출 실패. 응답 샘플:" >&2
-    log_message "$response_sample" >&2
-    echo ""
-    return 1
-  fi
-}
-
-# 로컬 다이제스트 조회 함수 (수정)
-get_local_digest() {
-  image="$1"
-  # 중복 :latest 제거
-  image=$(echo "$image" | sed 's/:latest:latest/:latest/g')
-  digest=""
-  
-  # 실행 중인 컨테이너 확인 (정확한 이름 일치)
-  log_message "▶ 컨테이너 '$NAME' 상태 확인 중..." >&2
-  container_status=$(docker ps -a --filter "name=^$NAME$" --format "{{.Status}}")
-  
-  if [ -n "$container_status" ]; then
-    log_message "✅ 컨테이너 '$NAME' 발견: $container_status" >&2
-    # 컨테이너 ID 가져오기
-    cid=$(docker ps -q -f "name=^$NAME$")
-    
-    if [ -n "$cid" ]; then
-      log_message "✅ 실행 중인 컨테이너 ID: $cid" >&2
-      
-      # 이미지 ID 먼저 확인
-      image_id=$(docker inspect --format='{{.Image}}' "$cid" 2>/dev/null)
-      log_message "✅ 컨테이너 이미지 ID: $image_id" >&2
-      
-      # RepoDigests 정보 가져오기 (전체 목록)
-      repo_digests=$(docker inspect --format='{{json .RepoDigests}}' "$image_id" 2>/dev/null)
-      log_message "▶ RepoDigests 정보: $repo_digests" >&2
-      
-      # 첫 번째 RepoDigest 추출 시도
-      first_digest=$(docker inspect --format='{{index .RepoDigests 0}}' "$image_id" 2>/dev/null)
-      
-      if [ -n "$first_digest" ]; then
-        # @ 기준으로 오른쪽 부분(다이제스트)만 추출
-        digest=$(echo "$first_digest" | cut -d '@' -f 2)
-        log_message "✅ 컨테이너에서 다이제스트 획득 성공: $digest" >&2
-      else
-        log_message "⚠️ 컨테이너 이미지에 RepoDigests 정보 없음" >&2
-      fi
-    else
-      log_message "⚠️ 컨테이너 '$NAME'이 정지 상태임" >&2
-    fi
-  else
-    log_message "⚠️ 컨테이너 '$NAME'을 찾을 수 없음" >&2
-  fi
-  
-  # 컨테이너에서 다이제스트를 찾지 못한 경우 이미지에서 직접 조회
-  if [ -z "$digest" ]; then
-    log_message "▶ 이미지 '$image' 직접 검사 시도" >&2
-    
-    # 이미지가 존재하는지 먼저 확인
-    if docker inspect "$image" &>/dev/null; then
-      log_message "✅ 이미지 '$image' 발견" >&2
-      
-      # RepoDigests 직접 조회
-      repo_digests=$(docker inspect --format='{{json .RepoDigests}}' "$image" 2>/dev/null)
-      log_message "▶ 이미지 RepoDigests: $repo_digests" >&2
-      
-      # 첫 번째 RepoDigest 추출
-      first_digest=$(docker inspect --format='{{index .RepoDigests 0}}' "$image" 2>/dev/null)
-      
-      if [ -n "$first_digest" ]; then
-        # @ 기준으로 오른쪽 부분(다이제스트)만 추출
-        digest=$(echo "$first_digest" | cut -d '@' -f 2)
-        log_message "✅ 이미지에서 다이제스트 획득 성공: $digest" >&2
-      else
-        log_message "⚠️ 이미지에 RepoDigests 정보 없음" >&2
-      fi
-    else
-      log_message "❌ 이미지 '$image'를 찾을 수 없음" >&2
-    fi
-  fi
-  
-  # 다이제스트 값 반환
-  if [ -n "$digest" ]; then
-    echo "$digest"
-    return 0
-  else
-    log_message "❌ 다이제스트를 찾을 수 없음" >&2
-    echo ""
-    return 1
-  fi
-}
-
-while true; do
-  TIMESTAMP=$(TZ='Asia/Seoul' date '+%Y-%m-%d %H:%M:%S')
-  
-  # 디스크 공간 확인 및 정리 (1시간마다 실행)
-  if [ $(($(date +%s) % 3600)) -lt 10 ]; then
-    check_disk_space
-  fi
-  
-  # 2. 컨테이너 실행 중인지 확인
-  CONTAINER_RUNNING=$(docker ps -q -f name="^$NAME$")
-  
-  if [ -z "$CONTAINER_RUNNING" ]; then
-    # 컨테이너가 실행 중이 아니면 pull 후 시작
-    echo "[$TIMESTAMP] 컨테이너가 실행 중이 아님. 이미지 pull 및 시작 중..." | tee -a "$LOGFILE"
-    
-    if docker pull "$IMAGE:latest" > /dev/null 2>&1; then
-      if docker run --gpus all -d --restart unless-stopped --name "$NAME" -p 8080:8080 "$IMAGE:latest"; then
-        echo "[$TIMESTAMP] ✅ 컨테이너 시작 성공" | tee -a "$LOGFILE"
-        
-        # 현재 시간 (KST)
-        CURRENT_TIME=$(TZ='Asia/Seoul' date '+%Y년 %m월 %d일 %H:%M:%S')
-        
-        # 이미지 정보 가져오기
-        IMAGE_INFO=$(docker inspect "$IMAGE:latest" 2>/dev/null)
-        IMAGE_CREATED=$(echo "$IMAGE_INFO" | jq -r '.[0].Created')
-        IMAGE_SIZE=$(echo "$IMAGE_INFO" | jq -r '.[0].Size')
-        IMAGE_SIZE_GB=$(echo "scale=2; $IMAGE_SIZE/1024/1024/1024" | bc)
-        
-        # 깃헙 정보 가져오기 (CI에서 추가한 레이블)
-        GIT_AUTHOR=$(docker inspect "$IMAGE:latest" | jq -r '.[0].Config.Labels.git_author // "알 수 없음"')
-        GIT_COMMIT=$(docker inspect "$IMAGE:latest" | jq -r '.[0].Config.Labels.git_commit // "알 수 없음"')
-        GIT_MESSAGE=$(docker inspect "$IMAGE:latest" | jq -r '.[0].Config.Labels.git_message // "알 수 없음"')
-        
-        # Discord 웹훅 페이로드 - 배포 성공
-        curl -H "Content-Type: application/json" -X POST -d '{
-          "username": "🤖 PUMATI 인공지능 배포 봇",
-          "avatar_url": "https://avatars.githubusercontent.com/u/583231",
-          "content": "🌟 **'"$GIT_AUTHOR"'** 님이 푸시한 AI 서비스가 배포되었습니다! 🚀",
-          "embeds": [{
-            "title": "✅ AI 서비스 배포 성공! 🎉 🎊",
-            "color": 3066993,
-            "description": "🔥 **'"$GIT_AUTHOR"'** 님이 푸시한 코드의 Docker 이미지 빌드 및 배포가 성공적으로 완료되었습니다! 🙌",
-            "fields": [
-              {
-                "name": "👨‍💻 푸시한 사람 👑",
-                "value": "```fix\n'"$GIT_AUTHOR"'\n```",
-                "inline": false
-              },
-              {
-                "name": "📝 커밋 메시지 💬",
-                "value": "📌 '"$GIT_MESSAGE"' 📎",
-                "inline": false
-              },
-              {
-                "name": "🖥️ 호스트 정보 💻",
-                "value": "```fix\n'"$(hostname)"'\n```",
-                "inline": false
-              },
-              {
-                "name": "🕒 배포 시간 ⏰",
-                "value": "🗓️ '"$CURRENT_TIME"' 🕰️",
-                "inline": true
-              },
-              {
-                "name": "🖼️ 이미지 정보 📦",
-                "value": "```\n이미지: '"$IMAGE"'\n크기: '"$IMAGE_SIZE_GB"' GB\n커밋: '"$GIT_COMMIT"'\n```",
-                "inline": false
-              },
-              {
-                "name": "🌐 서비스 URL 🔗",
-                "value": "http://'"$(hostname -I | awk '{print $1}')"':8080",
-                "inline": false
-              }
-            ],
-            "thumbnail": {
-              "url": "https://robohash.org/'"$GIT_AUTHOR"'?set=set3&size=128x128"
-            },
-            "footer": {
-              "text": "🏆 ktb8team AI 서비스 배포 시스템 - '"$(hostname)"' 🛠️"
-            }
-          }]
-        }' "$WEBHOOK_URL_AI"
-      else
-        echo "[$TIMESTAMP] ❌ 컨테이너 시작 실패" | tee -a "$LOGFILE"
-        
-        # 실패 시 로그 수집 (최대 50줄)
-        CONTAINER_LOGS="$(docker logs $NAME 2>&1 | tail -n 50 || echo '로그를 가져올 수 없습니다')"
-        
-        # 상세 에러 메시지를 Discord로 전송
-        curl -H "Content-Type: application/json" -X POST -d '{
-          "username": "🤖 PUMATI 인공지능 배포 봇",
-          "avatar_url": "https://avatars.githubusercontent.com/u/583231",
-          "content": "🚨 **컨테이너 시작 실패** - '"$(hostname)"'",
-          "embeds": [{
-            "title": "❌ 컨테이너 시작 실패",
-            "color": 16711680,
-            "description": "AI 서비스 컨테이너 시작에 실패했습니다. 로그를 확인하세요.",
-            "fields": [
-              {
-                "name": "🖥️ 호스트 정보",
-                "value": "```\n'"$(hostname)"'\n```",
-                "inline": false
-              },
-              {
-                "name": "⏰ 실패 시간",
-                "value": "'"$(TZ='Asia/Seoul' date '+%Y-%m-%d %H:%M:%S')"'",
-                "inline": false
-              },
-              {
-                "name": "📄 컨테이너 로그",
-                "value": "```\n'$(echo "$CONTAINER_LOGS" | head -c 1000)'\n```",
-                "inline": false
-              }
-            ],
-            "footer": {
-              "text": "🚫 컨테이너 시작 실패 - 수동 조치가 필요합니다"
-            }
-          }]
-        }' "$WEBHOOK_URL_AI"
-      fi
-    else
-      echo "[$TIMESTAMP] ❌ 이미지 pull 실패" | tee -a "$LOGFILE"
-      
-      # 이미지 pull 실패 알림에 다이제스트 정보 추가
-      curl -H "Content-Type: application/json" -X POST -d '{
-        "username": "🤖 PUMATI 인공지능 배포 봇",
-        "avatar_url": "https://avatars.githubusercontent.com/u/583231",
-        "content": "🚨 **새 이미지 Pull 실패** - '"$(hostname)"'",
-        "embeds": [{
-          "title": "❌ 새 Docker 이미지 다운로드 실패",
-          "color": 16711680,
-          "description": "새 도커 이미지를 가져오는 데 실패했습니다.",
-          "fields": [
-            {
-              "name": "🖥️ 호스트 정보",
-              "value": "```\n'"$(hostname)"'\n```",
-              "inline": false
-            },
-            {
-              "name": "🖼️ 이미지",
-              "value": "'"$IMAGE:latest"'",
-              "inline": false
-            }, 
-            {
-              "name": "📊 로컬 다이제스트",
-              "value": "```\n'"$LOCAL_DIGEST"'\n```",
-              "inline": false
-            },
-            {
-              "name": "📊 원격 다이제스트",
-              "value": "```\n'"$REMOTE_DIGEST"'\n```",
-              "inline": false
-            },
-            {
-              "name": "⏰ 실패 시간",
-              "value": "'"$(TZ='Asia/Seoul' date '+%Y-%m-%d %H:%M:%S')"'",
-              "inline": false
-            }
-          ],
-          "footer": {
-            "text": "🚫 새 이미지 Pull 실패 - 수동 조치가 필요합니다"
-          }
-        }]
-      }' "$WEBHOOK_URL_AI"
-    fi
-  else
-    # 3. 원격 저장소에서 이미지 메타데이터 확인 (개선된 함수 사용)
-    REMOTE_DIGEST=$(get_remote_digest "$IMAGE" | tr -d '[:space:]') 
-    log_message "  원격 다이제스트 값: <$REMOTE_DIGEST>" # 값 확인용 로그
-
-    # 4. 로컬 이미지 정보 가져오기 (개선된 함수 사용)
-    LOCAL_DIGEST=$(get_local_digest "$IMAGE:latest" | tr -d '[:space:]')
-    log_message "  로컬 다이제스트 값: <$LOCAL_DIGEST>" # 값 확인용 로그
-
-    # 디버깅 로그 개선 -> log_message 사용으로 변경
-    log_message "[비교] 다이제스트 정보:"
-    log_message "  원격: <$REMOTE_DIGEST>"
-    log_message "  로컬: <$LOCAL_DIGEST>"
-
-    # 비교 전 다이제스트 유효성 검사 강화
-    if [ -z "$REMOTE_DIGEST" ] || [ -z "$LOCAL_DIGEST" ]; then
-      log_message "⚠️ 다이제스트 정보 불완전함 - 업데이트 건너뜀 (원격: '$REMOTE_DIGEST', 로컬: '$LOCAL_DIGEST')"
-      if [ -n "$LOCAL_DIGEST" ] && [ -n "$CONTAINER_RUNNING" ]; then
-        save_working_image "$CONTAINER_RUNNING"
-      fi
-      sleep 60
-      continue
-    fi
-    
-    # 5. 정확한 Schema-2 Manifest 다이제스트 비교
-    if [ "$REMOTE_DIGEST" = "$LOCAL_DIGEST" ]; then
-      log_message "✅ 다이제스트 일치 - 업데이트 불필요"
-      # 일치 시에도 현재 작동 이미지 저장 (롤백 대비)
-      save_working_image "$CONTAINER_RUNNING"
-    else
-      log_message "🔄 다이제스트 불일치 감지!"
-      log_message "  원격: <$REMOTE_DIGEST>"
-      log_message "  로컬: <$LOCAL_DIGEST>"
-      log_message "▶ 이미지 pull 및 재시작 중..."
-      
-      # 웹훅으로 업데이트 시작 알림 및 다이제스트 정보 전송
-      curl -H "Content-Type: application/json" -X POST -d '{
-        "username": "🤖 PUMATI 인공지능 배포 봇",
-        "avatar_url": "https://avatars.githubusercontent.com/u/583231",
-        "content": "🔄 **이미지 업데이트 시작** - '"$(hostname)"'",
-        "embeds": [{
-          "title": "🔍 새 이미지 감지됨",
-          "color": 3447003,
-          "description": "다이제스트 변경이 감지되어 이미지 업데이트를 시작합니다.",
-          "fields": [
-            {
-              "name": "🖥️ 호스트 정보",
-              "value": "```\n'"$(hostname)"'\n```",
-              "inline": false
-            },
-            {
-              "name": "🖼️ 이미지",
-              "value": "'"$IMAGE:latest"'",
-              "inline": false
-            },
-            {
-              "name": "📊 로컬 다이제스트",
-              "value": "```\n'"$LOCAL_DIGEST"'\n```",
-              "inline": false
-            },
-            {
-              "name": "📊 원격 다이제스트",
-              "value": "```\n'"$REMOTE_DIGEST"'\n```",
-              "inline": false
-            },
-            {
-              "name": "⏰ 시작 시간",
-              "value": "'"$(TZ='Asia/Seoul' date '+%Y-%m-%d %H:%M:%S')"'",
-              "inline": false
-            }
-          ],
-          "footer": {
-            "text": "🔄 이미지 업데이트 시작"
-          }
-        }]
-      }' "$WEBHOOK_URL_AI"
-      
-      # 업데이트 전에 현재 작동 중인 이미지 저장 (롤백용)
-      save_working_image "$CONTAINER_RUNNING"
-      
-      # 새 이미지 pull
-      if docker pull "$IMAGE:latest" > /dev/null 2>&1; then
-        sleep 2 # 새 이미지 로드 대기
-
-        # 새 이미지 다이제스트 확인 (불필요 문자 제거 포함)
-        NEW_LOCAL_DIGEST=$(get_local_digest "$IMAGE:latest" | tr -d '[:space:]')
-        log_message "  Pull 후 새 로컬 다이제스트: <$NEW_LOCAL_DIGEST>"
-
-        # 새 이미지 다이제스트 유효성 검사
-        if [ -z "$NEW_LOCAL_DIGEST" ]; then
-          log_message "⚠️ 새 다이제스트를 가져올 수 없음 - 재시작 건너뜀"
-          sleep 10
-          continue
-        fi
-        
-        # pull 후에 이미지 변경 감지 (이전 로컬 다이제스트와 새 다이제스트 비교)
-        # 주의: $LOCAL_DIGEST는 루프 시작 시점의 값임
-        if [ "$NEW_LOCAL_DIGEST" = "$LOCAL_DIGEST" ]; then
-           log_message "⚠️ pull 후에도 다이제스트 변경 없음 (이전 로컬: <$LOCAL_DIGEST>, 새 로컬: <$NEW_LOCAL_DIGEST>) - 재시작 건너뜀"
-           sleep 10
-           continue
-        fi
-
-        # 기존 컨테이너 중지 및 제거
-        log_message "▶ 기존 컨테이너 중지/제거 중..."
-        docker stop "$NAME" >/dev/null 2>&1
-        docker rm "$NAME" >/dev/null 2>&1
-
-        # 새 컨테이너 실행
-        log_message "▶ 새 이미지로 컨테이너 시작 중..."
-        if docker run --gpus all -d --restart unless-stopped --name "$NAME" -p 8080:8080 "$IMAGE:latest"; then
-          log_message "✅ 새 이미지로 컨테이너 재시작 성공"
-          
-          # 현재 시간 (KST)
-          CURRENT_TIME=$(TZ='Asia/Seoul' date '+%Y년 %m월 %d일 %H:%M:%S')
-          
-          # 이미지 정보 가져오기
-          IMAGE_INFO=$(docker inspect "$IMAGE:latest" 2>/dev/null)
-          IMAGE_CREATED=$(echo "$IMAGE_INFO" | jq -r '.[0].Created')
-          IMAGE_SIZE=$(echo "$IMAGE_INFO" | jq -r '.[0].Size')
-          IMAGE_SIZE_GB=$(echo "scale=2; $IMAGE_SIZE/1024/1024/1024" | bc)
-          
-          # 깃헙 정보 가져오기 (CI에서 추가한 레이블)
-          GIT_AUTHOR=$(docker inspect "$IMAGE:latest" | jq -r '.[0].Config.Labels.git_author // "알 수 없음"')
-          GIT_COMMIT=$(docker inspect "$IMAGE:latest" | jq -r '.[0].Config.Labels.git_commit // "알 수 없음"')
-          GIT_MESSAGE=$(docker inspect "$IMAGE:latest" | jq -r '.[0].Config.Labels.git_message // "알 수 없음"')
-          
-          # Discord 웹훅 페이로드 - 업데이트 성공
-          curl -H "Content-Type: application/json" -X POST -d '{
-            "username": "🤖 PUMATI 인공지능 배포 봇",
-            "avatar_url": "https://avatars.githubusercontent.com/u/583231",
-            "content": "🌟 **'"$GIT_AUTHOR"'** 님이 푸시한 AI 서비스가 업데이트되었습니다! 🚀",
-            "embeds": [{
-              "title": "✅ AI 서비스 업데이트 성공! 🎉 🎊",
-              "color": 3066993,
-              "description": "🔥 **'"$GIT_AUTHOR"'** 님이 푸시한 코드의 Docker 이미지로 업데이트가 성공적으로 완료되었습니다! 🙌",
-              "fields": [
-                {
-                  "name": "👨‍💻 푸시한 사람 👑",
-                  "value": "```fix\n'"$GIT_AUTHOR"'\n```",
-                  "inline": false
-                },
-                {
-                  "name": "📝 커밋 메시지 💬",
-                  "value": "📌 '"$GIT_MESSAGE"' 📎",
-                  "inline": false
-                },
-                {
-                  "name": "🖥️ 호스트 정보 💻",
-                  "value": "```fix\n'"$(hostname)"'\n```",
-                  "inline": false
-                },
-                {
-                  "name": "🕒 업데이트 시간 ⏰",
-                  "value": "🗓️ '"$CURRENT_TIME"' 🕰️",
-                  "inline": true
-                },
-                {
-                  "name": "🖼️ 이미지 정보 📦",
-                  "value": "```\n이미지: '"$IMAGE"'\n크기: '"$IMAGE_SIZE_GB"' GB\n커밋: '"$GIT_COMMIT"'\n```",
-                  "inline": false
-                },
-                {
-                  "name": "📊 다이제스트 변경",
-                  "value": "```\n이전: '"$LOCAL_DIGEST"'\n새로: '"$NEW_LOCAL_DIGEST"'\n```",
-                  "inline": false
-                }
-              ],
-              "thumbnail": {
-                "url": "https://robohash.org/'"$GIT_AUTHOR"'?set=set3&size=128x128"
-              },
-              "footer": {
-                "text": "🏆 ktb8team AI 서비스 배포 시스템 - '"$(hostname)"' 🛠️"
-              }
-            }]
-          }' "$WEBHOOK_URL_AI"
-          
-          # 이미지 배포 후 오래된 이미지 정리 (최신 3개 유지)
-          OLD_IMAGES=$(docker images "$IMAGE" --format "{{.ID}}" | grep -v "$(docker inspect -f '{{.Id}}' "$IMAGE:latest")" | tail -n +4)
-          if [ -n "$OLD_IMAGES" ]; then
-            echo "[$TIMESTAMP] 🧹 새 이미지 배포 완료 후 오래된 이미지 정리 중..." | tee -a "$LOGFILE"
-            echo "$OLD_IMAGES" | xargs -r docker rmi -f >> "$LOGFILE" 2>&1
-          fi
-        else
-          log_message "❌ 컨테이너 재시작 실패" | tee -a "$LOGFILE"
-          
-          # 실패 시 로그 수집 (최대 50줄)
-          CONTAINER_LOGS="$(docker logs $NAME 2>&1 | tail -n 50 || echo '로그를 가져올 수 없습니다')"
-          
-          # 상세 에러 메시지를 Discord로 전송
-          curl -H "Content-Type: application/json" -X POST -d '{
-            "username": "🤖 PUMATI 인공지능 배포 봇",
-            "avatar_url": "https://avatars.githubusercontent.com/u/583231",
-            "content": "🚨 **컨테이너 재시작 실패** - '"$(hostname)"'",
-            "embeds": [{
-              "title": "❌ 컨테이너 재시작 실패",
-              "color": 16711680,
-              "description": "새 이미지로 AI 서비스 컨테이너를 재시작하는 데 실패했습니다.",
-              "fields": [
-                {
-                  "name": "🖥️ 호스트 정보",
-                  "value": "```\n'"$(hostname)"'\n```",
-                  "inline": false
-                },
-                {
-                  "name": "🖼️ 이미지",
-                  "value": "'"$IMAGE:latest"'",
-                  "inline": false
-                },
-                {
-                  "name": "📊 새 이미지 다이제스트",
-                  "value": "```\n'"$NEW_LOCAL_DIGEST"'\n```",
-                  "inline": false
-                },
-                {
-                  "name": "📊 이전 이미지 다이제스트",
-                  "value": "```\n'"$LOCAL_DIGEST"'\n```",
-                  "inline": false
-                },
-                {
-                  "name": "⏰ 실패 시간",
-                  "value": "'"$(TZ='Asia/Seoul' date '+%Y-%m-%d %H:%M:%S')"'",
-                  "inline": false
-                },
-                {
-                  "name": "📄 컨테이너 로그",
-                  "value": "```\n'$(echo "$CONTAINER_LOGS" | head -c 1000)'\n```",
-                  "inline": false
-                }
-              ],
-              "footer": {
-                "text": "🚫 컨테이너 재시작 실패 - 수동 조치가 필요합니다"
-              }
-            }]
-          }' "$WEBHOOK_URL_AI"
-          
-          # 롤백 시도 - 이전에 작동하던 컨테이너가 있다면 이미지 ID 저장
-          LAST_WORKING_IMAGE_PATH="/tmp/last_working_image_id.txt"
-          if [ -f "$LAST_WORKING_IMAGE_PATH" ]; then
-            LAST_WORKING_IMAGE=$(cat "$LAST_WORKING_IMAGE_PATH")
-            echo "[$TIMESTAMP] 🔄 이전 작동 이미지로 롤백 시도 중: $LAST_WORKING_IMAGE" | tee -a "$LOGFILE"
-            
-            if docker run --gpus all -d --restart unless-stopped --name "$NAME" -p 8080:8080 "$LAST_WORKING_IMAGE"; then
-              log_message "✅ 이전 이미지로 롤백 성공" | tee -a "$LOGFILE"
-              
-              # 롤백 성공 알림
-              curl -H "Content-Type: application/json" -X POST -d '{
-                "username": "🤖 PUMATI 인공지능 배포 봇",
-                "avatar_url": "https://avatars.githubusercontent.com/u/583231",
-                "content": "🔄 **자동 롤백 성공** - '"$(hostname)"'",
-                "embeds": [{
-                  "title": "✅ 이전 버전으로 롤백 완료",
-                  "color": 3066993,
-                  "description": "새 이미지 시작 실패 후 이전 작동 버전으로 자동 롤백되었습니다.",
-                  "fields": [
-                    {
-                      "name": "🖥️ 호스트 정보",
-                      "value": "```\n'"$(hostname)"'\n```",
-                      "inline": false
-                    },
-                    {
-                      "name": "🖼️ 롤백된 이미지",
-                      "value": "'"$LAST_WORKING_IMAGE"'",
-                      "inline": false
-                    },
-                    {
-                      "name": "⏰ 롤백 시간",
-                      "value": "'"$(TZ='Asia/Seoul' date '+%Y-%m-%d %H:%M:%S')"'",
-                      "inline": false
-                    }
-                  ],
-                  "footer": {
-                    "text": "🔄 자동 롤백 완료 - 수정된 이미지로 다시 배포해야 합니다"
-                  }
-                }]
-              }' "$WEBHOOK_URL_AI"
-            else
-              log_message "❌ 롤백 실패" | tee -a "$LOGFILE"
-            fi
-          fi
-        fi
-      else
-        echo "[$TIMESTAMP] 변경 없음 - 다이제스트 일치" >> "$LOGFILE"
-        # 서비스가 정상 작동 중인 경우 현재 이미지 ID 저장 (롤백용)
-        save_working_image "$CONTAINER_RUNNING"
-      fi
-    fi
-  fi
-
-  sleep 20  # 검사 주기를 20초로 증가 (부하 감소)
-done # while 루프 종료
-EOT
-
-# 실행 권한 부여
-chmod +x /opt/monitoring/watcher.sh
-
-# 로그 파일 생성
-touch /var/log/image-watcher.log
-chmod 644 /var/log/image-watcher.log
-
-# systemd 서비스 파일 생성
-cat <<EOF > /etc/systemd/system/docker-image-watcher.service
-[Unit]
-Description=Docker Image Update Watcher
-After=docker.service network-online.target
-Requires=docker.service
-Wants=network-online.target
-
-[Service]
-Type=simple
-ExecStart=/opt/monitoring/watcher.sh
-Restart=always
-RestartSec=10
-Environment="WEBHOOK_URL_AI=${WEBHOOK_URL_AI}"
-Environment="KEY_FILE=/etc/sa/ktb8team-reader.json"
-Environment="IMAGE=asia-east1-docker.pkg.dev/ktb8team-458916/ktb8team/dev/ai"
-Environment="NAME=ai"
-Environment="LOGFILE=/var/log/image-watcher.log"
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
-# 서비스 등록 및 시작
-log_message "▶ 도커 이미지 감시 서비스 시작 중..."
-systemctl daemon-reload
-systemctl enable docker-image-watcher
-systemctl start docker-image-watcher
-
-# 서비스 상태 확인
-if systemctl is-active --quiet docker-image-watcher; then
-  log_message "✅ 도커 이미지 감시 서비스 시작 완료"
+# Watchtower가 Docker 인증 설정 파일을 읽을 수 있는지 확인 (정보 제공용 로그)
+if [ -f "$DOCKER_CONFIG_JSON_PATH" ]; then
+  log_message "ℹ️ Docker 인증 설정 파일($DOCKER_CONFIG_JSON_PATH)이 확인되었습니다. Watchtower가 이를 사용합니다."
 else
-  log_message "❌ 도커 이미지 감시 서비스 시작 실패"
-  log_message "▶ 서비스 상태 확인 중..."
-  systemctl status docker-image-watcher
-  journalctl -u docker-image-watcher --no-pager -n 20
+  # 이 경우 Watchtower는 private 레지스트리에서 이미지를 가져오는데 실패할 수 있습니다.
+  log_message "⚠️ Docker 인증 설정 파일($DOCKER_CONFIG_JSON_PATH)을 찾을 수 없습니다. Watchtower가 Artifact Registry 인증에 실패할 수 있습니다."
+  log_message "   스크립트의 이전 단계(섹션 9)에서 'gcloud auth configure-docker' 명령이 정상적으로 실행되었는지 확인이 필요합니다."
 fi
 
-###################################
-# 완료 알림 메타데이터 표시
-###################################
-log_message "✅ [완료] 스타트업 스크립트 실행 종료 - $(hostname)"
-curl -X PUT "http://metadata.google.internal/computeMetadata/v1/instance/guest-attributes/startup-script/status" \
-  -H "Metadata-Flavor: Google" \
-  -d "DONE"
+# 기존 Watchtower 컨테이너가 있다면 정리 (스크립트 재실행 시 중복 방지)
+log_message "▶ 기존 Watchtower 컨테이너(이름: watchtower)가 있다면 정리합니다..."
+docker rm -f watchtower >/dev/null 2>&1 || true # 오류가 발생해도 다음 단계 진행
 
+log_message "▶ Watchtower 컨테이너 실행 중 (감시 대상: $AI_CONTAINER_NAME)..."
+# Watchtower 실행 명령어 및 옵션 설명:
+# -d: 데몬 모드(백그라운드)로 실행
+# --name watchtower: 컨테이너의 이름을 'watchtower'로 지정
+# --restart=unless-stopped: Docker 데몬이 시작될 때나 컨테이너가 (오류 등으로) 종료되었을 때, 명시적으로 중지하지 않는 한 항상 재시작
+# -v /var/run/docker.sock:/var/run/docker.sock: 호스트의 Docker 소켓을 컨테이너 내부에 마운트합니다. 이를 통해 Watchtower가 호스트의 Docker 데몬과 통신하여 다른 컨테이너를 관리할 수 있습니다.
+# -v /root/.docker/config.json:/config.json:ro: 호스트의 Docker 인증 파일을 컨테이너 내부의 /config.json 경로로 읽기 전용(ro) 마운트합니다. 이 방식이 Artifact Registry 인증에 더 안정적입니다.
+# -e WATCHTOWER_CONFIG=/config.json: Watchtower에게 컨테이너 내부의 /config.json 파일을 Docker 인증 설정으로 사용하도록 지시합니다.
+# -e WATCHTOWER_POLL_INTERVAL=10: 이미지 업데이트를 확인하는 주기를 초 단위로 설정합니다 (여기서는 10초).
+# -e WATCHTOWER_CLEANUP=true: 새 이미지로 업데이트한 후, 더 이상 사용되지 않는 이전 버전의 이미지를 자동으로 삭제합니다.
+# -e WATCHTOWER_NOTIFICATIONS=shoutrrr: Watchtower에게 알림을 전송하는 방식을 'shoutrrr'로 설정합니다.
+# -e WATCHTOWER_NOTIFICATION_URL="discord://...": 알림을 전송할 Discord 채널의 URL을 지정합니다.
+# -e TZ=Asia/Seoul: 컨테이너 내의 시간대를 'Asia/Seoul'로 설정합니다. 이는 로그 메시지의 타임스탬프 등에 영향을 줍니다.
+# "$AI_CONTAINER_NAME": Watchtower가 감시할 특정 컨테이너의 이름을 지정합니다. 여기서는 'ai' 컨테이너를 직접 지정하여 해당 컨테이너만 감시합니다.
+
+# 서비스 계정 키 파일 경로 설정. 위쪽에서 설정했음.
+
+# SERVICE_ACCOUNT_KEY_FILE_FOR_WATCHTOWER="$KEY_FILE"
+
+# AI 채널 주소 알맞게 파싱한거
+DISCORD_SHOUTRRR_URL="discord://7MMbnBH7R8OWuKyD-PjCQ8CLkv9TGjrh2kVQW4-4mspHy_z_OtsUfDrdxWvmvLTPcT0Y@1369931403055337586"
+
+if docker run -d \
+  --name watchtower \
+  --restart=unless-stopped \
+  -v /var/run/docker.sock:/var/run/docker.sock \
+  -v /root/.docker/config.json:/config.json:ro \
+  -e WATCHTOWER_CONFIG=/config.json \
+  -e WATCHTOWER_POLL_INTERVAL=10 \
+  -e WATCHTOWER_CLEANUP=true \
+  -e WATCHTOWER_NOTIFICATIONS=shoutrrr \
+  -e WATCHTOWER_NOTIFICATION_URL="$DISCORD_SHOUTRRR_URL" \
+  -e TZ=Asia/Seoul \
+  containrrr/watchtower \
+  "$AI_CONTAINER_NAME"; then
+  # --- 디버깅: 명령어 실행 추적 종료 ---
+  set +x
+  log_message "✅ Watchtower 컨테이너 실행 성공!"
+  # ... (기존 성공 로그) ...
+  
+  curl -H "Content-Type: application/json" \
+       -X POST \
+       -d "{\"content\": \"✅ Watchtower가 '$AI_CONTAINER_NAME' 컨테이너 자동 업데이트를 시작합니다. 호스트: $(hostname)\"}" \
+       "${WEBHOOK_URL}"
+else
+  # --- 디버깅: 실패 시 종료 코드 로깅 ---
+  EXIT_CODE=$?
+  log_message "❌ Watchtower 컨테이너 실행 실패! (종료 코드: $EXIT_CODE)"
+  # --- 디버깅: 명령어 실행 추적 종료 ---
+  set +x
+  log_message "   실패 원인 파악을 위해 Watchtower 컨테이너 로그(만약 생성되었다면) 또는 Docker 데몬 로그를 확인하세요."
+  log_message "   이전 Docker 로그 (최대 20줄):"
+  docker logs watchtower --tail 20 >> "$LOGFILE" 2>&1 || log_message "   (Watchtower 컨테이너 로그를 가져올 수 없음)"
+  docker logs watchtower --tail 20 2>/dev/null || true # 콘솔에도 출력 시도
+  
+  # 실패 알림 (Discord)
+  curl -H "Content-Type: application/json" \
+       -X POST \
+       -d "{\"content\": \"🚨 Watchtower 컨테이너 시작 실패! (종료 코드: $EXIT_CODE) 호스트: $(hostname). 자동 업데이트 작동 불가.\"}" \
+       "${WEBHOOK_URL}" # 알림 URL 통일
+fi
+
+
+log_message "✅ Watchtower 자동 업데이트 설정 완료"
+
+###################################
+# 11. 오래된 Docker 이미지 정리 (추가)
+###################################
+log_message "▶ 일주일 이상 된 사용하지 않는 Docker 이미지 정리 시도..."
+if docker image prune -a -f --filter "until=168h"; then # 168시간
+  log_message "✅ 일주일 이상 된 사용하지 않는 Docker 이미지 정리 완료."
+else
+  log_message "⚠️ 일주일 이상 된 사용하지 않는 Docker 이미지 정리 중 오류 발생."
+fi
+
+# 스타트업 스크립트의 모든 주요 작업이 완료되었음을 알리는 최종 로그 메시지
+log_message "🏁 [종료] 모든 스타트업 스크립트 작업이 완료되었습니다. 호스트명: $(hostname)"

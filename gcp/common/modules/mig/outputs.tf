@@ -72,3 +72,8 @@ output "region" {
   description = "MIG가 배포된 리전"
   value       = var.region
 }
+
+output "zone" {
+  description = "MIG가 배포된 존"
+  value       = var.zone
+}

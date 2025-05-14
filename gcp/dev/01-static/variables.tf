@@ -85,3 +85,10 @@ variable "discord_webhook_url_ai" {
   type        = string
   sensitive   = true # 보안 값으로 취급
 }
+
+# Discord 웹훅 URL - 모든 알림용
+variable "discord_webhook_url_all" {
+  description = "푸마티 기본 알림용 Discord 웹훅 URL (보안을 위해 secrets.auto.tfvars에 저장)"
+  type        = string
+  sensitive   = true # 보안 값으로 취급
+}

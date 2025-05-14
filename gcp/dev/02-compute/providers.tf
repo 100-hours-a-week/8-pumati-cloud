@@ -93,6 +93,12 @@ data "google_secret_manager_secret_version" "discord_ai" {
   version = "latest"
 }
 
+data "google_secret_manager_secret_version" "discord_all" {
+  project = local.project_id
+  secret  = data.terraform_remote_state.static.outputs.discord_webhook_secret_all_id
+  version = "latest"
+}
+
 locals {
   # 시크릿 값을 가져오기
   discord_webhook    = data.google_secret_manager_secret_version.discord.secret_data
@@ -100,6 +106,7 @@ locals {
   github_token       = data.google_secret_manager_secret_version.github.secret_data
   sa_key             = data.google_secret_manager_secret_version.sa_key.secret_data
   discord_webhook_ai = data.google_secret_manager_secret_version.discord_ai.secret_data
+  discord_webhook_all = data.google_secret_manager_secret_version.discord_all.secret_data
 
   # SA_KEY를 Base64로 인코딩
   sa_key_base64 = base64encode(local.sa_key)
@@ -112,6 +119,7 @@ locals {
       WEBHOOK_URL    = local.discord_webhook
       GITHUB_TOKEN   = local.github_token
       WEBHOOK_URL_AI = local.discord_webhook_ai
+      WEBHOOK_URL_ALL = local.discord_webhook_all
       # SA_KEY 대신 Base64 인코딩된 값을 전달
       PROJECT_ID = local.project_id
       SA_KEY_CONTENT_BASE64 = local.sa_key_base64

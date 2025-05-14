@@ -33,3 +33,12 @@ tail -f /var/log/image-watcher.log
    systemctl status docker-image-watcher
 
    cat /opt/monitoring/watcher.sh 2>/dev/null || echo "파일이 존재하지 않음"
+
+# 최근 100줄 로그 보기
+journalctl -u docker-image-watcher.service -n 100 --no-pager
+
+# 특정 시간 이후 로그 보기 (예: 1시간 전부터)
+journalctl -u docker-image-watcher.service --since "1 hour ago"
+
+# 모든 로그 보기 (양이 많을 수 있음)
+journalctl -u docker-image-watcher.service --no-pager
