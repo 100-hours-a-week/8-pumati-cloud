@@ -7,10 +7,11 @@ module "frontend" {
   # 프로젝트 설정
   project_name = local.project_name
   environment  = local.environment
-  tags         = local.common_tags
+  tags         = merge(local.common_tags, {
+    Name = "${local.project_name}-${local.environment}-frontend"
+  })
 
   # 인스턴스 설정
-  instance_role     = "frontend"
   instance_type     = var.instance_type
   instance_ami      = var.instance_ami_linux
   instance_key_name = var.instance_key_name
@@ -35,10 +36,11 @@ module "backend" {
   # 프로젝트 설정
   project_name = local.project_name
   environment  = local.environment
-  tags         = local.common_tags
+  tags         = merge(local.common_tags, {
+    Name = "${local.project_name}-${local.environment}-backend"
+  })
 
   # 인스턴스 설정
-  instance_role     = "backend"
   instance_type     = var.instance_type
   instance_ami      = var.instance_ami_linux
   instance_key_name = var.instance_key_name

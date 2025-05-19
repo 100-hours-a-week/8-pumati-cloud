@@ -15,12 +15,8 @@ resource "aws_instance" "instance" {
     volume_size = var.root_volume_size
     volume_type = var.root_volume_type
     encrypted   = true
-    tags        = merge(var.tags, {
-      Name = "${var.project_name}-${var.environment}-${var.instance_role}-root"
-    })
+    tags        = var.tags
   }
 
-  tags = merge(var.tags, {
-    Name = "${var.project_name}-${var.environment}-${var.instance_role}"
-  })
+  tags = var.tags
 }

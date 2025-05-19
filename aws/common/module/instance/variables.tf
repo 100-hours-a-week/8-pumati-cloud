@@ -20,11 +20,6 @@ variable "tags" {
 # ------------------------------------------------------------
 # 인스턴스 변수
 # ------------------------------------------------------------
-variable "instance_role" {
-  description = "인스턴스 역할 (frontend, backend, jenkins)"
-  type        = string
-}
-
 variable "instance_type" {
   description = "인스턴스 유형 (예: t3.micro)"
   type        = string
