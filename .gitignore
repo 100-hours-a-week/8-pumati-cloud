@@ -1,8 +1,14 @@
+# 테라폼 키 폴더
+**/*terraform-keys
 # 테라폼 키 파일
-terraform-key.json
+**/*terraform-key.json
+
+**/*sa-key
 
 # 모든 폴더 내의 secrets.auto.tfvars 파일
 **/*secrets.auto.tfvars
+
+example
 
 # Terraform 관련 파일들
 **/.terraform/*
