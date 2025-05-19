@@ -23,7 +23,7 @@ module "frontend" {
   root_volume_type = var.root_volume_type
 
   # 보안 그룹 설정
-  frontend_security_group_id = local.frontend_sg_id
+  security_group_id = local.frontend_sg_id
 }
 
 # ------------------------------------------------------------
@@ -51,5 +51,5 @@ module "backend" {
   root_volume_type = var.root_volume_type
 
   # 보안 그룹 설정
-  backend_security_group_id = local.backend_sg_id
+  security_group_id = local.backend_sg_id
 }

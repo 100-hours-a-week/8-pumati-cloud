@@ -58,22 +58,9 @@ variable "subnet_id" {
 # ------------------------------------------------------------
 # 보안 그룹 변수
 # ------------------------------------------------------------
-variable "frontend_security_group_id" {
-  description = "프론트엔드 인스턴스에 연결할 보안 그룹 ID"
+variable "security_group_id" {
+  description = "인스턴스에 연결할 보안 그룹 ID"
   type        = string
-  default     = ""
-}
-
-variable "backend_security_group_id" {
-  description = "백엔드 인스턴스에 연결할 보안 그룹 ID"
-  type        = string
-  default     = ""
-}
-
-variable "jenkins_security_group_id" {
-  description = "Jenkins 인스턴스에 연결할 보안 그룹 ID"
-  type        = string
-  default     = ""
 }
 
 # ------------------------------------------------------------
