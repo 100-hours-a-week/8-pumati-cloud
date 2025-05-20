@@ -10,6 +10,9 @@ log_message() {
 
 log_message "✅ [시작] 스타트업 스크립트 실행 - 호스트명: $(hostname)"
 
+# 내아이디 서비스계정 키파일 경로
+KEY_FILE="/etc/sa/ktb8team-reader.json"
+
 ###################################
 # 1. 영구 디스크 연결 및 마운트 (우선순위 상향)
 ###################################
@@ -584,8 +587,6 @@ curl -H "Content-Type: application/json" \
      -d "{\"content\": \"✅ GPU 모니터링이 설정되었습니다. 서버: $(hostname), 프로젝트: $PROJECT_ID\"}" \
      "${WEBHOOK_URL}"
 
-
-
 ###################################
 # 8. GitHub Actions 셀프호스팅 러너 설치
 ###################################
@@ -942,6 +943,317 @@ fi
 
 log_message "✅ AI 서비스 설정 완료"
 
+
+###################################
+# 7. 크로마디비(ChromaDB) 설치 및 설정
+###################################
+log_message "▶ 크로마디비 설치 및 설정 시작"
+
+# 영구 디스크가 마운트되었는지 확인
+if ! mount | grep -q "/mnt/disks/pd"; then
+  log_message "❌ 영구 디스크(/mnt/disks/pd)가 마운트되지 않아 크로마디비 설정을 건너뜁니다."
+else
+  log_message "✅ 영구 디스크 확인됨. 크로마디비 데이터를 /mnt/disks/pd/chromadb에 저장합니다."
+  
+  # 크로마디비 데이터 디렉토리 생성
+  CHROMA_DATA_DIR="/mnt/disks/pd/chromadb"
+  mkdir -p "$CHROMA_DATA_DIR"
+  
+  # 크로마디비 설정 파일 저장 경로
+  mkdir -p "/etc/chromadb"
+  
+  # 크로마디비 설정 파일 생성
+  cat <<EOF > /etc/chromadb/config.yaml
+chroma_server_host: "0.0.0.0"
+chroma_server_http_port: 8000
+chroma_server_cors_allow_origins: ["*"]
+chroma_server_grpc_port: 50051
+persist_directory: "$CHROMA_DATA_DIR"
+allow_reset: true
+anonymized_telemetry: false
+EOF
+  
+  # 기존 크로마디비 컨테이너가 있다면 정리
+  log_message "▶ 기존 크로마디비 컨테이너 정리 중..."
+  docker rm -f chromadb >/dev/null 2>&1 || true
+  
+  # 크로마디비 컨테이너 실행
+  log_message "▶ 크로마디비 컨테이너 시작 중..."
+  if docker run -d --restart unless-stopped \
+     --name chromadb \
+     -p 8000:8000 \
+     -v "$CHROMA_DATA_DIR:/chroma/chroma" \
+     chromadb/chroma:0.4.24; then
+     
+    log_message "✅ 크로마디비 컨테이너 실행 성공"
+    
+    # 서비스 초기화 대기
+    log_message "▶ 크로마디비 서비스 초기화 대기 중 (10초)..."
+    sleep 10
+    
+    # 헬스체크
+    for i in $(seq 1 5); do
+      if curl -sf "http://localhost:8000/api/v1/heartbeat"; then
+        log_message "✅ 크로마디비 서비스 응답 확인 (엔드포인트: /api/v1/heartbeat)"
+        
+        # 성공 알림 전송
+        curl -H "Content-Type: application/json" \
+             -X POST \
+             -d "{\"content\": \"✅ 크로마디비가 설치되었습니다. 호스트: $(hostname), 포트: 8000, 데이터 경로: $CHROMA_DATA_DIR\"}" \
+             "${WEBHOOK_URL}"
+        break
+      fi
+      log_message "⏳ 크로마디비 헬스체크 재시도 $i/5..."
+      sleep 5
+    done
+  else
+    log_message "❌ 크로마디비 컨테이너 실행 실패"
+    docker logs chromadb
+    
+    # 실패 알림 전송
+    curl -H "Content-Type: application/json" \
+         -X POST \
+         -d "{\"content\": \"🚨 크로마디비 컨테이너 시작 실패: 호스트 $(hostname)\"}" \
+         "${WEBHOOK_URL}"
+  fi
+fi
+
+log_message "✅ 크로마디비 설정 완료"
+
+###################################
+# 7-1. 크로마디비 백업 설정
+###################################
+log_message "▶ 크로마디비 백업 스크립트 설정 중..."
+mkdir -p /opt/backup
+
+# 백업 및 복원 로그 파일 생성 및 권한 설정
+touch /var/log/chromadb-backup.log
+touch /var/log/chromadb-restore.log
+chmod 666 /var/log/chromadb-backup.log
+chmod 666 /var/log/chromadb-restore.log
+log_message "✅ 백업 로그 파일 생성 및 권한 설정 완료"
+
+cat <<EOF > /opt/backup/chromadb-backup.sh
+#!/bin/bash
+
+# 로그 설정
+BACKUP_LOG="/var/log/chromadb-backup.log"
+
+# 로그 파일 접근 권한 확인 및 수정
+if [ ! -w "\$BACKUP_LOG" ]; then
+  echo "로그 파일 권한 문제 발견. 수정 시도 중..."
+  touch "\$BACKUP_LOG" 2>/dev/null || true
+  chmod 666 "\$BACKUP_LOG" 2>/dev/null || true
+  
+  # 여전히 쓰기 권한이 없으면 /tmp로 전환
+  if [ ! -w "\$BACKUP_LOG" ]; then
+    BACKUP_LOG="/tmp/chromadb-backup.log"
+    echo "로그 경로를 \$BACKUP_LOG로 변경합니다."
+    touch "\$BACKUP_LOG"
+  fi
+fi
+
+log_backup() {
+  local message="\$1"
+  local timestamp=\$(TZ='Asia/Seoul' date '+%Y-%m-%d %H:%M:%S')
+  echo "[\$timestamp] \$message" | tee -a \$BACKUP_LOG
+}
+
+# 백업 파일명 설정 (날짜 포함)
+BACKUP_DATE=\$(date +%Y%m%d-%H%M%S)
+BACKUP_FILE="/tmp/chromadb-backup-\$BACKUP_DATE.tar.gz"
+CHROMA_DATA_DIR="$CHROMA_DATA_DIR"
+GCS_BUCKET="ktb8team"
+GCS_BACKUP_PATH="dev/backups/chromadb"
+KEY_FILE="$KEY_FILE"  # 스타트업 스크립트에서 정의된 서비스 계정 키 파일 경로 사용
+
+log_backup "크로마디비 백업 시작 (소스: \$CHROMA_DATA_DIR)"
+
+# 백업 전 상태 확인
+if [ ! -d "\$CHROMA_DATA_DIR" ]; then
+  log_backup "❌ 백업 실패: 크로마디비 데이터 디렉토리(\$CHROMA_DATA_DIR)가 존재하지 않습니다."
+  exit 1
+fi
+
+# 백업 생성
+log_backup "▶ tar 파일 생성 중..."
+tar -czf "\$BACKUP_FILE" -C "\$(dirname "\$CHROMA_DATA_DIR")" "\$(basename "\$CHROMA_DATA_DIR")"
+
+if [ \$? -ne 0 ]; then
+  log_backup "❌ tar 파일 생성 실패"
+  exit 1
+fi
+
+log_backup "✅ 백업 파일 생성 완료: \$BACKUP_FILE (크기: \$(du -h "\$BACKUP_FILE" | cut -f1))"
+
+# 서비스 계정으로 인증 (백업 작업용 임시 인증)
+log_backup "▶ GCS 접근을 위한 서비스 계정 인증 중..."
+export GOOGLE_APPLICATION_CREDENTIALS="\$KEY_FILE"
+if ! gcloud auth activate-service-account --key-file="\$KEY_FILE" --quiet; then
+  log_backup "❌ 서비스 계정 인증 실패"
+  exit 1
+fi
+
+# GCS에 업로드
+log_backup "▶ GCS 버킷(ktb8team)에 백업 파일 업로드 중..."
+gsutil cp "\$BACKUP_FILE" "gs://\$GCS_BUCKET/\$GCS_BACKUP_PATH/chromadb-backup-\$BACKUP_DATE.tar.gz"
+
+if [ \$? -ne 0 ]; then
+  log_backup "❌ GCS 업로드 실패"
+  exit 1
+fi
+
+log_backup "✅ GCS 업로드 완료: gs://\$GCS_BUCKET/\$GCS_BACKUP_PATH/chromadb-backup-\$BACKUP_DATE.tar.gz"
+
+# 임시 파일 삭제
+rm -f "\$BACKUP_FILE"
+log_backup "✅ 임시 백업 파일 삭제 완료"
+
+# 30일 이상 된 백업 정리 (옵션)
+log_backup "▶ 오래된 백업 파일 정리 중..."
+OLD_BACKUPS=\$(gsutil ls "gs://\$GCS_BUCKET/\$GCS_BACKUP_PATH/" | grep -E 'chromadb-backup-[0-9]{8}-[0-9]{6}\.tar\.gz' | sort | head -n -30)
+
+if [ -n "\$OLD_BACKUPS" ]; then
+  echo "\$OLD_BACKUPS" | xargs -I{} gsutil rm {}
+  log_backup "✅ \$(echo "\$OLD_BACKUPS" | wc -l)개의 오래된 백업 파일 삭제 완료"
+else
+  log_backup "✅ 삭제할 오래된 백업 파일 없음"
+fi
+
+log_backup "🏁 크로마디비 백업 프로세스 완료"
+
+# Discord 알림 전송
+curl -H "Content-Type: application/json" \
+     -X POST \
+     -d "{\"content\": \"✅ 크로마디비 백업이 완료되었습니다. 서버: \$(hostname), 백업 파일: gs://\$GCS_BUCKET/\$GCS_BACKUP_PATH/chromadb-backup-\$BACKUP_DATE.tar.gz\"}" \
+     "${WEBHOOK_URL}"
+EOF
+
+# 스크립트 실행 권한 부여
+chmod +x /opt/backup/chromadb-backup.sh
+
+# cron 작업 설정 (매일 21시에 실행) - root 사용자에 설정
+log_message "▶ 크로마디비 백업 cron 작업 설정 중..."
+(crontab -l 2>/dev/null || echo "") | grep -v "chromadb-backup" | { cat; echo "0 21 * * * /opt/backup/chromadb-backup.sh >> /var/log/chromadb-cron.log 2>&1"; } | crontab -
+
+# 백업 복원 스크립트 생성 (필요시 수동 실행)
+cat <<EOF > /opt/backup/chromadb-restore.sh
+#!/bin/bash
+
+# 로그 설정
+RESTORE_LOG="/var/log/chromadb-restore.log"
+
+# 로그 파일 접근 권한 확인 및 수정
+if [ ! -w "\$RESTORE_LOG" ]; then
+  echo "로그 파일 권한 문제 발견. 수정 시도 중..."
+  touch "\$RESTORE_LOG" 2>/dev/null || true
+  chmod 666 "\$RESTORE_LOG" 2>/dev/null || true
+  
+  # 여전히 쓰기 권한이 없으면 /tmp로 전환
+  if [ ! -w "\$RESTORE_LOG" ]; then
+    RESTORE_LOG="/tmp/chromadb-restore.log"
+    echo "로그 경로를 \$RESTORE_LOG로 변경합니다."
+    touch "\$RESTORE_LOG"
+  fi
+fi
+
+log_restore() {
+  local message="\$1"
+  local timestamp=\$(TZ='Asia/Seoul' date '+%Y-%m-%d %H:%M:%S')
+  echo "[\$timestamp] \$message" | tee -a \$RESTORE_LOG
+}
+
+# 인자 확인
+if [ \$# -ne 1 ]; then
+  log_restore "사용법: \$0 gs://버킷명/경로/백업파일.tar.gz"
+  exit 1
+fi
+
+BACKUP_URL="\$1"
+BACKUP_FILE="/tmp/chromadb-restore.tar.gz"
+CHROMA_DATA_DIR="$CHROMA_DATA_DIR"
+KEY_FILE="$KEY_FILE"  # 스타트업 스크립트에서 정의된 서비스 계정 키 파일 경로 사용
+
+log_restore "▶ 크로마디비 복원 시작 (소스: \$BACKUP_URL, 대상: \$CHROMA_DATA_DIR)"
+
+# 서비스 계정으로 인증 (복원 작업용 임시 인증)
+log_restore "▶ GCS 접근을 위한 서비스 계정 인증 중..."
+export GOOGLE_APPLICATION_CREDENTIALS="\$KEY_FILE"
+if ! gcloud auth activate-service-account --key-file="\$KEY_FILE" --quiet; then
+  log_restore "❌ 서비스 계정 인증 실패"
+  exit 1
+fi
+
+# 백업 파일 다운로드
+log_restore "▶ GCS에서 백업 파일 다운로드 중..."
+gsutil cp "\$BACKUP_URL" "\$BACKUP_FILE"
+
+if [ \$? -ne 0 ]; then
+  log_restore "❌ 백업 파일 다운로드 실패"
+  exit 1
+fi
+
+log_restore "✅ 백업 파일 다운로드 완료"
+
+# 컨테이너 중지
+log_restore "▶ 크로마디비 컨테이너 중지 중..."
+docker stop chromadb || true
+
+# 기존 데이터 백업 (안전을 위해)
+if [ -d "\$CHROMA_DATA_DIR" ]; then
+  TEMP_BACKUP="/tmp/chromadb_before_restore_\$(date +%Y%m%d-%H%M%S)"
+  log_restore "▶ 기존 데이터 임시 백업 중: \$TEMP_BACKUP"
+  cp -r "\$CHROMA_DATA_DIR" "\$TEMP_BACKUP"
+fi
+
+# 디렉토리 비우기
+log_restore "▶ 기존 데이터 디렉토리 비우는 중..."
+rm -rf "\$CHROMA_DATA_DIR"/*
+
+# 백업 파일 압축 풀기
+log_restore "▶ 백업 파일 압축 해제 중..."
+mkdir -p "\$CHROMA_DATA_DIR"
+tar -xzf "\$BACKUP_FILE" -C "/mnt/disks/pd"
+
+if [ \$? -ne 0 ]; then
+  log_restore "❌ 백업 파일 압축 해제 실패"
+  exit 1
+fi
+
+log_restore "✅ 백업 파일 압축 해제 완료"
+
+# 권한 설정
+chown -R root:root "\$CHROMA_DATA_DIR"
+
+# 컨테이너 재시작
+log_restore "▶ 크로마디비 컨테이너 재시작 중..."
+docker start chromadb
+
+# 임시 파일 삭제
+rm -f "\$BACKUP_FILE"
+log_restore "✅ 임시 파일 삭제 완료"
+
+log_restore "🏁 크로마디비 복원 프로세스 완료"
+
+# Discord 알림 전송
+curl -H "Content-Type: application/json" \
+     -X POST \
+     -d "{\"content\": \"✅ 크로마디비 복원이 완료되었습니다. 서버: \$(hostname), 복원 소스: \$BACKUP_URL\"}" \
+     "${WEBHOOK_URL}"
+EOF
+
+# 복원 스크립트 실행 권한 부여
+chmod +x /opt/backup/chromadb-restore.sh
+
+# 크론 로그 파일 생성
+touch /var/log/chromadb-cron.log
+chmod 666 /var/log/chromadb-cron.log
+
+log_message "✅ 크로마디비 백업 설정 완료 (매일 새벽 3시 자동 백업)"
+log_message "   • 백업 파일: gs://ktb8team/dev/backups/chromadb/"
+log_message "   • 복원 방법: /opt/backup/chromadb-restore.sh gs://ktb8team/dev/backups/chromadb/백업파일명.tar.gz"
+
+
 ###################################
 # 10. Watchtower 자동 업데이트 설정
 ###################################
@@ -1044,3 +1356,7 @@ fi
 
 # 스타트업 스크립트의 모든 주요 작업이 완료되었음을 알리는 최종 로그 메시지
 log_message "🏁 [종료] 모든 스타트업 스크립트 작업이 완료되었습니다. 호스트명: $(hostname)"
+
+# 테스트 백업 실행 (즉시 한 번)
+log_message "▶ 설치 후 첫 백업 테스트 실행 중..."
+/opt/backup/chromadb-backup.sh
