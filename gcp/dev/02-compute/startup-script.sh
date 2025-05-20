@@ -982,13 +982,8 @@ EOF
   if docker run -d --restart unless-stopped \
      --name chromadb \
      -p 8000:8000 \
-     -v "$CHROMA_DATA_DIR:$CHROMA_DATA_DIR" \
-     -v "/etc/chromadb/config.yaml:/etc/chromadb/config.yaml" \
-     -e CHROMA_SERVER_HOST="0.0.0.0" \
-     -e CHROMA_SERVER_HTTP_PORT=8000 \
-     -e PERSIST_DIRECTORY="$CHROMA_DATA_DIR" \
-     chromadb/chroma:latest \
-     --config-file "/etc/chromadb/config.yaml"; then
+     -v "$CHROMA_DATA_DIR:/chroma/chroma" \
+     chromadb/chroma:0.4.24; then
      
     log_message "✅ 크로마디비 컨테이너 실행 성공"
     
@@ -1004,7 +999,7 @@ EOF
         # 성공 알림 전송
         curl -H "Content-Type: application/json" \
              -X POST \
-             -d "{\"content\": \"✅ 크로마디비가 설치되었습니다. 호스트: $(hostname), 포트: 8000, 데이터 경로: ${CHROMA_DATA_DIR}\"}" \
+             -d "{\"content\": \"✅ 크로마디비가 설치되었습니다. 호스트: $(hostname), 포트: 8000, 데이터 경로: $CHROMA_DATA_DIR\"}" \
              "${WEBHOOK_URL}"
         break
       fi
@@ -1031,11 +1026,33 @@ log_message "✅ 크로마디비 설정 완료"
 log_message "▶ 크로마디비 백업 스크립트 설정 중..."
 mkdir -p /opt/backup
 
+# 백업 및 복원 로그 파일 생성 및 권한 설정
+touch /var/log/chromadb-backup.log
+touch /var/log/chromadb-restore.log
+chmod 666 /var/log/chromadb-backup.log
+chmod 666 /var/log/chromadb-restore.log
+log_message "✅ 백업 로그 파일 생성 및 권한 설정 완료"
+
 cat <<EOF > /opt/backup/chromadb-backup.sh
 #!/bin/bash
 
 # 로그 설정
 BACKUP_LOG="/var/log/chromadb-backup.log"
+
+# 로그 파일 접근 권한 확인 및 수정
+if [ ! -w "\$BACKUP_LOG" ]; then
+  echo "로그 파일 권한 문제 발견. 수정 시도 중..."
+  touch "\$BACKUP_LOG" 2>/dev/null || true
+  chmod 666 "\$BACKUP_LOG" 2>/dev/null || true
+  
+  # 여전히 쓰기 권한이 없으면 /tmp로 전환
+  if [ ! -w "\$BACKUP_LOG" ]; then
+    BACKUP_LOG="/tmp/chromadb-backup.log"
+    echo "로그 경로를 \$BACKUP_LOG로 변경합니다."
+    touch "\$BACKUP_LOG"
+  fi
+fi
+
 log_backup() {
   local message="\$1"
   local timestamp=\$(TZ='Asia/Seoul' date '+%Y-%m-%d %H:%M:%S')
@@ -1115,9 +1132,9 @@ EOF
 # 스크립트 실행 권한 부여
 chmod +x /opt/backup/chromadb-backup.sh
 
-# cron 작업 설정 (매일 새벽 3시에 실행)
+# cron 작업 설정 (매일 21시에 실행) - root 사용자에 설정
 log_message "▶ 크로마디비 백업 cron 작업 설정 중..."
-(crontab -l 2>/dev/null || echo "") | grep -v "chromadb-backup" | { cat; echo "0 3 * * * /opt/backup/chromadb-backup.sh > /dev/null 2>&1"; } | crontab -
+(crontab -l 2>/dev/null || echo "") | grep -v "chromadb-backup" | { cat; echo "0 21 * * * /opt/backup/chromadb-backup.sh >> /var/log/chromadb-cron.log 2>&1"; } | crontab -
 
 # 백업 복원 스크립트 생성 (필요시 수동 실행)
 cat <<EOF > /opt/backup/chromadb-restore.sh
@@ -1125,6 +1142,21 @@ cat <<EOF > /opt/backup/chromadb-restore.sh
 
 # 로그 설정
 RESTORE_LOG="/var/log/chromadb-restore.log"
+
+# 로그 파일 접근 권한 확인 및 수정
+if [ ! -w "\$RESTORE_LOG" ]; then
+  echo "로그 파일 권한 문제 발견. 수정 시도 중..."
+  touch "\$RESTORE_LOG" 2>/dev/null || true
+  chmod 666 "\$RESTORE_LOG" 2>/dev/null || true
+  
+  # 여전히 쓰기 권한이 없으면 /tmp로 전환
+  if [ ! -w "\$RESTORE_LOG" ]; then
+    RESTORE_LOG="/tmp/chromadb-restore.log"
+    echo "로그 경로를 \$RESTORE_LOG로 변경합니다."
+    touch "\$RESTORE_LOG"
+  fi
+fi
+
 log_restore() {
   local message="\$1"
   local timestamp=\$(TZ='Asia/Seoul' date '+%Y-%m-%d %H:%M:%S')
@@ -1212,6 +1244,10 @@ EOF
 
 # 복원 스크립트 실행 권한 부여
 chmod +x /opt/backup/chromadb-restore.sh
+
+# 크론 로그 파일 생성
+touch /var/log/chromadb-cron.log
+chmod 666 /var/log/chromadb-cron.log
 
 log_message "✅ 크로마디비 백업 설정 완료 (매일 새벽 3시 자동 백업)"
 log_message "   • 백업 파일: gs://ktb8team/dev/backups/chromadb/"
@@ -1320,3 +1356,7 @@ fi
 
 # 스타트업 스크립트의 모든 주요 작업이 완료되었음을 알리는 최종 로그 메시지
 log_message "🏁 [종료] 모든 스타트업 스크립트 작업이 완료되었습니다. 호스트명: $(hostname)"
+
+# 테스트 백업 실행 (즉시 한 번)
+log_message "▶ 설치 후 첫 백업 테스트 실행 중..."
+/opt/backup/chromadb-backup.sh
