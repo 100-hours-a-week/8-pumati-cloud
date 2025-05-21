@@ -46,4 +46,7 @@ locals {
 
  # Security Group 출력값
   jenkins_sg_id    = data.terraform_remote_state.network.outputs.jenkins_sg_id
+
+  # 설치 스크립트
+  jenkins_user_data = file("${path.module}/jenkins-user-data.sh")
 } 

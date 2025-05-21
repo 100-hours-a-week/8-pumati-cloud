@@ -4,7 +4,7 @@
 variable "instance_type" {
     type = string
     description = "인스턴스 타입 (예: t2.micro)"
-    default = "t2.micro"
+    default = "t3.medium"
 }
 
 variable "instance_ami_linux" {

@@ -25,4 +25,7 @@ module "jenkins" {
 
   # 보안 그룹 설정
   security_group_id = local.jenkins_sg_id
+
+  # 설치 스크립트
+  user_data = local.jenkins_user_data
 }
