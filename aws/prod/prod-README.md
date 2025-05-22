@@ -6,4 +6,3 @@
 03-security	보안 그룹, IAM 등 보안 설정
 04-compute	EC2 인스턴스, EIP 등 생성
 05-dns	도메인(A레코드) <-> EIP 연결
-

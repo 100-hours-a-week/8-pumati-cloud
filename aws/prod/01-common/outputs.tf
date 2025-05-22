@@ -14,15 +14,10 @@ output "region" {
   value       = var.region
 }
 
-# 공통 태그 및 도메인 설정
+# 공통 태그 설정
 output "common_tags" {
   description = "모든 리소스에 적용될 공통 태그"
   value       = var.common_tags
-}
-
-output "domain_name" {
-  description = "서비스 도메인 이름"
-  value       = var.domain_name
 }
 
 # Terraform 상태 저장 설정

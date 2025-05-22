@@ -11,9 +11,6 @@ common_tags = {
   "Owner"       = "rowan"
 }
 
-# 도메인 설정
-domain_name = "tebutebu.com"
-
 # Terraform 상태 저장 설정 (00-static에서 생성한 버킷)
-tfstate_bucket = "s3-terraform-pumati"
+tfstate_bucket = "s3-terraform-pumati-v2"
 tfstate_region = "ap-northeast-2"
