@@ -1,5 +1,4 @@
-# outputs.tf - 출력 변수 정의 파일
-
+# 프로젝트 / 환경 메타데이터
 output "project_name" {
   description = "프로젝트 이름"
   value       = var.project_name
@@ -15,6 +14,7 @@ output "region" {
   value       = var.region
 }
 
+# 공통 태그 및 도메인 설정
 output "common_tags" {
   description = "모든 리소스에 적용될 공통 태그"
   value       = var.common_tags
@@ -25,6 +25,7 @@ output "domain_name" {
   value       = var.domain_name
 }
 
+# Terraform 상태 저장 설정
 output "tfstate_bucket" {
   description = "테라폼 상태를 저장할 S3 버킷 이름"
   value       = var.tfstate_bucket

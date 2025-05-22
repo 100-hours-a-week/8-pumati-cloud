@@ -1,5 +1,4 @@
-# variables.tf - 변수 정의 파일
-
+# 프로젝트 및 환경 설정
 variable "project_name" {
   description = "프로젝트 이름"
   type        = string
@@ -19,6 +18,7 @@ variable "region" {
   type        = string
 }
 
+# 태그 및 도메인 설정
 variable "common_tags" {
   description = "모든 리소스에 적용될 공통 태그"
   type        = map(string)
@@ -29,6 +29,7 @@ variable "domain_name" {
   type        = string
 }
 
+# Terraform 상태 관리 설정
 variable "tfstate_bucket" {
   description = "테라폼 상태를 저장할 S3 버킷 이름"
   type        = string
