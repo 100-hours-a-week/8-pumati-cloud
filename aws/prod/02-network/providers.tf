@@ -16,7 +16,7 @@ provider "aws" {
 data "terraform_remote_state" "common" {
   backend = "s3"
   config = {
-    bucket = "s3-terraform-pumati-v2"
+    bucket = "s3-pumati-tfstate"
     key    = "aws/prod/common/terraform.tfstate"
     region = "ap-northeast-2"
   }

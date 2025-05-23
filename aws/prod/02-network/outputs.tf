@@ -4,7 +4,7 @@ output "vpc_id" {
   value       = module.vpc.vpc_id
 }
 
-output "vpc_cidr_block" {
+output "vpc_cidr" {
   description = "VPC의 CIDR 블록"
   value       = module.vpc.vpc_cidr_block
 }
@@ -16,8 +16,8 @@ output "public_subnet_id" {
 }
 
 output "public_subnet_cidr" {
-  description = "퍼블릭 서브넷의 CIDR 블록"
-  value       = module.vpc.public_subnet_cidr
+  description = "퍼블릭 서브넷 CIDR 블록"
+  value       = module.vpc.public_subnet_cidr_block
 }
 
 output "public_route_table_id" {

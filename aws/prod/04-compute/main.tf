@@ -1,10 +1,9 @@
 module "frontend_instance" {
-  source = "./module/instance"
+  source = "../../module/instance"
 
   # 공통
   project_name  = local.project_name
   environment   = local.environment
-  region        = local.region
   tags          = local.common_tags
   instance_name = "frontend"
 
@@ -29,11 +28,10 @@ module "frontend_instance" {
 }
 
 module "backend_instance" {
-  source = "./module/instance"
+  source = "../../module/instance"
 
   project_name  = local.project_name
   environment   = local.environment
-  region        = local.region
   tags          = local.common_tags
   instance_name = "backend"
 
@@ -57,11 +55,10 @@ module "backend_instance" {
 }
 
 module "jenkins_instance" {
-  source = "./module/instance"
+  source = "../../module/instance"
 
   project_name  = local.project_name
   environment   = local.environment
-  region        = local.region
   tags          = local.common_tags
   instance_name = "jenkins"
 
@@ -81,5 +78,5 @@ module "jenkins_instance" {
   disable_api_termination       = false
   shutdown_behavior             = "stop"
 
-  enable_eip = true
+  enable_eip = false
 }

@@ -2,12 +2,11 @@
 # 보안 그룹
 # ---------------------------------------------------------------------------------------------------------------------
 module "frontend_sg" {
-  source        = "./modules/security-group"
+  source        = "../../module/sg"
 
   # 공통 입력값
   project_name  = local.project_name
   environment   = local.environment
-  region        = local.region
   tags          = local.common_tags
   instance_name = "frontend"
 
@@ -43,12 +42,11 @@ module "frontend_sg" {
 }
 
 module "backend_sg" {
-  source        = "./modules/security-group"
+  source        = "../../module/sg"
 
   # 공통 값
   project_name  = local.project_name
   environment   = local.environment
-  region        = local.region
   tags          = local.common_tags
   instance_name = "backend"
 
@@ -78,12 +76,11 @@ module "backend_sg" {
 }
 
 module "jenkins_sg" {
-  source        = "./modules/security-group"
+  source        = "../../module/sg"
 
   # 공통 값
   project_name  = local.project_name
   environment   = local.environment
-  region        = local.region
   tags          = local.common_tags
   instance_name = "jenkins"
 
@@ -123,10 +120,9 @@ module "jenkins_sg" {
 # IAM 규칙
 # ---------------------------------------------------------------------------------------------------------------------
 module "frontend_iam" {
-  source        = "./modules/iam-role"
+  source        = "../../module/iam-role"
   project_name  = local.project_name
   environment   = local.environment
-  region        = local.region
   tags          = local.common_tags
   instance_name = "frontend"
 
@@ -151,10 +147,9 @@ module "frontend_iam" {
 }
 
 module "backend_iam" {
-  source        = "./modules/iam-role"
+  source        = "../../module/iam-role"
   project_name  = local.project_name
   environment   = local.environment
-  region        = local.region
   tags          = local.common_tags
   instance_name = "backend"
 
@@ -180,10 +175,9 @@ module "backend_iam" {
 
 
 module "jenkins_iam" {
-  source        = "./modules/iam-role"
+  source        = "../../module/iam-role"
   project_name  = local.project_name
   environment   = local.environment
-  region        = local.region
   tags          = local.common_tags
   instance_name = "jenkins"
 

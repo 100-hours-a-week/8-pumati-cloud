@@ -1,9 +1,9 @@
 # 1. Terraform State 저장용 S3
 module "terraform_state" {
-  source = "../../modules/s3"
+  source = "../../module/s3"
   
   # 기본 설정
-  bucket_name = "s3-terraform-pumati-v2"
+  bucket_name = "s3-pumati-tfstate"
   environment = "shared"
   project_name = "terraform"
   
@@ -45,10 +45,10 @@ module "terraform_state" {
 
 # # 2. 모니터링 로그 수집용 S3
 # module "monitoring_logs" {
-#   source = "../../modules/s3"
+#   source = "../../module/s3"
   
 #   # 기본 설정
-#   bucket_name = "s3-monitoring-logs-pumati"
+#   bucket_name = "s3-pumati-monitoring-logs"
 #   environment = "shared"
 #   project_name = "monitoring"
   
@@ -90,10 +90,10 @@ module "terraform_state" {
 
 # 3. 공용 S3
 module "common_storage" {
-  source = "../../modules/s3"
+  source = "../../module/s3"
   
   # 기본 설정
-  bucket_name = "s3-common-storage-pumati-v2"
+  bucket_name = "s3-pumati-common-storage"
   environment = "shared"
   project_name = "common"
   

@@ -64,6 +64,6 @@ resource "aws_subnet" "db" {
   availability_zone = var.az
 
   tags = merge(var.tags, {
-    Name = "${var.project_name}-${var.environment}-db-subnet"
+    Name = "${var.project_name}-${var.environment}-db-subnet-v2"
   })
 }
