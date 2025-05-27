@@ -1,7 +1,39 @@
-# 03-compute/main.tf
+# 05-compute/main.tf
 
-# 네트워크 정보 가져오기
+#-------------------------------
+#  환경 변수 시크릿 구성
+#-------------------------------
+# 백엔드 환경 변수 설정
+resource "aws_secretsmanager_secret" "backend_env" {
+  name        = "${local.project_name}-${local.environment}-backend-env"
+  description = "Backend .env file contents"
+  recovery_window_in_days = 0
+  
+  tags = merge(local.common_tags, {
+    Name = "${local.project_name}-${local.environment}-backend-env"
+  })
+}
 
+resource "aws_secretsmanager_secret_version" "backend_env" {
+  secret_id     = aws_secretsmanager_secret.backend_env.id
+  secret_string = var.backend_env_content
+}
+
+# 프론트엔드 환경 변수 설정
+resource "aws_secretsmanager_secret" "frontend_env" {
+  name        = "${local.project_name}-${local.environment}-frontend-env"
+  description = "Frontend .env file contents"
+  recovery_window_in_days = 0
+  
+  tags = merge(local.common_tags, {
+    Name = "${local.project_name}-${local.environment}-frontend-env"
+  })
+}
+
+resource "aws_secretsmanager_secret_version" "frontend_env" {
+  secret_id     = aws_secretsmanager_secret.frontend_env.id
+  secret_string = var.frontend_env_content
+}
 
 #-------------------------------
 # 1. 보안 그룹 구성
@@ -41,7 +73,7 @@ resource "aws_security_group" "alb_sg" {
   })
 }
 
-# 프론트엔드 EC2용 보안 그룹 (SSH 포트 추가)
+# 프론트엔드 EC2용 보안 그룹
 resource "aws_security_group" "frontend_sg" {
   name        = "${local.project_name}-${local.environment}-frontend-sg"
   description = "Allow traffic from ALB"
@@ -54,12 +86,12 @@ resource "aws_security_group" "frontend_sg" {
     security_groups = [aws_security_group.alb_sg.id]
   }
 
-  # SSH 액세스 허용 (추가)
+  # SSH 액세스 허용
   ingress {
     from_port   = 22
     to_port     = 22
     protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]  # 또는 제한된 IP 범위 사용 권장
+    cidr_blocks = ["0.0.0.0/0"]
   }
 
   egress {
@@ -74,7 +106,7 @@ resource "aws_security_group" "frontend_sg" {
   })
 }
 
-# 백엔드 EC2용 보안 그룹 (SSH 포트 추가)
+# 백엔드 EC2용 보안 그룹
 resource "aws_security_group" "backend_sg" {
   name        = "${local.project_name}-${local.environment}-backend-sg"
   description = "Allow traffic from ALB"
@@ -87,7 +119,7 @@ resource "aws_security_group" "backend_sg" {
     security_groups = [aws_security_group.alb_sg.id]
   }
 
-  # SSH 액세스 허용 (추가)
+  # SSH 액세스 허용
   ingress {
     from_port   = 22
     to_port     = 22
@@ -108,7 +140,7 @@ resource "aws_security_group" "backend_sg" {
 }
 
 #-------------------------------
-# 2. 시작 템플릿 구성
+# 2. IAM 역할 및 인스턴스 프로필 구성
 #-------------------------------
 
 # 시크릿 매니저에 접근할 수 있는 IAM 역할
@@ -131,20 +163,23 @@ resource "aws_iam_role" "ec2_role" {
   tags = local.common_tags
 }
 
-# 시크릿 매니저 접근 정책
+# IAM 정책에 Secrets Manager 접근 권한 추가
 resource "aws_iam_policy" "secrets_access" {
   name        = "${local.project_name}-${local.environment}-secrets-access"
-  description = "Allow access to specific secrets"
+  description = "Allow access to Secrets Manager"
   
   policy = jsonencode({
-    Version = "2012-10-17"
+    Version = "2012-10-17",
     Statement = [
       {
         Action = [
           "secretsmanager:GetSecretValue",
-        ]
-        Effect = "Allow"
+          "secretsmanager:DescribeSecret"
+        ],
+        Effect   = "Allow",
         Resource = [
+          aws_secretsmanager_secret.backend_env.arn,
+          aws_secretsmanager_secret.frontend_env.arn,
           data.terraform_remote_state.base.outputs.discord_webhooks_secret_arn
         ]
       }
@@ -152,10 +187,42 @@ resource "aws_iam_policy" "secrets_access" {
   })
 }
 
-# 역할에 정책 연결
-resource "aws_iam_role_policy_attachment" "secrets_access" {
+# 이 정책을 EC2 역할에 연결
+resource "aws_iam_role_policy_attachment" "secrets_access_attachment" {
   role       = aws_iam_role.ec2_role.name
   policy_arn = aws_iam_policy.secrets_access.arn
+}
+
+# CloudWatch 권한 추가
+resource "aws_iam_policy" "cloudwatch_policy" {
+  name        = "${local.project_name}-${local.environment}-cloudwatch-policy"
+  description = "Allow sending logs and metrics to CloudWatch"
+  
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      {
+        Action = [
+          "cloudwatch:PutMetricData",
+          "ec2:DescribeVolumes",
+          "ec2:DescribeTags",
+          "logs:PutLogEvents",
+          "logs:DescribeLogStreams",
+          "logs:DescribeLogGroups",
+          "logs:CreateLogStream",
+          "logs:CreateLogGroup"
+        ],
+        Effect   = "Allow",
+        Resource = "*"
+      }
+    ]
+  })
+}
+
+# 이 정책을 EC2 역할에 연결
+resource "aws_iam_role_policy_attachment" "cloudwatch_attachment" {
+  role       = aws_iam_role.ec2_role.name
+  policy_arn = aws_iam_policy.cloudwatch_policy.arn
 }
 
 # 인스턴스 프로파일
@@ -164,21 +231,15 @@ resource "aws_iam_instance_profile" "ec2_profile" {
   role = aws_iam_role.ec2_role.name
 }
 
-# base 모듈 상태 참조
-data "terraform_remote_state" "base" {
-  backend = "s3"
-  config = {
-    bucket = "s3-terraform-pumati"
-    key    = "aws/dev/base/terraform.tfstate"
-    region = "ap-northeast-2"
-  }
-}
+#-------------------------------
+# 3. 시작 템플릿 구성
+#-------------------------------
 
 # 프론트엔드 시작 템플릿
 resource "aws_launch_template" "frontend" {
   name          = "${local.project_name}-${local.environment}-frontend-template"
-  image_id      = "ami-05377cf8cfef186c2"
-  instance_type = "t2.small"
+  image_id      = "ami-0d5bb3742db8fc264"
+  instance_type = "t2.medium"
   key_name      = "pumati-full-master"
 
   # 스팟 인스턴스 요청 설정
@@ -196,7 +257,9 @@ resource "aws_launch_template" "frontend" {
   user_data = base64encode(templatefile("${path.module}/startup-script/frontend-startup.sh", {
     project_name = local.project_name,
     environment = local.environment,
-    discord_webhook_url = local.discord_webhooks.frontend_webhook
+    discord_webhook_url = local.discord_webhooks.frontend_webhook,
+    frontend_env_secret_name = aws_secretsmanager_secret.frontend_env.name,
+    aws_region = local.region
   }))
 
   tag_specifications {
@@ -214,8 +277,8 @@ resource "aws_launch_template" "frontend" {
 # 백엔드 시작 템플릿
 resource "aws_launch_template" "backend" {
   name          = "${local.project_name}-${local.environment}-backend-template"
-  image_id      = "ami-05377cf8cfef186c2"
-  instance_type = "t2.small"
+  image_id      = "ami-0d5bb3742db8fc264"
+  instance_type = "t2.medium"
   key_name      = "pumati-full-master"
 
   # 스팟 인스턴스 요청 설정
@@ -233,7 +296,9 @@ resource "aws_launch_template" "backend" {
   user_data = base64encode(templatefile("${path.module}/startup-script/backend-startup.sh", {
     project_name = local.project_name,
     environment = local.environment,
-    discord_webhook_url = local.discord_webhooks.backend_webhook
+    discord_webhook_url = local.discord_webhooks.backend_webhook,
+    backend_env_secret_name = aws_secretsmanager_secret.backend_env.name,
+    aws_region = local.region
   }))
 
   tag_specifications {
@@ -249,10 +314,10 @@ resource "aws_launch_template" "backend" {
 }
 
 #-------------------------------
-# 3. 대상 그룹 구성
+# 4. 대상 그룹 구성
 #-------------------------------
 
-# 프론트엔드 대상 그룹 - 로드 밸런서가 트래픽을 보낼 대상 서버들의 그룹 정의
+# 프론트엔드 대상 그룹
 resource "aws_lb_target_group" "frontend" {
   name     = "${local.project_name}-${local.environment}-frontend-tg"  # 대상 그룹 이름 (예: pumati-dev-frontend-tg)
   port     = 80                # 대상 그룹이 트래픽을 수신할 포트 (HTTP 기본 포트)
@@ -301,95 +366,13 @@ resource "aws_lb_target_group" "backend" {
 }
 
 #-------------------------------
-# 4. ALB 구성
-#-------------------------------
-
-# 애플리케이션 로드 밸런서
-resource "aws_lb" "main" {
-  name               = "${local.project_name}-${local.environment}-alb"
-  internal           = false
-  load_balancer_type = "application"
-  security_groups    = [aws_security_group.alb_sg.id]
-  subnets            = [data.terraform_remote_state.network.outputs.subnet_id]
-
-  enable_deletion_protection = false
-
-  tags = merge(local.common_tags, {
-    Name = "${local.project_name}-${local.environment}-alb"
-  })
-}
-
-# 기본 리스너 (HTTP)
-resource "aws_lb_listener" "http" {
-  load_balancer_arn = aws_lb.main.arn
-  port              = "80"
-  protocol          = "HTTP"
-
-  default_action {
-    type             = "forward"
-    target_group_arn = aws_lb_target_group.frontend.arn
-  }
-}
-
-# 백엔드 API 경로 리스너 규칙
-resource "aws_lb_listener_rule" "backend_api" {
-  listener_arn = aws_lb_listener.http.arn
-  priority     = 100
-
-  action {
-    type             = "forward"
-    target_group_arn = aws_lb_target_group.backend.arn
-  }
-
-  condition {
-    path_pattern {
-      values = ["/api/*"]
-    }
-  }
-}
-
-#-------------------------------
 # 5. 오토스케일링 그룹 구성
 #-------------------------------
-
-# 프론트엔드 ASG
-resource "aws_autoscaling_group" "frontend" {
-  name                = "${local.project_name}-${local.environment}-frontend-asg"
-  vpc_zone_identifier = [data.terraform_remote_state.network.outputs.subnet_id]
-  desired_capacity    = 1
-  min_size            = 1
-  max_size            = 3
-
-  launch_template {
-    id      = aws_launch_template.frontend.id
-    version = "$Latest"
-  }
-
-  target_group_arns = [aws_lb_target_group.frontend.arn]
-
-  health_check_type         = "EC2"
-  health_check_grace_period = 300
-
-  tag {
-    key                 = "Name"
-    value               = "${local.project_name}-${local.environment}-frontend"
-    propagate_at_launch = true
-  }
-
-  dynamic "tag" {
-    for_each = local.common_tags
-    content {
-      key                 = tag.key
-      value               = tag.value
-      propagate_at_launch = true
-    }
-  }
-}
 
 # 백엔드 ASG
 resource "aws_autoscaling_group" "backend" {
   name                = "${local.project_name}-${local.environment}-backend-asg"
-  vpc_zone_identifier = [data.terraform_remote_state.network.outputs.subnet_id]
+  vpc_zone_identifier = data.terraform_remote_state.network.outputs.public_subnet_ids
   desired_capacity    = 1
   min_size            = 1
   max_size            = 3
@@ -420,42 +403,152 @@ resource "aws_autoscaling_group" "backend" {
   }
 }
 
+# 프론트엔드 ASG - 백엔드와 독립적으로 생성
+resource "aws_autoscaling_group" "frontend" {
+  name                = "${local.project_name}-${local.environment}-frontend-asg"
+  vpc_zone_identifier = data.terraform_remote_state.network.outputs.public_subnet_ids
+  desired_capacity    = 1
+  min_size            = 1
+  max_size            = 3
+
+  launch_template {
+    id      = aws_launch_template.frontend.id
+    version = "$Latest"
+  }
+
+  target_group_arns = [aws_lb_target_group.frontend.arn]
+
+  health_check_type         = "EC2"
+  health_check_grace_period = 300
+
+  tag {
+    key                 = "Name"
+    value               = "${local.project_name}-${local.environment}-frontend"
+    propagate_at_launch = true
+  }
+
+  dynamic "tag" {
+    for_each = local.common_tags
+    content {
+      key                 = tag.key
+      value               = tag.value
+      propagate_at_launch = true
+    }
+  }
+}
+
 #-------------------------------
-# 6. 오토스케일링 정책 구성 (옵션)
+# 6. ALB 구성
 #-------------------------------
 
-# # CPU 기반 스케일 아웃 정책 (프론트엔드)
-# resource "aws_autoscaling_policy" "frontend_scale_out" {
-#   name                   = "${local.project_name}-${local.environment}-frontend-scale-out"
-#   scaling_adjustment     = 1
-#   adjustment_type        = "ChangeInCapacity"
-#   cooldown               = 300
-#   autoscaling_group_name = aws_autoscaling_group.frontend.name
-# }
+# 애플리케이션 로드 밸런서
+resource "aws_lb" "main" {
+  name               = "${local.project_name}-${local.environment}-alb"
+  internal           = false
+  load_balancer_type = "application"
+  security_groups    = [aws_security_group.alb_sg.id]
+  
+  # 수정된 서브넷 참조
+  subnets            = data.terraform_remote_state.network.outputs.public_subnet_ids
 
-# # CPU 기반 스케일 인 정책 (프론트엔드)
-# resource "aws_autoscaling_policy" "frontend_scale_in" {
-#   name                   = "${local.project_name}-${local.environment}-frontend-scale-in"
-#   scaling_adjustment     = -1
-#   adjustment_type        = "ChangeInCapacity"
-#   cooldown               = 300
-#   autoscaling_group_name = aws_autoscaling_group.frontend.name
-# }
+  enable_deletion_protection = false
 
-# # CPU 기반 스케일 아웃 정책 (백엔드)
-# resource "aws_autoscaling_policy" "backend_scale_out" {
-#   name                   = "${local.project_name}-${local.environment}-backend-scale-out"
-#   scaling_adjustment     = 1
-#   adjustment_type        = "ChangeInCapacity"
-#   cooldown               = 300
-#   autoscaling_group_name = aws_autoscaling_group.backend.name
-# }
+  tags = merge(local.common_tags, {
+    Name = "${local.project_name}-${local.environment}-alb"
+  })
+  
+  # 대상 그룹이 모두 생성된 후에 ALB를 생성합니다
+  depends_on = [
+    aws_lb_target_group.frontend,
+    aws_lb_target_group.backend,
+    aws_autoscaling_group.frontend,
+    aws_autoscaling_group.backend
+  ]
+}
 
-# # CPU 기반 스케일 인 정책 (백엔드)
-# resource "aws_autoscaling_policy" "backend_scale_in" {
-#   name                   = "${local.project_name}-${local.environment}-backend-scale-in"
-#   scaling_adjustment     = -1
-#   adjustment_type        = "ChangeInCapacity"
-#   cooldown               = 300
-#   autoscaling_group_name = aws_autoscaling_group.backend.name
-# }
+# 기본 리스너 (HTTP)
+resource "aws_lb_listener" "http" {
+  load_balancer_arn = aws_lb.main.arn
+  port              = "80"
+  protocol          = "HTTP"
+
+  default_action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.frontend.arn
+  }
+}
+
+# HTTPS 리스너 (ACM 인증서 사용)
+resource "aws_lb_listener" "https" {
+  load_balancer_arn = aws_lb.main.arn
+  port              = "443"
+  protocol          = "HTTPS"
+  ssl_policy        = "ELBSecurityPolicy-2016-08"
+  certificate_arn   = "arn:aws:acm:ap-northeast-2:236450698266:certificate/802235a6-034f-43e9-b30b-319566f94059"
+
+  default_action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.frontend.arn
+  }
+}
+
+# 백엔드 API 경로 리스너 규칙 (HTTP)
+resource "aws_lb_listener_rule" "backend_api" {
+  listener_arn = aws_lb_listener.http.arn
+  priority     = 100
+
+  action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.backend.arn
+  }
+
+  condition {
+    path_pattern {
+      values = ["/api/*"]
+    }
+  }
+}
+
+# 백엔드 API 경로 리스너 규칙 (HTTPS)
+resource "aws_lb_listener_rule" "backend_api_https" {
+  listener_arn = aws_lb_listener.https.arn
+  priority     = 100
+
+  action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.backend.arn
+  }
+
+  condition {
+    path_pattern {
+      values = ["/api/*"]
+    }
+  }
+}
+
+#-------------------------------
+# 7. Route53 구성
+#-------------------------------
+
+# Route53 호스팅 존 데이터 가져오기
+data "aws_route53_zone" "this" {
+  name = "tebutebu.com"
+  private_zone = false
+}
+
+# ALB를 가리키는 A 레코드 생성
+resource "aws_route53_record" "dev_subdomain" {
+  zone_id = data.aws_route53_zone.this.zone_id
+  name    = local.domain_name # dev.tebutebu.com
+  type    = "A"
+
+  alias {
+    name                   = aws_lb.main.dns_name
+    zone_id                = aws_lb.main.zone_id
+    evaluate_target_health = true
+  }
+  
+  # ALB가 생성된 후에 Route53 레코드를 생성합니다
+  depends_on = [aws_lb.main]
+}
+

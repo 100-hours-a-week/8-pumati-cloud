@@ -60,17 +60,3 @@ data "aws_secretsmanager_secret_version" "discord_webhooks" {
 locals {
   discord_webhooks = jsondecode(data.aws_secretsmanager_secret_version.discord_webhooks.secret_string)
 }
-
-
-
-# data "aws_secretsmanager_secret" "backend_env" {
-#   name = "${local.project_name}-${local.environment}-backend-env"
-# }
-
-# data "aws_secretsmanager_secret_version" "backend_env" {
-#   secret_id = data.aws_secretsmanager_secret.backend_env.id
-# }
-
-# locals {
-#   backend_env_secret_name = data.aws_secretsmanager_secret_version.backend_env.secret_string
-# }

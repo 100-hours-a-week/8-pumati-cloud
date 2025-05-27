@@ -40,5 +40,32 @@ data "terraform_remote_state" "network" {
 
 locals {
   vpc_id = data.terraform_remote_state.network.outputs.vpc_id
-  subnet_id = data.terraform_remote_state.network.outputs.subnet_id
+  subnet_id = data.terraform_remote_state.network.outputs.public_subnet_a_id
+}
+
+# 02-base 모듈에서 데이터베이스 암호 및 디스코드 웹훅 가져오기 s3 이름도
+data "terraform_remote_state" "base" {
+  backend = "s3"
+  config = {
+    bucket = "s3-terraform-pumati"
+    key    = "aws/dev/base/terraform.tfstate"
+    region = "ap-northeast-2"
+  }
+}
+
+locals {
+  db_name     = "tbdb"
+  db_username = "tbuser"
+  db_password = data.terraform_remote_state.base.outputs.db_password
+  s3_bucket_name = data.terraform_remote_state.base.outputs.app_storage_bucket_name
+  
+  # 스타트업 스크립트 템플릿 적용
+  startup_script = templatefile("${path.module}/startup-script.sh", {
+    project_name       = local.project_name
+    environment        = local.environment
+    db_password        = local.db_password
+    db_name            = local.db_name
+    db_username        = local.db_username
+    s3_bucket_name     = local.s3_bucket_name
+  })
 }
