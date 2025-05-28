@@ -2,7 +2,7 @@
 # 보안 그룹
 # ---------------------------------------------------------------------------------------------------------------------
 module "frontend_sg" {
-  source        = "../../module/sg"
+  source        = "../../common/module/sg"
 
   # 공통 입력값
   project_name  = local.project_name
@@ -42,7 +42,7 @@ module "frontend_sg" {
 }
 
 module "backend_sg" {
-  source        = "../../module/sg"
+  source        = "../../common/module/sg"
 
   # 공통 값
   project_name  = local.project_name
@@ -75,18 +75,18 @@ module "backend_sg" {
   ]
 }
 
-module "jenkins_sg" {
-  source        = "../../module/sg"
+module "management_sg" {
+  source        = "../../common/module/sg"
 
   # 공통 값
   project_name  = local.project_name
   environment   = local.environment
   tags          = local.common_tags
-  instance_name = "jenkins"
+  instance_name = "management"
 
   # 리소스 고유값
-  name          = "${local.project_name}-${local.environment}-jenkins-sg"
-  description   = "Jenkins 인스턴스용 보안 그룹"
+  name          = "${local.project_name}-${local.environment}-management-sg"
+  description   = "Management 인스턴스용 보안 그룹"
   vpc_id        = local.vpc_id
 
   # 인바운드 규칙
@@ -104,14 +104,14 @@ module "jenkins_sg" {
       to_port     = 8080
       protocol    = "tcp"
       cidr_blocks = ["0.0.0.0/0"]
-      description = "Jenkins UI"
+      description = "Management UI"
     },
     {
       from_port   = 50000
       to_port     = 50000
       protocol    = "tcp"
       cidr_blocks = ["0.0.0.0/0"]
-      description = "Jenkins Agent (optional)"
+      description = "Management Agent (optional)"
     }
   ]
 }
@@ -120,7 +120,7 @@ module "jenkins_sg" {
 # IAM 규칙
 # ---------------------------------------------------------------------------------------------------------------------
 module "frontend_iam" {
-  source        = "../../module/iam-role"
+  source        = "../../common/module/iam-role"
   project_name  = local.project_name
   environment   = local.environment
   tags          = local.common_tags
@@ -147,7 +147,7 @@ module "frontend_iam" {
 }
 
 module "backend_iam" {
-  source        = "../../module/iam-role"
+  source        = "../../common/module/iam-role"
   project_name  = local.project_name
   environment   = local.environment
   tags          = local.common_tags
@@ -174,12 +174,12 @@ module "backend_iam" {
 }
 
 
-module "jenkins_iam" {
-  source        = "../../module/iam-role"
+module "management_iam" {
+  source        = "../../common/module/iam-role"
   project_name  = local.project_name
   environment   = local.environment
   tags          = local.common_tags
-  instance_name = "jenkins"
+  instance_name = "management"
 
   # 인라인 정책 정의
   inline_policy_json = jsonencode({
@@ -193,10 +193,27 @@ module "jenkins_iam" {
           "s3:ListBucket"
         ]
         Resource = [
-          "arn:aws:s3:::your-jenkins-bucket",
-          "arn:aws:s3:::your-jenkins-bucket/*"
+          "arn:aws:s3:::s3-common-storage-pumati",
+          "arn:aws:s3:::s3-common-storage-pumati/*"
         ]
       }
     ]
   })
+}
+#---------------------------------------------------------------------------------------------------------------------
+# Secrets Manager
+#---------------------------------------------------------------------------------------------------------------------
+module "frontend_env_secret_dev" {
+  source = "../../common/module/secretsmanager"
+
+  env           = "dev"
+  env_file_path = "../../common/envs/frontend/dev/.env"
+  kms_key_id    = "arn:aws:kms:ap-northeast-2:236450698266:key/93a8affe-a6f3-4f22-bdcc-dfafac23e42d"
+}
+module "frontend_env_secret_prod" {
+  source = "../../common/module/secretsmanager"
+
+  env           = "prod"
+  env_file_path = "../../common/envs/frontend/prod/.env"
+  kms_key_id    = "arn:aws:kms:ap-northeast-2:236450698266:key/93a8affe-a6f3-4f22-bdcc-dfafac23e42d" 
 }

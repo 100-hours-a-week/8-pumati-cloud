@@ -21,12 +21,12 @@ output "backend_public_ip" {
 }
 
 # 젠킨스 인스턴스 출력
-output "jenkins_instance_id" {
-  description = "Jenkins 인스턴스 ID"
-  value       = module.jenkins_instance.instance_id
+output "management_instance_id" {
+  description = "Management 인스턴스 ID"
+  value       = module.management_instance.instance_id
 }
 
-output "jenkins_public_ip" {
-  description = "Jenkins 인스턴스의 퍼블릭 IP"
-  value       = module.jenkins_instance.public_ip
+output "management_public_ip" {
+  description = "Management 인스턴스의 퍼블릭 IP"
+  value       = module.management_instance.public_ip
 }

@@ -1,5 +1,5 @@
 module "frontend_instance" {
-  source = "../../module/instance"
+  source = "../../common/module/instance"
 
   # 공통
   project_name  = local.project_name
@@ -28,7 +28,7 @@ module "frontend_instance" {
 }
 
 module "backend_instance" {
-  source = "../../module/instance"
+  source = "../../common/module/instance"
 
   project_name  = local.project_name
   environment   = local.environment
@@ -54,29 +54,29 @@ module "backend_instance" {
   enable_eip = false
 }
 
-module "jenkins_instance" {
-  source = "../../module/instance"
+module "management_instance" {
+  source = "../../common/module/instance"
 
   project_name  = local.project_name
   environment   = local.environment
   tags          = local.common_tags
-  instance_name = "jenkins"
+  instance_name = "management"
 
   instance_ami           = "ami-0d5bb3742db8fc264"
   instance_type          = "t3.small"
   instance_key_name      = "pumati-full-master"
-  iam_instance_profile   = local.jenkins_instance_profile_name
+  iam_instance_profile   = local.management_instance_profile_name
   subnet_id              = local.public_subnet_id
-  security_group_ids     = [local.jenkins_sg_id]
+  security_group_ids     = [local.management_sg_id]
 
   root_volume_size       = 30
   root_volume_type       = "gp3"
 
-  user_data              = file("${path.module}/scripts/jenkins-user-data.sh")
+  user_data              = file("${path.module}/scripts/management-user-data.sh")
 
   enable_monitoring             = true
   disable_api_termination       = false
   shutdown_behavior             = "stop"
 
-  enable_eip = false
+  enable_eip = true
 }

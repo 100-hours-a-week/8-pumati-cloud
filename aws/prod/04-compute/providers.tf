@@ -57,10 +57,10 @@ locals {
   # security 모듈 : 보안 그룹 ID
   frontend_sg_id = data.terraform_remote_state.security.outputs.frontend_sg_id
   backend_sg_id  = data.terraform_remote_state.security.outputs.backend_sg_id
-  jenkins_sg_id  = data.terraform_remote_state.security.outputs.jenkins_sg_id
+  management_sg_id  = data.terraform_remote_state.security.outputs.management_sg_id
 
   # security 모듈 : IAM 인스턴스 프로파일 이름
   frontend_instance_profile_name = data.terraform_remote_state.security.outputs.frontend_instance_profile_name
   backend_instance_profile_name = data.terraform_remote_state.security.outputs.backend_instance_profile_name
-  jenkins_instance_profile_name = data.terraform_remote_state.security.outputs.jenkins_instance_profile_name
+  management_instance_profile_name = data.terraform_remote_state.security.outputs.management_instance_profile_name
 } 

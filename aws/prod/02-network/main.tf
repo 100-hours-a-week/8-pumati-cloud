@@ -1,5 +1,5 @@
 module "vpc" {
-  source = "../../module/vpc"
+  source = "../../common/module/vpc"
 
   project_name = local.project_name
   environment  = local.environment
