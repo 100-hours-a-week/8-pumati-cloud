@@ -1,6 +1,6 @@
 resource "aws_security_group" "this" {
-  name        = "${var.project_name}-${var.environment}-${var.instance_name}-sg"
-  description = "Security group for ${var.name} instance"
+  name        = "${var.project_name}-${var.environment}-${var.service_name}-sg"
+  description = "Security group for ${var.name} service"
   vpc_id      = var.vpc_id
 
   dynamic "ingress" {
@@ -23,6 +23,6 @@ resource "aws_security_group" "this" {
   }
 
   tags = merge(var.tags, {
-    Name = "${var.project_name}-${var.environment}-${var.instance_name}-sg"
+    Name = "${var.project_name}-${var.environment}-${var.service_name}-sg"
   })
 }

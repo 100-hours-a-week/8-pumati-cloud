@@ -4,12 +4,12 @@ variable "project_name" {
 }
 
 variable "environment" {
-  description = "환경 (예: dev, prod)"
+  description = "환경 이름 (예: dev, prod)"
   type        = string
 }
 
-variable "instance_name" {
-  description = "인스턴스 구분 이름 (예: frontend, backend, jenkins)"
+variable "service_name" {
+  description = "서비스 이름 (예: frontend, backend, management)"
   type        = string
 }
 
@@ -29,12 +29,13 @@ variable "vpc_id" {
 }
 
 variable "tags" {
-  description = "공통 태그"
+  description = "리소스에 추가할 태그"
   type        = map(string)
+  default     = {}
 }
 
 variable "ingress_rules" {
-  description = "인바운드 규칙 리스트"
+  description = "인바운드 규칙 목록"
   type = list(object({
     from_port       = number
     to_port         = number

@@ -1,25 +1,25 @@
-variable "project_name"     {
-    type = string
-    description = "프로젝트 이름"
+variable "project_name" {
+  description = "프로젝트 이름"
+  type        = string
 }
 
-variable "environment"      {
-    type = string
-    description = "환경"
+variable "environment" {
+  description = "환경 이름 (예: dev, prod)"
+  type        = string
 }
 
-variable "instance_name"    {
-    type = string
-    description = "인스턴스 이름"
+variable "service_name" {
+  description = "서비스 이름 (예: frontend, backend, management)"
+  type        = string
 }
 
 variable "tags" {
-  description = "공통 태그"
+  description = "리소스에 추가할 태그"
   type        = map(string)
   default     = {}
 }
 
 variable "inline_policy_json" {
-  type = string
-  description = "IAM Role에 연결할 inline policy (JSON 문자열)"
+  description = "IAM Role에 추가할 인라인 정책의 JSON"
+  type        = string
 }

@@ -7,12 +7,12 @@ module "frontend_sg" {
   # 공통 입력값
   project_name  = local.project_name
   environment   = local.environment
+  service_name  = "frontend"
   tags          = local.common_tags
-  instance_name = "frontend"
 
   # 리소스 고유값
   name          = "${local.project_name}-${local.environment}-frontend-sg"
-  description   = "프론트엔드 인스턴스용 보안 그룹"
+  description   = "프론트엔드 서비스용 보안 그룹"
   vpc_id        = local.vpc_id
 
   ingress_rules = [
@@ -47,12 +47,12 @@ module "backend_sg" {
   # 공통 값
   project_name  = local.project_name
   environment   = local.environment
+  service_name  = "backend"
   tags          = local.common_tags
-  instance_name = "backend"
 
   # 리소스 고유값
   name          = "${local.project_name}-${local.environment}-backend-sg"
-  description   = "백엔드 인스턴스용 보안 그룹"
+  description   = "백엔드 서비스용 보안 그룹"
   vpc_id        = local.vpc_id
 
   # 인바운드 규칙
@@ -81,12 +81,12 @@ module "management_sg" {
   # 공통 값
   project_name  = local.project_name
   environment   = local.environment
+  service_name  = "management"
   tags          = local.common_tags
-  instance_name = "management"
 
   # 리소스 고유값
   name          = "${local.project_name}-${local.environment}-management-sg"
-  description   = "Management 인스턴스용 보안 그룹"
+  description   = "Management 서비스용 보안 그룹"
   vpc_id        = local.vpc_id
 
   # 인바운드 규칙
@@ -123,8 +123,8 @@ module "frontend_iam" {
   source        = "../../common/module/iam-role"
   project_name  = local.project_name
   environment   = local.environment
+  service_name  = "frontend"
   tags          = local.common_tags
-  instance_name = "frontend"
 
   # 인라인 정책 정의
   inline_policy_json = jsonencode({
@@ -150,8 +150,8 @@ module "backend_iam" {
   source        = "../../common/module/iam-role"
   project_name  = local.project_name
   environment   = local.environment
+  service_name  = "backend"
   tags          = local.common_tags
-  instance_name = "backend"
 
   # 인라인 정책 정의
   inline_policy_json = jsonencode({
@@ -173,13 +173,12 @@ module "backend_iam" {
   })
 }
 
-
 module "management_iam" {
   source        = "../../common/module/iam-role"
   project_name  = local.project_name
   environment   = local.environment
+  service_name  = "management"
   tags          = local.common_tags
-  instance_name = "management"
 
   # 인라인 정책 정의
   inline_policy_json = jsonencode({
@@ -196,6 +195,16 @@ module "management_iam" {
           "arn:aws:s3:::s3-common-storage-pumati",
           "arn:aws:s3:::s3-common-storage-pumati/*"
         ]
+      },
+      {
+        Effect = "Allow"
+        Action = [
+        "secretsmanager:GetSecretValue"
+      ]
+      Resource = [
+        "arn:aws:secretsmanager:ap-northeast-2:236450698266:secret:pumati-dev-frontend-.env*",
+        "arn:aws:secretsmanager:ap-northeast-2:236450698266:secret:pumati-prod-frontend-.env*"
+      ]
       }
     ]
   })
@@ -206,14 +215,43 @@ module "management_iam" {
 module "frontend_env_secret_dev" {
   source = "../../common/module/secretsmanager"
 
-  env           = "dev"
+  project_name  = local.project_name
+  environment   = "dev"
+  service_name  = "frontend"
+  tags          = local.common_tags
   env_file_path = "../../common/envs/frontend/dev/.env"
   kms_key_id    = "arn:aws:kms:ap-northeast-2:236450698266:key/93a8affe-a6f3-4f22-bdcc-dfafac23e42d"
 }
+
 module "frontend_env_secret_prod" {
   source = "../../common/module/secretsmanager"
 
-  env           = "prod"
+  project_name  = local.project_name
+  environment   = "prod"
+  service_name  = "frontend"
+  tags          = local.common_tags
   env_file_path = "../../common/envs/frontend/prod/.env"
-  kms_key_id    = "arn:aws:kms:ap-northeast-2:236450698266:key/93a8affe-a6f3-4f22-bdcc-dfafac23e42d" 
+  kms_key_id    = "arn:aws:kms:ap-northeast-2:236450698266:key/93a8affe-a6f3-4f22-bdcc-dfafac23e42d"
+}
+
+module "backend_env_secret_dev" {
+  source = "../../common/module/secretsmanager"
+
+  project_name  = local.project_name
+  environment   = "dev"
+  service_name  = "backend"
+  tags          = local.common_tags
+  env_file_path = "../../common/envs/backend/dev/.env"
+  kms_key_id    = "arn:aws:kms:ap-northeast-2:236450698266:key/93a8affe-a6f3-4f22-bdcc-dfafac23e42d"
+}
+
+module "backend_env_secret_prod" {
+  source = "../../common/module/secretsmanager"
+
+  project_name  = local.project_name
+  environment   = "prod"
+  service_name  = "backend"
+  tags          = local.common_tags
+  env_file_path = "../../common/envs/backend/prod/.env"
+  kms_key_id    = "arn:aws:kms:ap-northeast-2:236450698266:key/93a8affe-a6f3-4f22-bdcc-dfafac23e42d"
 }

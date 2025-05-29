@@ -12,3 +12,7 @@ apt install -y jenkins
 
 systemctl enable jenkins
 systemctl start jenkins
+
+sudo apt update
+sudo apt install -y awscli
+
