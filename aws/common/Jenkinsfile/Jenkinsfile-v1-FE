@@ -67,20 +67,16 @@ pipeline {
         checkout scm
       }
     }
-
+    
     stage('Install Dependencies') {
       steps {
         sh '''
-          if ! command -v pnpm &> /dev/null; then
-            echo "🔧 pnpm not found. Installing locally..."
-            npm install pnpm
-            export PATH="$PWD/node_modules/.bin:$PATH"
-          fi
-
+          echo "Installing dependencies using pre-installed pnpm..."
           pnpm install
         '''
       }
     }
+
 
     stage('Fetch .env from AWS Secrets Manager') {
       steps {
