@@ -138,8 +138,8 @@ module "frontend_iam" {
           "s3:ListBucket"
         ]
         Resource = [
-          "arn:aws:s3:::s3-common-storage-pumati",       
-          "arn:aws:s3:::s3-common-storage-pumati/*"     
+          "arn:aws:s3:::s3-pumati-common-storage",       
+          "arn:aws:s3:::s3-pumati-common-storage/*"     
         ]
       }
     ]
@@ -165,8 +165,8 @@ module "backend_iam" {
           "s3:ListBucket"
         ]
         Resource = [
-          "arn:aws:s3:::s3-common-storage-pumati",
-          "arn:aws:s3:::s3-common-storage-pumati/*"
+          "arn:aws:s3:::s3-pumati-common-storage",
+          "arn:aws:s3:::s3-pumati-common-storage/*"
         ]
       }
     ]
@@ -192,8 +192,8 @@ module "management_iam" {
           "s3:ListBucket"
         ]
         Resource = [
-          "arn:aws:s3:::s3-common-storage-pumati",
-          "arn:aws:s3:::s3-common-storage-pumati/*"
+          "arn:aws:s3:::s3-pumati-common-storage",
+          "arn:aws:s3:::s3-pumati-common-storage/*"
         ]
       },
       {
@@ -203,7 +203,9 @@ module "management_iam" {
       ]
       Resource = [
         "arn:aws:secretsmanager:ap-northeast-2:236450698266:secret:pumati-dev-frontend-.env*",
-        "arn:aws:secretsmanager:ap-northeast-2:236450698266:secret:pumati-prod-frontend-.env*"
+        "arn:aws:secretsmanager:ap-northeast-2:236450698266:secret:pumati-prod-frontend-.env*",
+        "arn:aws:secretsmanager:ap-northeast-2:236450698266:secret:pumati-dev-backend-.env*",
+        "arn:aws:secretsmanager:ap-northeast-2:236450698266:secret:pumati-prod-backend-.env*"
       ]
       }
     ]
