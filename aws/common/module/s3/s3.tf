@@ -99,20 +99,3 @@ resource "aws_s3_bucket_policy" "this" {
         ]
     })
 }
-
-# ------------------------------------------------------------
-# 폴더 생성 -> 필요 시 사용 
-# ------------------------------------------------------------
-# resource "aws_s3_object" "folders" {
-#     count = var.create_folders ? length(var.folders) : 0
-    
-#     bucket = aws_s3_bucket.this.id
-#     key    = var.folders[count.index]
-#     content_type = "application/x-directory"
-    
-#     # 빈 내용으로 폴더 생성 (S3에서는 빈 객체로 폴더 표현)
-#     source = "/dev/null"
-    
-#     # S3 객체 생성 시 빈 내용 전송을 위해 필요
-#     etag = filemd5("/dev/null")
-# } 

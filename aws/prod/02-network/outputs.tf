@@ -1,14 +1,23 @@
-# ------------------------------------------------------------
-# VPC 출력값
-# ------------------------------------------------------------
+# VPC 정보
 output "vpc_id" {
   description = "VPC ID"
   value       = module.vpc.vpc_id
 }
 
+output "vpc_cidr" {
+  description = "VPC의 CIDR 블록"
+  value       = module.vpc.vpc_cidr_block
+}
+
+# 퍼블릭 서브넷 구성 요소
 output "public_subnet_id" {
   description = "퍼블릭 서브넷 ID"
   value       = module.vpc.public_subnet_id
+}
+
+output "public_subnet_cidr" {
+  description = "퍼블릭 서브넷 CIDR 블록"
+  value       = module.vpc.public_subnet_cidr_block
 }
 
 output "public_route_table_id" {
@@ -21,31 +30,13 @@ output "internet_gateway_id" {
   value       = module.vpc.internet_gateway_id
 }
 
-output "vpc_cidr" {
-  description = "VPC CIDR 블록"
-  value       = module.vpc.vpc_cidr_block
+# 서비스 및 DB 서브넷 (선택적 구성 요소)
+output "service_subnet_id" {
+  description = "서비스 서브넷 ID (존재 시)"
+  value       = module.vpc.service_subnet_id
 }
 
-# ------------------------------------------------------------
-# 프론트엔드 보안 그룹 출력값
-# ------------------------------------------------------------
-output "frontend_sg_id" {
-  description = "프론트엔드 보안 그룹 ID"
-  value       = module.security_group.frontend_sg_id
+output "db_subnet_id" {
+  description = "DB 서브넷 ID (존재 시)"
+  value       = module.vpc.db_subnet_id
 }
-
-# ------------------------------------------------------------
-# 백엔드 보안 그룹 출력값
-# ------------------------------------------------------------
-output "backend_sg_id" {
-  description = "백엔드 보안 그룹 ID"
-  value       = module.security_group.backend_sg_id
-}
-
-# ------------------------------------------------------------
-# Jenkins 보안 그룹 출력값
-# ------------------------------------------------------------
-output "jenkins_sg_id" {
-  description = "Jenkins 보안 그룹 ID"
-  value       = module.security_group.jenkins_sg_id
-} 
