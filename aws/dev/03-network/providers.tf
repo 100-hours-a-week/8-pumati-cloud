@@ -8,9 +8,12 @@ terraform {
   }
 }
 
+provider "aws" {
+  region = "ap-northeast-2"
+}
+
 data "terraform_remote_state" "common" {
   backend = "s3"
-
   config = {
     bucket = "pumati-s3-jacky"
     key    = "aws/dev/common/terraform.tfstate"
@@ -20,16 +23,7 @@ data "terraform_remote_state" "common" {
 
 locals {
   project_name = data.terraform_remote_state.common.outputs.project_name
-  domain_name = data.terraform_remote_state.common.outputs.domain_name
-  region = data.terraform_remote_state.common.outputs.region
-  environment = data.terraform_remote_state.common.outputs.environment
+  region       = data.terraform_remote_state.common.outputs.region
+  environment  = data.terraform_remote_state.common.outputs.environment
   common_tags  = data.terraform_remote_state.common.outputs.common_tags
-}
-
-provider "aws" {
-  region = local.region
-
-  default_tags {
-    tags = local.common_tags
-  }
 }

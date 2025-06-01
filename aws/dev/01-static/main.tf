@@ -1,6 +1,6 @@
 # Route53 호스팅 존 데이터 소스 (기존 호스팅 존이 있다고 가정)
 data "aws_route53_zone" "this" {
-  name = local.domain_name
+  name = "dev.tebutebu.com"
   private_zone = false
 }
 
