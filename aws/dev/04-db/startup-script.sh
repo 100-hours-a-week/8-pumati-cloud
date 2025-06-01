@@ -17,8 +17,6 @@ DB_NAME="${db_name}"
 DB_USERNAME="${db_username}"
 DB_PASSWORD="${db_password}"
 S3_BUCKET="${s3_bucket_name}"
-BACKUP_URL="https://pumati-dev-db-backup.s3.ap-northeast-2.amazonaws.com/backup-20250521.sql.gz"
-BACKUP_FILE="backup-20250521.sql.gz"
 BACKUP_DIR="/tmp/db-restore"
 
 # 시스템 타임존을 한국 시간(KST)으로 설정
@@ -106,29 +104,40 @@ else
   log_message "MySQL 서비스 시작 실패!"
 fi
 
-# S3 스토리지에서 백업 파일 가져와서 DB 복원하기
-log_message "S3 스토리지에서 초기 데이터베이스 백업 파일 가져오는 중..."
+# 기존 하드코딩된 부분 대신 최신 백업 파일을 찾는 로직으로 변경
+log_message "S3에서 최신 백업 파일 검색 중..."
+
+# S3에서 최신 백업 파일 찾기
+LATEST_BACKUP=$(aws s3 ls s3://$S3_BUCKET/backups/ --recursive | grep '\.sql\.gz$' | sort | tail -n 1 | awk '{print $4}')
+
+if [ -z "$LATEST_BACKUP" ]; then
+    log_message "경고: S3에서 백업 파일을 찾을 수 없습니다. 기본 백업 파일을 사용합니다."
+    BACKUP_FILE="backup-20250521.sql.gz"
+    BACKUP_URL="https://pumati-dev-db-backup.s3.ap-northeast-2.amazonaws.com/backup-20250521.sql.gz"
+else
+    # backups/ 경로 제거하고 파일명만 추출
+    BACKUP_FILE=$(basename "$LATEST_BACKUP")
+    log_message "최신 백업 파일 발견: $BACKUP_FILE"
+fi
 
 # 작업 디렉토리 생성
 mkdir -p $BACKUP_DIR
 cd $BACKUP_DIR
 
-# S3에서 백업 파일 다운로드
-log_message "백업 파일 다운로드 중: $BACKUP_URL"
-aws s3 cp s3://$S3_BUCKET/backup-20250521.sql.gz . >> $LOGFILE 2>&1
-
-# 다운로드 실패 시 직접 URL로 시도
-if [ $? -ne 0 ]; then
-  log_message "S3 다운로드 실패, URL로 직접 다운로드 시도 중..."
-  curl -o $BACKUP_FILE $BACKUP_URL >> $LOGFILE 2>&1
-  
-  if [ $? -ne 0 ]; then
-    log_message "오류: 백업 파일 다운로드 실패!"
-  else
-    log_message "URL에서 백업 파일 다운로드 성공"
-  fi
+# S3에서 최신 백업 파일 다운로드
+if [ -n "$LATEST_BACKUP" ]; then
+    log_message "최신 백업 파일 다운로드 중: s3://$S3_BUCKET/$LATEST_BACKUP"
+    aws s3 cp s3://$S3_BUCKET/$LATEST_BACKUP . >> $LOGFILE 2>&1
 else
-  log_message "S3에서 백업 파일 다운로드 성공"
+    # 기본 백업 파일 다운로드 (fallback)
+    log_message "기본 백업 파일 다운로드 중: $BACKUP_URL"
+    aws s3 cp s3://$S3_BUCKET/backup-20250521.sql.gz . >> $LOGFILE 2>&1
+    
+    # S3 다운로드 실패 시 직접 URL로 시도
+    if [ $? -ne 0 ]; then
+        log_message "S3 다운로드 실패, URL로 직접 다운로드 시도 중..."
+        curl -o $BACKUP_FILE $BACKUP_URL >> $LOGFILE 2>&1
+    fi
 fi
 
 if [ -f "$BACKUP_FILE" ]; then

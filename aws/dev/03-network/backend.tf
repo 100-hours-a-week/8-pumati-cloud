@@ -1,6 +1,6 @@
 terraform {
   backend "s3" {
-    bucket       = "s3-terraform-pumati"
+    bucket       = "pumati-s3-jacky"
     key          = "aws/dev/network/terraform.tfstate"
     region       = "ap-northeast-2"
     encrypt      = true

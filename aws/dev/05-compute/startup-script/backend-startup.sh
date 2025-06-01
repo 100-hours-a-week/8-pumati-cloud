@@ -448,7 +448,13 @@ log_message "✅ 빌드 완료"
 
 # 7. 서버 실행 (백그라운드)
 log_message "백엔드 서버 시작 중..."
-nohup java -jar build/libs/*.jar > spring.log 2>&1 &
+nohup java \
+-javaagent:/home/ubuntu/elastic-apm-agent-1.47.0.jar \
+-Delastic.apm.service_name=backend \
+-Delastic.apm.server_urls=http://10.1.0.25:8200 \
+-Delastic.apm.environment=production \
+-Delastic.apm.application_packages=com.yourcompany \
+-jar build/libs/*.jar > spring.log 2>&1 &
 SERVER_PID=$!
 disown
 

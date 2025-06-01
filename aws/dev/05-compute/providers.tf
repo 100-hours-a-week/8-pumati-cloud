@@ -15,7 +15,7 @@ provider "aws" {
 data "terraform_remote_state" "common" {
   backend = "s3"
   config = {
-    bucket = "s3-terraform-pumati"
+    bucket = "pumati-s3-jacky"
     key    = "aws/dev/common/terraform.tfstate"
     region = "ap-northeast-2"
   }
@@ -33,7 +33,7 @@ locals {
 data "terraform_remote_state" "base" {
   backend = "s3"
   config = {
-    bucket = "s3-terraform-pumati"
+    bucket = "pumati-s3-jacky"
     key    = "aws/dev/base/terraform.tfstate"
     region = "ap-northeast-2"
   }
@@ -42,7 +42,7 @@ data "terraform_remote_state" "base" {
 data "terraform_remote_state" "network" {
   backend = "s3"
   config = {
-    bucket = "s3-terraform-pumati"
+    bucket = "pumati-s3-jacky"
     key    = "aws/dev/network/terraform.tfstate"
     region = "ap-northeast-2"
   }

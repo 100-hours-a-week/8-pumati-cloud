@@ -504,7 +504,7 @@ resource "aws_lb_listener_rule" "backend_api" {
 
   condition {
     path_pattern {
-      values = ["/api/*"]
+      values = ["/api/*", "/oauth2/*"]
     }
   }
 }
@@ -521,7 +521,7 @@ resource "aws_lb_listener_rule" "backend_api_https" {
 
   condition {
     path_pattern {
-      values = ["/api/*"]
+      values = ["/api/*", "/oauth2/*"]
     }
   }
 }

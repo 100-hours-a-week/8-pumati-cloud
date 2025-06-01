@@ -15,5 +15,5 @@ common_tags  = {
 domain_name  = "dev.tebutebu.com"  # 서비스 도메인
 
 # 상태 저장 관련 설정
-tfstate_bucket = "s3-terraform-pumati"  # 00-static에서 생성한 버킷
+tfstate_bucket = "pumati-s3-jacky"  # 00-static에서 생성한 버킷
 tfstate_region = "ap-northeast-2"  # 테라폼 상태 저장 버킷 리전 (서울)
