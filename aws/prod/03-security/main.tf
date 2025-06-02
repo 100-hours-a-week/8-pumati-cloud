@@ -141,6 +141,16 @@ module "frontend_iam" {
           "arn:aws:s3:::s3-pumati-common-storage",       
           "arn:aws:s3:::s3-pumati-common-storage/*"     
         ]
+      },
+      {
+      Effect = "Allow"
+      Action = [
+        "ecr:GetAuthorizationToken",
+        "ecr:BatchCheckLayerAvailability",
+        "ecr:GetDownloadUrlForLayer",
+        "ecr:BatchGetImage"
+      ],
+      Resource = "*"
       }
     ]
   })
@@ -168,6 +178,16 @@ module "backend_iam" {
           "arn:aws:s3:::s3-pumati-common-storage",
           "arn:aws:s3:::s3-pumati-common-storage/*"
         ]
+      },
+      {
+      Effect = "Allow"
+      Action = [
+        "ecr:GetAuthorizationToken",
+        "ecr:BatchCheckLayerAvailability",
+        "ecr:GetDownloadUrlForLayer",
+        "ecr:BatchGetImage"
+      ],
+      Resource = "*"
       }
     ]
   })

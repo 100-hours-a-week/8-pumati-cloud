@@ -4,7 +4,7 @@ module "terraform_state" {
   
   # 기본 설정
   bucket_name = "s3-pumati-tfstate"
-  environment = "shared"
+  environment = "prod"
   project_name = "terraform"
   
   # 버전 관리 설정
@@ -94,7 +94,7 @@ module "common_storage" {
   
   # 기본 설정
   bucket_name = "s3-pumati-common-storage"
-  environment = "shared"
+  environment = "prod"
   project_name = "common"
   
   # 버전 관리 설정
