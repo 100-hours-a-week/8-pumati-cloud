@@ -12,28 +12,31 @@ pipeline {
     stage('Set Branch & Environment') {
       steps {
         script {
-          // 브랜치명 추출 및 환경 설정
-          env.BRANCH = (env.BRANCH_NAME ?: env.GIT_BRANCH)?.replaceFirst(/^origin\//, '') ?: 'unknown'
+          // 1. Git 브랜치명 추출 (origin/ 접두사 제거)
+          def branchName = (env.BRANCH_NAME ?: env.GIT_BRANCH)?.replaceFirst(/^origin\//, '') ?: 'unknown'
+          env.BRANCH = branchName
 
-          if (env.BRANCH == 'main') {
+          // 2. 브랜치에 따라 ENV_LABEL 및 트리거 설정
+          if (branchName == 'main') {
             env.ENV_LABEL = 'prod'
             properties([
               pipelineTriggers([
                 cron('0 9 * * *')  // prod는 매일 9시에 자동 실행
               ])
             ])
-          } else if (env.BRANCH == 'dev') {
+          } else if (branchName == 'dev') {
             env.ENV_LABEL = 'dev'
             properties([])
+
           } else {
             env.ENV_LABEL = 'unknown'
             properties([pipelineTriggers([])])  // 트리거 초기화
-            echo "지원되지 않는 브랜치입니다: ${env.BRANCH}. 빌드를 중단합니다."
+            echo "지원되지 않는 브랜치입니다: ${branchName}. 빌드를 중단합니다."
             currentBuild.result = 'NOT_BUILT'
-            error("Unsupported branch: ${env.BRANCH}")
+            error("Unsupported branch: ${branchName}")
           }
 
-          // 설정 확인 로그
+          // 3. 설정 확인 로그
           echo "현재 브랜치: ${env.BRANCH}"
           echo "설정된 ENV_LABEL: ${env.ENV_LABEL}"
         }

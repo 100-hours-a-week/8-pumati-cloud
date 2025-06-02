@@ -7,8 +7,8 @@ module "frontend_sg" {
   # 공통 입력값
   project_name  = local.project_name
   environment   = local.environment
-  service_name  = "frontend"
   tags          = local.common_tags
+  service_name  = "frontend"
 
   # 리소스 고유값
   name          = "${local.project_name}-${local.environment}-frontend-sg"
@@ -47,8 +47,8 @@ module "backend_sg" {
   # 공통 값
   project_name  = local.project_name
   environment   = local.environment
-  service_name  = "backend"
   tags          = local.common_tags
+  service_name  = "backend"
 
   # 리소스 고유값
   name          = "${local.project_name}-${local.environment}-backend-sg"
@@ -81,8 +81,8 @@ module "management_sg" {
   # 공통 값
   project_name  = local.project_name
   environment   = local.environment
-  service_name  = "management"
   tags          = local.common_tags
+  service_name  = "management"
 
   # 리소스 고유값
   name          = "${local.project_name}-${local.environment}-management-sg"
@@ -207,6 +207,18 @@ module "management_iam" {
         "arn:aws:secretsmanager:ap-northeast-2:236450698266:secret:pumati-dev-backend-.env*",
         "arn:aws:secretsmanager:ap-northeast-2:236450698266:secret:pumati-prod-backend-.env*"
       ]
+      },
+      {
+      Effect = "Allow"
+      Action = [
+        "ecr:GetAuthorizationToken",
+        "ecr:BatchCheckLayerAvailability",
+        "ecr:PutImage",
+        "ecr:InitiateLayerUpload",
+        "ecr:UploadLayerPart",
+        "ecr:CompleteLayerUpload"
+      ]
+      Resource = "*"
       }
     ]
   })
