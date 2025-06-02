@@ -75,38 +75,8 @@ output "db_subnet_group_arn" {
   value       = aws_db_subnet_group.main.arn
 }
 
-# VPC Endpoint 출력
-output "vpc_endpoints_security_group_id" {
-  description = "VPC 엔드포인트 보안 그룹 ID"
-  value       = aws_security_group.vpc_endpoints.id
-}
-
-output "vpc_endpoint_ecr_api_id" {
-  description = "ECR API VPC 엔드포인트 ID"
-  value       = aws_vpc_endpoint.ecr_api.id
-}
-
-output "vpc_endpoint_ecr_dkr_id" {
-  description = "ECR DKR VPC 엔드포인트 ID"
-  value       = aws_vpc_endpoint.ecr_dkr.id
-}
-
+# VPC Endpoint 출력 (S3만 유지)
 output "vpc_endpoint_s3_id" {
   description = "S3 VPC 엔드포인트 ID"
   value       = aws_vpc_endpoint.s3.id
-}
-
-output "vpc_endpoint_eks_id" {
-  description = "EKS VPC 엔드포인트 ID"
-  value       = aws_vpc_endpoint.eks.id
-}
-
-output "vpc_endpoint_secretsmanager_id" {
-  description = "Secrets Manager VPC 엔드포인트 ID"
-  value       = aws_vpc_endpoint.secretsmanager.id
-}
-
-output "vpc_endpoint_logs_id" {
-  description = "CloudWatch Logs VPC 엔드포인트 ID"
-  value       = aws_vpc_endpoint.logs.id
 }

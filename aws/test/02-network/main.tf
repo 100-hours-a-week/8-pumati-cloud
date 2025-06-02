@@ -155,9 +155,15 @@ resource "aws_route_table" "private" {
   )
 }
 
-# DB 라우팅 테이블 (인터넷 접근 없음)
+# DB 라우팅 테이블 (NAT Gateway를 통한 인터넷 접근 허용)
 resource "aws_route_table" "db" {
   vpc_id = aws_vpc.main.id
+
+  # NAT Gateway를 통한 인터넷 접근 경로 추가
+  route {
+    cidr_block     = "0.0.0.0/0"
+    nat_gateway_id = aws_nat_gateway.main.id
+  }
 
   tags = merge(
     local.common_tags,
@@ -207,76 +213,8 @@ resource "aws_db_subnet_group" "main" {
 }
 
 #-------------------------------
-# VPC Endpoints (비용 및 성능 최적화)
+# VPC Endpoints (S3만 유지 - 무료!)
 #-------------------------------
-
-# VPC Endpoints용 보안 그룹
-resource "aws_security_group" "vpc_endpoints" {
-  name        = "${local.project_name}-${local.environment}-vpc-endpoints-sg"
-  description = "Security group for VPC endpoints"
-  vpc_id      = aws_vpc.main.id
-
-  # HTTPS 접근 (VPC 내부에서만)
-  ingress {
-    from_port   = 443
-    to_port     = 443
-    protocol    = "tcp"
-    cidr_blocks = [aws_vpc.main.cidr_block]
-    description = "HTTPS access from VPC"
-  }
-
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-    description = "All outbound traffic"
-  }
-
-  tags = merge(
-    local.common_tags,
-    {
-      Name = "${local.project_name}-${local.environment}-vpc-endpoints-sg"
-      Type = "VPC Endpoints Security Group"
-    }
-  )
-}
-
-# ECR API VPC Endpoint (컨테이너 이미지 다운로드)
-resource "aws_vpc_endpoint" "ecr_api" {
-  vpc_id              = aws_vpc.main.id
-  service_name        = "com.amazonaws.${local.region}.ecr.api"
-  vpc_endpoint_type   = "Interface"
-  subnet_ids          = aws_subnet.private[*].id
-  security_group_ids  = [aws_security_group.vpc_endpoints.id]
-  private_dns_enabled = true
-
-  tags = merge(
-    local.common_tags,
-    {
-      Name = "${local.project_name}-${local.environment}-ecr-api-endpoint"
-      Type = "VPC Endpoint"
-    }
-  )
-}
-
-# ECR DKR VPC Endpoint (컨테이너 이미지 다운로드)
-resource "aws_vpc_endpoint" "ecr_dkr" {
-  vpc_id              = aws_vpc.main.id
-  service_name        = "com.amazonaws.${local.region}.ecr.dkr"
-  vpc_endpoint_type   = "Interface"
-  subnet_ids          = aws_subnet.private[*].id
-  security_group_ids  = [aws_security_group.vpc_endpoints.id]
-  private_dns_enabled = true
-
-  tags = merge(
-    local.common_tags,
-    {
-      Name = "${local.project_name}-${local.environment}-ecr-dkr-endpoint"
-      Type = "VPC Endpoint"
-    }
-  )
-}
 
 # S3 VPC Endpoint (로깅, 백업용 - Gateway 타입으로 무료)
 resource "aws_vpc_endpoint" "s3" {
@@ -294,56 +232,7 @@ resource "aws_vpc_endpoint" "s3" {
   )
 }
 
-# EKS VPC Endpoint (EKS API 호출)
-resource "aws_vpc_endpoint" "eks" {
-  vpc_id              = aws_vpc.main.id
-  service_name        = "com.amazonaws.${local.region}.eks"
-  vpc_endpoint_type   = "Interface"
-  subnet_ids          = aws_subnet.private[*].id
-  security_group_ids  = [aws_security_group.vpc_endpoints.id]
-  private_dns_enabled = true
-
-  tags = merge(
-    local.common_tags,
-    {
-      Name = "${local.project_name}-${local.environment}-eks-endpoint"
-      Type = "VPC Endpoint"
-    }
-  )
-}
-
-# Secrets Manager VPC Endpoint (시크릿 조회)
-resource "aws_vpc_endpoint" "secretsmanager" {
-  vpc_id              = aws_vpc.main.id
-  service_name        = "com.amazonaws.${local.region}.secretsmanager"
-  vpc_endpoint_type   = "Interface"
-  subnet_ids          = aws_subnet.private[*].id
-  security_group_ids  = [aws_security_group.vpc_endpoints.id]
-  private_dns_enabled = true
-
-  tags = merge(
-    local.common_tags,
-    {
-      Name = "${local.project_name}-${local.environment}-secretsmanager-endpoint"
-      Type = "VPC Endpoint"
-    }
-  )
-}
-
-# CloudWatch Logs VPC Endpoint (로깅)
-resource "aws_vpc_endpoint" "logs" {
-  vpc_id              = aws_vpc.main.id
-  service_name        = "com.amazonaws.${local.region}.logs"
-  vpc_endpoint_type   = "Interface"
-  subnet_ids          = aws_subnet.private[*].id
-  security_group_ids  = [aws_security_group.vpc_endpoints.id]
-  private_dns_enabled = true
-
-  tags = merge(
-    local.common_tags,
-    {
-      Name = "${local.project_name}-${local.environment}-logs-endpoint"
-      Type = "VPC Endpoint"
-    }
-  )
-}
+# 다른 모든 Interface 엔드포인트들 제거됨!
+# - ECR API, ECR DKR, EKS, Secrets Manager, CloudWatch Logs
+# - SSM, SSM Messages, EC2 Messages
+# → NAT Gateway를 통해 인터넷으로 접근하므로 문제없음!
