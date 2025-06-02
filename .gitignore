@@ -20,3 +20,4 @@ terraform.rc
 .terraform.lock.hcl
 *.env
 *.tar.gz
+.DS_Store

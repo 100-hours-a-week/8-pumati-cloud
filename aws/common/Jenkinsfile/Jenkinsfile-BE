@@ -48,11 +48,10 @@ pipeline {
       }
       steps {
         script {
-          def service = env.SERVICE_NAME ?: '알 수 없는 서비스'
           try {
             withCredentials([string(credentialsId: 'Discord-Webhook', variable: 'DISCORD')]) {
               discordSend(
-                description: "배포가 곧 시작됩니다: ${service} - ${env.BRANCH} 브랜치",
+                description: "배포가 곧 시작됩니다: ${env.SERVICE_NAME} - ${env.BRANCH} 브랜치",
                 link: env.BUILD_URL,
                 title: "배포 시작",
                 webhookURL: DISCORD
