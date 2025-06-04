@@ -2,16 +2,6 @@
 
 ## 환경 변수 설정
 
-```groovy
-environment {
-    PROJECT_NAME     = "pumati"                       // 프로젝트명
-    SERVICE_NAME     = "frontend"                     // 서비스명
-    S3_BUCKET        = "s3-pumati-common-storage"     // S3 버킷
-    AWS_REGION       = "ap-northeast-2"               // 리전
-    AWS_ACCOUNT_ID   = "236450698266"                 // 계정 ID
-}
-```
-
 ## 파이프라인 스테이지
 
 ### 1. Set Branch & Cron Trigger
