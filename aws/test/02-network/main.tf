@@ -44,14 +44,14 @@ resource "aws_subnet" "public" {
   availability_zone       = data.aws_availability_zones.available.names[count.index]
   map_public_ip_on_launch = true
 
-  tags = merge(
-    local.common_tags,
-    {
-      Name = "${local.project_name}-${local.environment}-public-subnet-${substr(data.aws_availability_zones.available.names[count.index], -1, 1)}"
-      Type = "Public Subnet"
-      Tier = "Public"
-    }
-  )
+  tags = merge(local.common_tags, {
+    Name = "${local.project_name}-${local.environment}-public-${substr(data.aws_availability_zones.available.names[count.index], -1, 1)}"
+    Type = "public"
+    
+    # 🔧 EKS ALB Controller용 태그 추가
+    "kubernetes.io/role/elb" = "1"
+    "kubernetes.io/cluster/${local.project_name}-${local.environment}-eks-cluster" = "shared"
+  })
 }
 
 # 프라이빗 서브넷 생성
@@ -62,14 +62,14 @@ resource "aws_subnet" "private" {
   cidr_block        = ["10.10.11.0/24", "10.10.12.0/24"][count.index]
   availability_zone = data.aws_availability_zones.available.names[count.index]
 
-  tags = merge(
-    local.common_tags,
-    {
-      Name = "${local.project_name}-${local.environment}-private-subnet-${substr(data.aws_availability_zones.available.names[count.index], -1, 1)}"
-      Type = "Private Subnet"
-      Tier = "Private"
-    }
-  )
+  tags = merge(local.common_tags, {
+    Name = "${local.project_name}-${local.environment}-private-${substr(data.aws_availability_zones.available.names[count.index], -1, 1)}"
+    Type = "private"
+    
+    # 🔧 EKS 내부 ALB Controller용 태그 추가
+    "kubernetes.io/role/internal-elb" = "1"
+    "kubernetes.io/cluster/${local.project_name}-${local.environment}-eks-cluster" = "shared"
+  })
 }
 
 # DB 서브넷 생성

@@ -80,3 +80,19 @@ output "vpc_endpoint_s3_id" {
   description = "S3 VPC 엔드포인트 ID"
   value       = aws_vpc_endpoint.s3.id
 }
+
+# 서브넷 CIDR 블록 출력 (EKS 보안 그룹에서 사용)
+output "public_subnet_cidrs" {
+  description = "퍼블릭 서브넷 CIDR 블록 목록"
+  value       = aws_subnet.public[*].cidr_block
+}
+
+output "private_subnet_cidrs" {
+  description = "프라이빗 서브넷 CIDR 블록 목록"
+  value       = aws_subnet.private[*].cidr_block
+}
+
+output "db_subnet_cidrs" {
+  description = "DB 서브넷 CIDR 블록 목록"
+  value       = aws_subnet.db[*].cidr_block
+}
