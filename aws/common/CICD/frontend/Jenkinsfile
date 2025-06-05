@@ -25,8 +25,8 @@ pipeline {
             // prod는 매일 9시에 자동 실행
             properties([pipelineTriggers([cron('0 9 * * *')])])  
 
-          } else if (env.BRANCH == 'dev') {
-            properties([pipelineTriggers([])])
+          // } else if (env.BRANCH == 'dev') {
+          //   properties([pipelineTriggers([])])
 
           } else {
             properties([pipelineTriggers([])])  // 트리거 초기화
@@ -96,9 +96,9 @@ pipeline {
             env.ENV_LABEL = 'prod'
             env.FE_PRIVATE_IP = '10.3.0.228'
 
-          } else {
-            env.ENV_LABEL = 'dev'
-            env.FE_PRIVATE_IP = '10.1.0.253'
+          // } else {
+          //   env.ENV_LABEL = 'dev'
+          //   env.FE_PRIVATE_IP = '10.1.0.253'
           }
 
           env.ECR_REPO  = "${env.PROJECT_NAME}-${env.ENV_LABEL}-${env.SERVICE_NAME}-ecr"
@@ -292,7 +292,7 @@ EOF
   post {
     success {
       script {
-        if (env.BRANCH in ['main', 'dev']) {
+        if (env.BRANCH == 'main') {  // dev 브랜치 조건 제거
           withCredentials([string(credentialsId: 'Discord-Webhook', variable: 'DISCORD')]) {
             discordSend(
               description: """
@@ -313,7 +313,7 @@ EOF
 
     failure {
       script {
-        if (env.BRANCH in ['main', 'dev']) {
+        if (env.BRANCH == 'main') {  // dev 브랜치 조건 제거
           withCredentials([string(credentialsId: 'Discord-Webhook', variable: 'DISCORD')]) {
             discordSend(
               description: """
