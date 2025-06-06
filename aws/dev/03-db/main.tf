@@ -3,8 +3,8 @@
 #-------------------------------
 resource "aws_secretsmanager_secret" "db_password" {
   name                    = "${local.project_name}-${local.environment}-db-password"
-  description             = "MySQL database password for test environment"
-  recovery_window_in_days = 0 # test 환경이므로 즉시 삭제 가능
+  description             = "MySQL database password for dev environment"
+  recovery_window_in_days = 0 # dev 환경이므로 즉시 삭제 가능
 
   tags = merge(
     local.common_tags,
@@ -33,13 +33,13 @@ resource "aws_security_group" "mysql_sg" {
   description = "Security group for MySQL EC2 instance"
   vpc_id      = local.vpc_id
 
-  # SSH 접속 허용 (22번 포트) - test 환경이므로 개방
+  # SSH 접속 허용 (22번 포트) - dev 환경이므로 개방
   ingress {
     from_port   = 22
     to_port     = 22
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
-    description = "SSH access for testing"
+    description = "SSH access for dev"
   }
 
   # MySQL 접속 허용 (3306번 포트) - VPC 내부에서만
@@ -254,7 +254,7 @@ resource "aws_s3_object" "db_startup_script" {
 #-------------------------------
 resource "aws_instance" "mysql" {
   ami                    = "ami-05377cf8cfef186c2" # 아마존 리눅스 2023
-  instance_type          = "t3.small"              # test 환경용 소형 인스턴스
+  instance_type          = "t3.small"              # dev 환경용 소형 인스턴스
   key_name               = "pumati-full-master"    # 키 페어 이름
   subnet_id              = local.db_subnet_ids[0]  # DB 서브넷 첫 번째 사용
   vpc_security_group_ids = [aws_security_group.mysql_sg.id]
@@ -311,7 +311,7 @@ resource "aws_instance" "mysql" {
 #-------------------------------
 resource "aws_cloudwatch_log_group" "mysql_logs" {
   name              = "/aws/ec2/${local.project_name}-${local.environment}-mysql"
-  retention_in_days = 7 # test 환경이므로 7일만 보관
+  retention_in_days = 7 # dev 환경이므로 7일만 보관
 
   tags = merge(
     local.common_tags,
@@ -335,7 +335,7 @@ resource "aws_cloudwatch_metric_alarm" "mysql_cpu_utilization" {
   statistic           = "Average"
   threshold           = "80"
   alarm_description   = "This metric monitors ec2 cpu utilization"
-  alarm_actions       = [] # test 환경이므로 알림 액션 없음
+  alarm_actions       = [] # dev 환경이므로 알림 액션 없음
 
   dimensions = {
     InstanceId = aws_instance.mysql.id

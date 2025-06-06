@@ -29,7 +29,7 @@ data "terraform_remote_state" "common" {
 
   config = {
     bucket = "pumati-s3-jacky"
-    key    = "terraform/test/common/terraform.tfstate"
+    key    = "terraform/dev/common/terraform.tfstate"
     region = "ap-northeast-2"
   }
 }
@@ -40,7 +40,7 @@ data "terraform_remote_state" "static" {
 
   config = {
     bucket = "pumati-s3-jacky"
-    key    = "terraform/test/static/terraform.tfstate"
+    key    = "terraform/dev/static/terraform.tfstate"
     region = "ap-northeast-2"
   }
 }
@@ -51,7 +51,7 @@ data "terraform_remote_state" "network" {
 
   config = {
     bucket = "pumati-s3-jacky"
-    key    = "terraform/test/network/terraform.tfstate"
+    key    = "terraform/dev/network/terraform.tfstate"
     region = "ap-northeast-2"
   }
 }
@@ -62,7 +62,7 @@ data "terraform_remote_state" "db" {
 
   config = {
     bucket = local.tfstate_bucket
-    key    = "terraform/test/db/terraform.tfstate"
+    key    = "terraform/dev/db/terraform.tfstate"
     region = local.tfstate_region
   }
 }
@@ -73,14 +73,14 @@ data "terraform_remote_state" "eks" {
 
   config = {
     bucket = local.tfstate_bucket
-    key    = "terraform/test/eks/terraform.tfstate"
+    key    = "terraform/dev/eks/terraform.tfstate"
     region = local.tfstate_region
   }
 }
 
 locals {
-  # EKS OIDC 정보
-  cluster_oidc_provider_arn = data.terraform_remote_state.eks.outputs.cluster_oidc_provider_arn
+  # EKS OIDC 정보 - 올바른 output 이름으로 수정
+  cluster_oidc_provider_arn = data.terraform_remote_state.eks.outputs.oidc_provider_arn
   cluster_oidc_issuer       = data.terraform_remote_state.eks.outputs.cluster_oidc_issuer_url
 }
 

@@ -59,7 +59,7 @@ resource "aws_s3_bucket" "db_backup" {
     local.common_tags,
     {
       Name        = "${local.project_name}-${local.environment}-db-backup"
-      Purpose     = "Test Database Backup Storage"
+      Purpose     = "Dev Database Backup Storage"
       Environment = local.environment
     }
   )
@@ -99,7 +99,7 @@ resource "aws_s3_bucket_lifecycle_configuration" "db_backup" {
   bucket = aws_s3_bucket.db_backup.id
 
   rule {
-    id     = "test_backup_cleanup"
+    id     = "dev_backup_cleanup"
     status = "Enabled"
 
     # 모든 객체에 적용하기 위한 빈 필터
@@ -126,8 +126,8 @@ resource "aws_s3_bucket_lifecycle_configuration" "db_backup" {
 # 디스코드 웹훅 URL을 위한 시크릿 매니저 설정
 resource "aws_secretsmanager_secret" "discord_webhooks" {
   name                    = "${local.project_name}-${local.environment}-discord-webhooks"
-  description             = "Discord webhook URLs for test environment notifications"
-  recovery_window_in_days = 0  # test 환경이므로 즉시 삭제 가능
+  description             = "Discord webhook URLs for dev environment notifications"
+  recovery_window_in_days = 0  # dev 환경이므로 즉시 삭제 가능
 
   tags = merge(
     local.common_tags,
@@ -199,7 +199,7 @@ resource "aws_ebs_volume" "jenkins_master" {
   
   # 볼륨 삭제 방지 (실수로 삭제되지 않도록)
   lifecycle {
-    prevent_destroy = true
+    # prevent_destroy = true
     ignore_changes = [
       # 스냅샷에서 복원할 때 변경될 수 있는 속성들 무시
       snapshot_id,

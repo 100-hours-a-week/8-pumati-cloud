@@ -420,7 +420,7 @@ resource "aws_iam_role_policy" "karpenter_controller_policy" {
           "ec2:DescribeSubnets",
           "ec2:RequestSpotInstances",
           "ec2:RunInstances",
-          "ec2:TerminateInstances",
+          "ec2:TerminateInstances", 
           
           # 🔧 누락된 권한들 추가!
           "ec2:DeleteLaunchTemplate",

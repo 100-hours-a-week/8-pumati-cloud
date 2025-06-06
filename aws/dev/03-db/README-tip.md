@@ -1,6 +1,6 @@
-# 📊 Test 환경 - 데이터베이스 (03-db)
+# 📊 Dev 환경 - 데이터베이스 (03-db)
 
-Test 환경의 MySQL 데이터베이스 서버를 구성하는 Terraform 인프라입니다.
+Dev 환경의 MySQL 데이터베이스 서버를 구성하는 Terraform 인프라입니다.
 
 ## 🏗️ 인프라 구성
 
@@ -15,7 +15,7 @@ Test 환경의 MySQL 데이터베이스 서버를 구성하는 Terraform 인프�
 
 ```bash
 # 1. 디렉터리 이동
-cd aws/test/03-db
+cd aws/dev/03-db
 
 # 2. Terraform 초기화
 terraform init
@@ -32,7 +32,7 @@ terraform apply
 ### **1단계: Session Manager로 인스턴스 접속**
 
 1. **AWS 콘솔** → **EC2** → **인스턴스** 이동
-2. **`pumati-test-mysql`** 인스턴스 선택  
+2. **`pumati-dev-mysql`** 인스턴스 선택  
 3. **연결** → **Session Manager** → **연결** 클릭
 
 
@@ -57,7 +57,7 @@ sudo tail -20 /var/log/user-data.log
 ```bash
 # 환경변수에서 DB 비밀번호 가져오기
 DB_PASSWORD=$(aws secretsmanager get-secret-value \
-  --secret-id pumati-test-db-password \
+  --secret-id pumati-dev-db-password \
   --region ap-northeast-2 \
   --query SecretString --output text)
 
@@ -208,7 +208,7 @@ sudo systemctl restart mysqld
 sudo netstat -tlnp | grep 3306
 
 # Secrets Manager 접근 확인  
-aws secretsmanager get-secret-value --secret-id pumati-test-db-password --region ap-northeast-2
+aws secretsmanager get-secret-value --secret-id pumati-dev-db-password --region ap-northeast-2
 ```
 
 ### **데이터가 없을 시**
@@ -218,7 +218,7 @@ aws secretsmanager get-secret-value --secret-id pumati-test-db-password --region
 /usr/local/bin/db-restore.sh --fallback
 
 # S3 fallback 파일 확인
-aws s3 ls s3://pumati-test-db-backup/tbdb-2025-06-01_18-00-01.sql.gz
+aws s3 ls s3://pumati-dev-db-backup/tbdb-2025-06-01_18-00-01.sql.gz
 ```
 
 ---

@@ -24,9 +24,41 @@ resource "kubernetes_namespace" "jenkins" {
 }
 
 #==============================================================================
+# Jenkins용 StorageClass 생성
+#==============================================================================
+resource "kubernetes_storage_class" "jenkins_ebs_direct" {
+  metadata {
+    name = "jenkins-ebs-direct"
+    
+    labels = {
+      "app.kubernetes.io/name"      = "jenkins"
+      "app.kubernetes.io/component" = "storage"
+    }
+  }
+
+  # EBS CSI 드라이버 사용
+  storage_provisioner = "ebs.csi.aws.com"
+  
+  # 볼륨 바인딩 모드 - 즉시 바인딩
+  volume_binding_mode = "Immediate"
+  
+  # 파라미터 설정
+  parameters = {
+    type      = "gp3"
+    fsType    = "ext4"
+    encrypted = "true"
+  }
+
+  # PV 삭제 시 정책
+  reclaim_policy = "Retain"
+  
+  # 볼륨 확장 허용
+  allow_volume_expansion = true
+}
+
+#==============================================================================
 # Jenkins 마스터용 PV (01-static의 EBS 볼륨 사용)
 #==============================================================================
-# 01-static에서 생성한 EBS 볼륨을 Kubernetes PV로 연결
 resource "kubernetes_persistent_volume" "jenkins_master" {
   metadata {
     name = "jenkins-master-pv"
@@ -67,8 +99,11 @@ resource "kubernetes_persistent_volume" "jenkins_master" {
 
     # PV 삭제 시에도 EBS 볼륨은 보존
     persistent_volume_reclaim_policy = "Retain"
-    storage_class_name               = "jenkins-ebs-direct"
+    storage_class_name               = kubernetes_storage_class.jenkins_ebs_direct.metadata[0].name
   }
+
+  # StorageClass 생성 후에 PV 생성
+  depends_on = [kubernetes_storage_class.jenkins_ebs_direct]
 }
 
 #==============================================================================
@@ -87,7 +122,7 @@ resource "kubernetes_persistent_volume_claim" "jenkins_master" {
 
   spec {
     access_modes       = ["ReadWriteOnce"]
-    storage_class_name = "jenkins-ebs-direct"
+    storage_class_name = kubernetes_storage_class.jenkins_ebs_direct.metadata[0].name
 
     resources {
       requests = {
@@ -99,7 +134,10 @@ resource "kubernetes_persistent_volume_claim" "jenkins_master" {
     volume_name = kubernetes_persistent_volume.jenkins_master.metadata[0].name
   }
 
-  depends_on = [kubernetes_persistent_volume.jenkins_master]
+  depends_on = [
+    kubernetes_persistent_volume.jenkins_master,
+    kubernetes_storage_class.jenkins_ebs_direct
+  ]
 }
 
 #==============================================================================
@@ -183,7 +221,7 @@ resource "aws_iam_role" "jenkins_ecr_role" {
   })
 
   tags = merge(local.common_tags, {
-    Name = "${local.project_name}-${local.environment}-jenkins-ecr-role"
+    Name      = "${local.project_name}-${local.environment}-jenkins-ecr-role"
     Component = "Jenkins-ECR"
   })
 }
@@ -257,15 +295,15 @@ resource "helm_release" "jenkins" {
           password = "admin123!" # 첫 로그인 후 반드시 변경
         }
 
-        # 리소스 설정
+        # 리소스 설정 - t3.small에 맞춘 설정
         resources = {
           requests = {
-            cpu    = "1000m"
-            memory = "1Gi"
+            cpu    = "500m"   # CPU 요청 줄임
+            memory = "1200Mi" # 1.2GB 요청
           }
           limits = {
-            cpu    = "1500m"
-            memory = "1Gi"
+            cpu    = "1000m"  # CPU 제한 줄임  
+            memory = "1400Mi" # 1.4GB 제한
           }
         }
 
@@ -273,60 +311,198 @@ resource "helm_release" "jenkins" {
         jenkinsUrl       = "https://jenkins.${local.domain_name}"
         jenkinsUriPrefix = "/"
 
-        # 🔧 JCasC로 Jenkins URL과 보안 설정 추가
+        # 🔧 마스터에서 빌드 실행 비활성화 (중요!)
+        numExecutors = 0  # 마스터에서 빌드 작업 실행 금지
+
+        # 🔧 플러그인 설치 - 최소한만 추가 (Kubernetes 플러그인만)
+        installPlugins = [
+          "kubernetes:4246.v5a_12b_1fe120e"  # Kubernetes 플러그인만 추가 (에이전트 동적 생성용)
+        ]
+
+        # 추가 플러그인 비활성화
+        additionalPlugins = []
+
+        # 플러그인 설치 관련 설정
+        initContainerEnv = []
+
+        # 🔧 JCasC 설정을 Jenkins 2.492.2 버전에 맞게 수정
         JCasC = {
-          defaultConfig = true
+          defaultConfig = false # 기본 설정 비활성화
           configScripts = {
             jenkins-config = yamlencode({
               jenkins = {
-                # Jenkins 위치 설정 (중요!)
-                locationConfiguration = {
-                  url = "https://jenkins.${local.domain_name}/"
-                  adminAddress = "admin@${local.domain_name}"
-                }
-                
-                # 보안 설정
+                # 🔥 보안 설정 (최신 버전 호환)
                 securityRealm = {
                   local = {
                     allowsSignup = false
                     users = [
                       {
-                        id = "admin"
+                        id       = "admin"
                         password = "admin123!"
                       }
                     ]
                   }
                 }
-                
+
+                # 🔥 권한 설정 (최신 버전 호환)
                 authorizationStrategy = {
                   loggedInUsersCanDoAnything = {
                     allowAnonymousRead = false
                   }
                 }
+
+                # 🔥 시스템 메시지 설정
+                systemMessage = "Jenkins CI/CD Server - Managed by Terraform"
+
+                # 🔥 마스터 노드 설정 - 빌드 실행 금지
+                mode = "EXCLUSIVE"  # 라벨이 일치하는 작업만 실행
+                numExecutors = 0    # 실행자 수 0으로 설정
               }
-              
+
+              # 🔥 unclassified 설정 (최신 스키마)
               unclassified = {
-                # Jenkins 위치 재확인
+                # Jenkins Location 설정 (최신 방식)
                 location = {
-                  url = "https://jenkins.${local.domain_name}/"
+                  url          = "https://jenkins.${local.domain_name}/"
                   adminAddress = "admin@${local.domain_name}"
                 }
-                
-                # 🔥 정적 리소스 설정 추가
-                resourceRoot = {
-                  url = "https://jenkins.${local.domain_name}/"
+
+                # 🔥 Git 플러그인 설정 (기본 설치된 것 사용)
+                gitSCM = {
+                  globalConfigName  = "Jenkins"
+                  globalConfigEmail = "jenkins@${local.domain_name}"
+                }
+
+                # 🔥 Kubernetes 플러그인 설정 (에이전트 자동 생성)
+                kubernetes = {
+                  containerCapStr = "20"  # Karpenter가 노드를 자동 생성하므로 더 많이 허용
+                  maxRequestsPerHostStr = "32"
+                  jenkinsTunnel = "jenkins-agent.jenkins.svc.cluster.local:50000"
+                  jenkinsUrl = "http://jenkins.jenkins.svc.cluster.local:8080"
+                  name = "kubernetes"
+                  namespace = "jenkins"
+                  serverUrl = "https://kubernetes.default"
+                  skipTlsVerify = true
+                  
+                  # 🔥 Pod 템플릿 설정 (Karpenter 노드에서 실행)
+                  templates = [
+                    {
+                      name = "jenkins-agent"
+                      label = "jenkins-agent"
+                      nodeUsageMode = "NORMAL"
+                      
+                      # 🔥 Karpenter 노드 선택 (application 노드)
+                      nodeSelector = "node-type=application"
+                      
+                      # 🔥 스팟 인스턴스 톨러레이션 (필요시)
+                      tolerations = [
+                        {
+                          key = "spot-instance"
+                          operator = "Equal"
+                          value = "true"
+                          effect = "NoSchedule"
+                        }
+                      ]
+                      
+                      # 🔥 컨테이너 설정 - Karpenter 노드 최대 활용
+                      containers = [
+                        {
+                          name = "jnlp"
+                          image = "jenkins/inbound-agent:latest"
+                          alwaysPullImage = false
+                          workingDir = "/home/jenkins/agent"
+                          command = ""
+                          args = ""
+                          
+                          # 🔥 리소스 설정 - t3.small 노드 거의 전체 사용
+                          resourceRequestCpu = "1500m"     # 1.5 CPU 요청 (75% 사용)
+                          resourceRequestMemory = "1400Mi" # 1.4GB 메모리 요청
+                          resourceLimitCpu = "1900m"       # 1.9 CPU 제한 (95% 사용)
+                          resourceLimitMemory = "1800Mi"   # 1.8GB 메모리 제한
+                        },
+                        {
+                          # 🔥 Docker-in-Docker 컨테이너 (이미지 빌드용)
+                          name = "docker"
+                          image = "docker:dind"
+                          alwaysPullImage = false
+                          privileged = true
+                          
+                          # Docker 데몬 설정
+                          envVars = [
+                            {
+                              key = "DOCKER_TLS_CERTDIR"
+                              value = ""
+                            }
+                          ]
+                          
+                          # 리소스 설정 (Docker 데몬용)
+                          resourceRequestCpu = "300m"
+                          resourceRequestMemory = "400Mi"
+                          resourceLimitCpu = "500m"
+                          resourceLimitMemory = "600Mi"
+                        }
+                      ]
+                      
+                      # 🔥 볼륨 설정 - 빌드 작업용 충분한 공간
+                      volumes = [
+                        {
+                          type = "emptyDirVolume"
+                          mountPath = "/tmp"
+                          memory = false
+                          sizeLimit = "3Gi"  # 임시 파일용 3GB
+                        },
+                        {
+                          type = "emptyDirVolume"
+                          mountPath = "/var/lib/docker"
+                          memory = false
+                          sizeLimit = "8Gi"  # Docker 이미지/레이어용 8GB
+                        }
+                      ]
+                      
+                      # 🔥 서비스 계정 (ECR 접근 권한 포함)
+                      serviceAccount = "jenkins"
+                      
+                      # 🔥 Pod 보존 설정 - Karpenter와 조화
+                      slaveConnectTimeout = 300  # 5분 연결 대기
+                      idleMinutes = 5           # 5분 유휴 후 삭제 (Karpenter 노드 정리와 맞춤)
+                      
+                      # 🔥 환경 변수 설정
+                      envVars = [
+                        {
+                          key = "DOCKER_HOST"
+                          value = "tcp://localhost:2376"
+                        },
+                        {
+                          key = "DOCKER_TLS_VERIFY"
+                          value = ""
+                        }
+                      ]
+                      
+                      # 🔥 어노테이션 - Karpenter 최적화
+                      annotations = [
+                        {
+                          key = "karpenter.sh/do-not-evict"
+                          value = "false"  # 빌드 완료 후 축출 허용
+                        }
+                      ]
+                    }
+                  ]
                 }
               }
             })
           }
         }
 
-        # 🔥 JVM 옵션에 정적 리소스 관련 설정 추가
+        # 🔥 JVM 옵션 - 작은 메모리에 최적화
         javaOpts = join(" ", [
-          "-Xms512m",
-          "-Xmx1g",
+          "-Xms512m",                  # 초기 힙: 512MB
+          "-Xmx1024m",                 # 최대 힙: 1GB
+          "-XX:MaxMetaspaceSize=128m", # 메타스페이스: 128MB
+          "-XX:+UseG1GC",              # G1 GC (메모리 효율적)
+          "-XX:+UseContainerSupport",  # 컨테이너 최적화
+          "-XX:MaxGCPauseMillis=100",  # GC 일시정지 시간 단축
+          "-XX:+DisableExplicitGC",    # 명시적 GC 비활성화
           "-Dhudson.model.DirectoryBrowserSupport.CSP=",
-          "-Djenkins.install.runSetupWizard=false",
           "-Djava.awt.headless=true",
           "-Dhudson.model.Jenkins.locationConfiguration.url=https://jenkins.${local.domain_name}/",
           "-Dhudson.model.Jenkins.rootUrl=https://jenkins.${local.domain_name}/",
@@ -365,10 +541,10 @@ resource "helm_release" "jenkins" {
         # 영구 볼륨 설정
         persistence = {
           enabled       = true
-          existingClaim = "jenkins-master-pvc" # 원래 이름 유지
-          # storageClass 키 완전 제거
-          accessMode = "ReadWriteOnce"
-          size       = "50Gi" # EBS 볼륨과 같은 크기로
+          existingClaim = "jenkins-master-pvc"
+          storageClass  = kubernetes_storage_class.jenkins_ebs_direct.metadata[0].name
+          accessMode    = "ReadWriteOnce"
+          size          = "50Gi"
         }
 
         # 서비스 설정
@@ -398,7 +574,7 @@ resource "helm_release" "jenkins" {
           }
           hostName = "jenkins.${local.domain_name}"
           path     = "/*"
-          pathType = "Prefix"  # 모든 하위 경로 포함 (/static/ 포함)
+          pathType = "Prefix" # 모든 하위 경로 포함 (/static/ 포함)
 
           tls = [
             {
@@ -476,25 +652,6 @@ resource "helm_release" "jenkins" {
             failureThreshold    = 3
           }
         }
-
-        # 🔧 플러그인 설치 완전 비활성화
-        installPlugins = []  # 주석 해제하고 빈 배열로 설정
-        
-        # 추가 플러그인도 비활성화
-        additionalPlugins = []
-        
-        # 플러그인 설치 관련 init 컨테이너 비활성화
-        initContainerEnv = [
-          {
-            name  = "SKIP_PLUGIN_INSTALL"
-            value = "true"
-          }
-        ]
-        
-        # 플러그인 관리자 비활성화
-        pluginManager = {
-          enabled = false
-        }
       }
 
       # 에이전트 설정 비활성화
@@ -502,19 +659,9 @@ resource "helm_release" "jenkins" {
         enabled = false
       }
 
-      # 글로벌 레벨에서도 StatefulSet 관련 설정 비활성화
-      statefulSet = {
-        enabled = false
-      }
-
-      # 글로벌 레벨에서도 volumeClaimTemplates 비활성화
-      volumeClaimTemplates = []
-
-      # 글로벌 레벨에서 persistence 설정
+      # 🔥 StatefulSet의 volumeClaimTemplates 비활성화
       persistence = {
-        enabled       = true
-        existingClaim = "jenkins-master-pvc"
-        storageClass  = ""
+        enabled = false  # 글로벌 레벨에서 비활성화
       }
     })
   ]
@@ -522,10 +669,15 @@ resource "helm_release" "jenkins" {
   # Jenkins가 완전히 시작될 때까지 대기
   wait          = true
   wait_for_jobs = true
-  timeout       = 480 # 뜨는데 5~10분 사이로 걸리는 듯
+  timeout       = 300 # 뜨는데 5~10분 사이로 걸리는 듯
 
+  # 🚨 중요: PVC 삭제 순서 문제 해결
+  lifecycle {
+    create_before_destroy = false
+  }
+
+  # depends_on에서 PVC 의존성 제거하여 순환 의존성 해결
   depends_on = [
-    kubernetes_persistent_volume_claim.jenkins_master,
     kubernetes_cluster_role.jenkins
   ]
 }

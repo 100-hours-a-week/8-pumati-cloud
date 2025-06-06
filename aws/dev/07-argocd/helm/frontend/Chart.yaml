@@ -1,0 +1,26 @@
+# 프론트엔드 애플리케이션을 위한 Helm 차트 메타데이터
+apiVersion: v2
+name: pumati-frontend
+description: Pumati Frontend Application Helm Chart
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
+
+# 의존성 (필요한 경우)
+dependencies: []
+
+# 키워드
+keywords:
+  - frontend
+  - react
+  - pumati
+
+# 메인테이너 정보
+maintainers:
+  - name: Pumati Team
+    email: team@pumati.com
+
+# 홈페이지 및 소스 정보
+home: https://pumati.com
+sources:
+  - https://github.com/pumati/frontend 

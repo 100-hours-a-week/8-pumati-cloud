@@ -13,7 +13,7 @@ data "terraform_remote_state" "common" {
 
   config = {
     bucket = "pumati-s3-jacky"
-    key    = "terraform/test/common/terraform.tfstate"
+    key    = "terraform/dev/common/terraform.tfstate"
     region = "ap-northeast-2"
   }
 }
@@ -42,7 +42,7 @@ data "terraform_remote_state" "static" {
 
   config = {
     bucket = "pumati-s3-jacky"
-    key    = "terraform/test/static/terraform.tfstate"
+    key    = "terraform/dev/static/terraform.tfstate"
     region = "ap-northeast-2"
   }
 }
@@ -53,7 +53,7 @@ data "terraform_remote_state" "network" {
 
   config = {
     bucket = "pumati-s3-jacky"
-    key    = "terraform/test/network/terraform.tfstate"
+    key    = "terraform/dev/network/terraform.tfstate"
     region = "ap-northeast-2"
   }
 }

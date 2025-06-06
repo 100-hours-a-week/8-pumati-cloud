@@ -4,7 +4,7 @@
 
 ### **Apply 실행**
 ```bash
-cd aws/test/04-eks
+cd aws/dev/04-eks
 terraform plan    # 먼저 계획 확인
 terraform apply   # 실행 (15-20분 소요)
 ```
@@ -22,13 +22,13 @@ terraform output
 
 ### **EKS 클러스터 상태**
 1. **AWS Console** → **EKS** → **Clusters**
-2. `pumati-test-eks-cluster` 확인
+2. `pumati-dev-eks-cluster` 확인
 3. **Status**: `ACTIVE` 여야 함
 4. **Endpoint**: API 서버 엔드포인트 확인
 
 ### **노드 그룹 상태**
 1. **클러스터 상세** → **Compute** 탭
-2. `pumati-test-system-nodes` 확인
+2. `pumati-dev-system-nodes` 확인
 3. **Status**: `ACTIVE` 여야 함
 4. **Desired/Running**: `2` 여야 함
 
@@ -50,7 +50,7 @@ aws-use-ktb8team-jacky
 # AWS CLI로 kubeconfig 업데이트
 aws eks update-kubeconfig \
   --region ap-northeast-2 \
-  --name pumati-test-eks-cluster
+  --name pumati-dev-eks-cluster
 
 # 클러스터 접근 확인
 kubectl cluster-info

@@ -1,0 +1,262 @@
+// 프론트엔드 애플리케이션을 위한 Jenkins 파이프라인
+
+pipeline {
+    agent any
+    
+    // 환경 변수 설정
+    environment {
+        // Docker 레지스트리 설정 (ECR 또는 Docker Hub)
+        DOCKER_REGISTRY = 'your-account.dkr.ecr.ap-northeast-2.amazonaws.com'
+        IMAGE_NAME = 'pumati/frontend'
+        
+        // ArgoCD 설정
+        ARGOCD_SERVER = 'argocd.pumati.example.com'
+        ARGOCD_APP_NAME = 'pumati-frontend'
+        
+        // Git 설정
+        GIT_REPO = 'https://github.com/pumati/frontend'
+        
+        // AWS 설정
+        AWS_REGION = 'ap-northeast-2'
+        AWS_ACCOUNT_ID = 'your-aws-account-id'
+    }
+    
+    // 빌드 트리거 설정
+    triggers {
+        // Git 웹훅 트리거
+        githubPush()
+        
+        // 주기적 빌드 (선택사항)
+        cron('H 2 * * *')  // 매일 새벽 2시
+    }
+    
+    stages {
+        // 1. 소스 코드 체크아웃
+        stage('Checkout') {
+            steps {
+                echo '=== 소스 코드 체크아웃 ==='
+                checkout scm
+                
+                script {
+                    // Git 커밋 해시를 이미지 태그로 사용
+                    env.GIT_COMMIT_SHORT = sh(
+                        script: 'git rev-parse --short HEAD',
+                        returnStdout: true
+                    ).trim()
+                    
+                    env.IMAGE_TAG = "${env.BUILD_NUMBER}-${env.GIT_COMMIT_SHORT}"
+                    env.FULL_IMAGE_NAME = "${env.DOCKER_REGISTRY}/${env.IMAGE_NAME}:${env.IMAGE_TAG}"
+                }
+                
+                echo "이미지 태그: ${env.IMAGE_TAG}"
+                echo "전체 이미지 이름: ${env.FULL_IMAGE_NAME}"
+            }
+        }
+        
+        // 2. 의존성 설치 및 테스트
+        stage('Test') {
+            steps {
+                echo '=== 프론트엔드 테스트 실행 ==='
+                
+                // Node.js 환경에서 테스트 실행
+                sh '''
+                    # Node.js 버전 확인
+                    node --version
+                    npm --version
+                    
+                    # 의존성 설치
+                    npm ci
+                    
+                    # 린트 검사
+                    npm run lint
+                    
+                    # 단위 테스트 실행
+                    npm run test:ci
+                    
+                    # 빌드 테스트
+                    npm run build
+                '''
+            }
+            
+            // 테스트 결과 보고서 저장
+            post {
+                always {
+                    // Jest 테스트 결과 저장
+                    publishTestResults testResultsPattern: 'test-results.xml'
+                    
+                    // 코드 커버리지 보고서 저장
+                    publishCoverage adapters: [
+                        istanbulCoberturaAdapter('coverage/cobertura-coverage.xml')
+                    ]
+                }
+            }
+        }
+        
+        // 3. Docker 이미지 빌드
+        stage('Build Docker Image') {
+            steps {
+                echo '=== Docker 이미지 빌드 ==='
+                
+                script {
+                    // Docker 이미지 빌드
+                    def dockerImage = docker.build(
+                        "${env.FULL_IMAGE_NAME}",
+                        "--build-arg BUILD_DATE=\$(date -u +'%Y-%m-%dT%H:%M:%SZ') " +
+                        "--build-arg VCS_REF=${env.GIT_COMMIT_SHORT} " +
+                        "--build-arg VERSION=${env.IMAGE_TAG} ."
+                    )
+                    
+                    // 이미지 정보 저장
+                    env.DOCKER_IMAGE_ID = dockerImage.id
+                }
+            }
+        }
+        
+        // 4. 보안 스캔 (선택사항)
+        stage('Security Scan') {
+            steps {
+                echo '=== 보안 스캔 실행 ==='
+                
+                // Trivy를 사용한 취약점 스캔
+                sh """
+                    trivy image --format json --output trivy-report.json ${env.FULL_IMAGE_NAME} || true
+                """
+            }
+            
+            post {
+                always {
+                    // 보안 스캔 결과 저장
+                    archiveArtifacts artifacts: 'trivy-report.json', allowEmptyArchive: true
+                }
+            }
+        }
+        
+        // 5. Docker 이미지 푸시
+        stage('Push Docker Image') {
+            steps {
+                echo '=== Docker 이미지 푸시 ==='
+                
+                script {
+                    // AWS ECR 로그인
+                    sh """
+                        aws ecr get-login-password --region ${env.AWS_REGION} | \\
+                        docker login --username AWS --password-stdin ${env.DOCKER_REGISTRY}
+                    """
+                    
+                    // 이미지 푸시
+                    sh "docker push ${env.FULL_IMAGE_NAME}"
+                    
+                    // latest 태그도 푸시
+                    sh """
+                        docker tag ${env.FULL_IMAGE_NAME} ${env.DOCKER_REGISTRY}/${env.IMAGE_NAME}:latest
+                        docker push ${env.DOCKER_REGISTRY}/${env.IMAGE_NAME}:latest
+                    """
+                }
+            }
+        }
+        
+        // 6. ArgoCD 배포 트리거
+        stage('Deploy to ArgoCD') {
+            steps {
+                echo '=== ArgoCD 배포 트리거 ==='
+                
+                script {
+                    // ArgoCD CLI를 사용하여 이미지 태그 업데이트
+                    sh """
+                        # ArgoCD CLI 설치 (필요한 경우)
+                        if ! command -v argocd &> /dev/null; then
+                            curl -sSL -o /tmp/argocd https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
+                            chmod +x /tmp/argocd
+                            sudo mv /tmp/argocd /usr/local/bin/argocd
+                        fi
+                        
+                        # 배포 스크립트 실행
+                        chmod +x aws/dev/07-argocd/helm/jenkins-integration/update-image.sh
+                        aws/dev/07-argocd/helm/jenkins-integration/update-image.sh \\
+                            ${env.ARGOCD_APP_NAME} \\
+                            ${env.IMAGE_TAG}
+                    """
+                }
+            }
+        }
+        
+        // 7. 배포 검증
+        stage('Verify Deployment') {
+            steps {
+                echo '=== 배포 검증 ==='
+                
+                script {
+                    // 헬스체크 URL 확인
+                    def healthCheckUrl = "https://pumati.${env.DOMAIN_NAME}/health"
+                    
+                    // 최대 5분 동안 헬스체크 대기
+                    timeout(time: 5, unit: 'MINUTES') {
+                        waitUntil {
+                            script {
+                                def response = sh(
+                                    script: "curl -s -o /dev/null -w '%{http_code}' ${healthCheckUrl}",
+                                    returnStdout: true
+                                ).trim()
+                                
+                                return response == '200'
+                            }
+                        }
+                    }
+                    
+                    echo "배포 검증 완료: ${healthCheckUrl}"
+                }
+            }
+        }
+    }
+    
+    // 빌드 후 작업
+    post {
+        always {
+            echo '=== 빌드 정리 작업 ==='
+            
+            // Docker 이미지 정리
+            sh """
+                docker rmi ${env.FULL_IMAGE_NAME} || true
+                docker rmi ${env.DOCKER_REGISTRY}/${env.IMAGE_NAME}:latest || true
+                docker system prune -f
+            """
+            
+            // 워크스페이스 정리
+            cleanWs()
+        }
+        
+        success {
+            echo '=== 빌드 성공 ==='
+            
+            // 성공 알림 (Slack, 이메일 등)
+            slackSend(
+                channel: '#deployments',
+                color: 'good',
+                message: """
+                ✅ 프론트엔드 배포 성공!
+                • 애플리케이션: ${env.ARGOCD_APP_NAME}
+                • 이미지 태그: ${env.IMAGE_TAG}
+                • 빌드 번호: ${env.BUILD_NUMBER}
+                • 커밋: ${env.GIT_COMMIT_SHORT}
+                """
+            )
+        }
+        
+        failure {
+            echo '=== 빌드 실패 ==='
+            
+            // 실패 알림
+            slackSend(
+                channel: '#deployments',
+                color: 'danger',
+                message: """
+                ❌ 프론트엔드 배포 실패!
+                • 애플리케이션: ${env.ARGOCD_APP_NAME}
+                • 빌드 번호: ${env.BUILD_NUMBER}
+                • 커밋: ${env.GIT_COMMIT_SHORT}
+                • 로그: ${env.BUILD_URL}
+                """
+            )
+        }
+    }
+} 

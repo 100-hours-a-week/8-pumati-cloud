@@ -401,7 +401,8 @@ resource "aws_eks_node_group" "system" {
   "t3.small",    # 1순위: 2vCPU, 2GB RAM
   "t3a.small",   # 2순위: 2vCPU, 2GB RAM (AMD 프로세서, 더 저렴)
   #"t2.small",    # 3순위: 1vCPU, 2GB RAM (버스트 타입)
-  "t3.medium"    # 4순위: 2vCPU, 4GB RAM (여유 있음)
+  #"t3.medium",    # 4순위: 2vCPU, 4GB RAM (여유 있음)
+  #"t3a.medium"
 ]
   # 용량 타입: 온디맨드 (안정성 우선)
   # 시스템 컴포넌트는 항상 실행되어야 하므로 스팟 인스턴스 사용 안함
@@ -415,10 +416,10 @@ resource "aws_eks_node_group" "system" {
   # 노드 그룹 스케일링 설정
   scaling_config {
     # 최소 노드 수: 1개 (비용 절약하면서도 기본 가용성 보장)
-    min_size = 2
+    min_size = 1
     
     # 최대 노드 수: 3개 (시스템 컴포넌트가 많아져도 충분)
-    max_size = 4
+    max_size = 10
     
     # 초기 노드 수: 1개 (2개 AZ에 각각 1개씩 배치하여 고가용성을 원한다면 2로.)
     desired_size = 2
@@ -446,11 +447,11 @@ resource "aws_eks_node_group" "system" {
 
 #   # 노드에 적용할 테인트 (Taints) 설정
 #   # 시스템 컴포넌트만 이 노드들에 스케줄링되도록 제한
-  taint {
-    key    = "node-type"
-    value  = "system"
-    effect = "NO_SCHEDULE"  # 시스템 Pod이 아닌 일반 Pod는 스케줄링 방지
-  }
+  # taint {
+  #   key    = "node-type"
+  #   value  = "system"
+  #   effect = "NO_SCHEDULE"  # 시스템 Pod이 아닌 일반 Pod는 스케줄링 방지
+  # }
 
   # 노드에 적용할 레이블 설정
   # Kubernetes 스케줄러가 Pod 배치 시 참고할 레이블들

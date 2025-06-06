@@ -50,17 +50,17 @@ cat <<EOF | kubectl apply -f -
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: test-karpenter
+  name: dev-karpenter
   namespace: default
 spec:
   replicas: 5
   selector:
     matchLabels:
-      app: test-karpenter
+      app: dev-karpenter
   template:
     metadata:
       labels:
-        app: test-karpenter
+        app: dev-karpenter
     spec:
       containers:
       - name: pause
@@ -83,7 +83,7 @@ watch kubectl get nodes
 kubectl get pods -o wide
 
 # 테스트 완료 후 정리
-kubectl delete deployment test-karpenter
+kubectl delete deployment dev-karpenter
 ```
 
 ### 3. 노드 축소 테스트
@@ -113,17 +113,17 @@ cat <<EOF | kubectl apply -f -
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: test-app
+  name: dev-app
   namespace: default
 spec:
   replicas: 2
   selector:
     matchLabels:
-      app: test-app
+      app: dev-app
   template:
     metadata:
       labels:
-        app: test-app
+        app: dev-app
     spec:
       containers:
       - name: nginx
@@ -143,11 +143,11 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: test-app-service
+  name: dev-app-service
   namespace: default
 spec:
   selector:
-    app: test-app
+    app: dev-app
   ports:
   - port: 80
     targetPort: 80
@@ -156,22 +156,22 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: test-app-ingress
+  name: dev-app-ingress
   annotations:
     alb.ingress.kubernetes.io/scheme: internet-facing
     alb.ingress.kubernetes.io/target-type: ip
-    external-dns.alpha.kubernetes.io/hostname: app.test.tebutebu.com
+    external-dns.alpha.kubernetes.io/hostname: app.dev.tebutebu.com
 spec:
   ingressClassName: alb
   rules:
-  - host: app.test.tebutebu.com
+  - host: app.dev.tebutebu.com
     http:
       paths:
       - path: /
         pathType: Prefix
         backend:
           service:
-            name: test-app-service
+            name: dev-app-service
             port:
               number: 80
 EOF
@@ -180,7 +180,7 @@ EOF
 kubectl get ingress
 
 # ALB 세부 정보 확인
-kubectl describe ingress test-app-ingress
+kubectl describe ingress dev-app-ingress
 
 # AWS 콘솔에서 ALB 생성 확인
 echo "AWS 콘솔 > EC2 > Load Balancers에서 ALB 생성 확인"
@@ -189,14 +189,14 @@ echo "AWS 콘솔 > EC2 > Load Balancers에서 ALB 생성 확인"
 ### 3. ALB 접근 테스트
 ```bash
 # ALB 엔드포인트 확인
-ALB_ENDPOINT=$(kubectl get ingress test-app-ingress -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
+ALB_ENDPOINT=$(kubectl get ingress dev-app-ingress -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
 echo "ALB Endpoint: $ALB_ENDPOINT"
 
 # HTTP 요청 테스트
-curl -H "Host: app.test.tebutebu.com" http://$ALB_ENDPOINT
+curl -H "Host: app.dev.tebutebu.com" http://$ALB_ENDPOINT
 
 # 또는 도메인으로 직접 접근 (External DNS 동작 후)
-# curl http://app.test.tebutebu.com
+# curl http://app.dev.tebutebu.com
 ```
 
 ## 🌐 External DNS 테스트
@@ -210,16 +210,16 @@ kubectl get pods -n kube-system | grep external-dns
 kubectl logs -n kube-system -l app.kubernetes.io/name=external-dns --tail=100
 
 # TXT 레코드로 소유권 확인
-nslookup -type=TXT test.tebutebu.com
+nslookup -type=TXT dev.tebutebu.com
 ```
 
 ### 2. DNS 레코드 자동 생성 확인
 ```bash
 # 위에서 생성한 Ingress의 DNS 레코드 확인
-nslookup app.test.tebutebu.com
+nslookup app.dev.tebutebu.com
 
 # Route53에서 레코드 확인
-aws route53 list-resource-record-sets --hosted-zone-id YOUR_ZONE_ID | grep app.test.tebutebu.com
+aws route53 list-resource-record-sets --hosted-zone-id YOUR_ZONE_ID | grep app.dev.tebutebu.com
 
 # 또는 AWS 콘솔 > Route53 > Hosted Zones에서 확인
 ```
@@ -227,10 +227,10 @@ aws route53 list-resource-record-sets --hosted-zone-id YOUR_ZONE_ID | grep app.t
 ### 3. DNS 해상도 테스트
 ```bash
 # 도메인 해상도 확인
-dig app.test.tebutebu.com
+dig app.dev.tebutebu.com
 
 # 브라우저 또는 curl로 접근 테스트
-curl http://app.test.tebutebu.com
+curl http://app.dev.tebutebu.com
 ```
 
 ## 📊 Metrics Server 테스트
@@ -261,18 +261,18 @@ kubectl top pods -n default
 
 ### 3. HPA 테스트 (선택사항)
 ```bash
-# 위에서 생성한 test-app에 HPA 적용
+# 위에서 생성한 dev-app에 HPA 적용
 cat <<EOF | kubectl apply -f -
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
-  name: test-app-hpa
+  name: dev-app-hpa
   namespace: default
 spec:
   scaleTargetRef:
     apiVersion: apps/v1
     kind: Deployment
-    name: test-app
+    name: dev-app
   minReplicas: 2
   maxReplicas: 10
   metrics:
@@ -289,7 +289,7 @@ kubectl get hpa
 
 # CPU 부하 테스트 (다른 터미널에서)
 kubectl run -i --tty load-generator --rm --image=busybox --restart=Never -- /bin/sh
-# 컨테이너 내부에서: while true; do wget -q -O- http://test-app-service/; done
+# 컨테이너 내부에서: while true; do wget -q -O- http://dev-app-service/; done
 
 # HPA 동작 확인 (몇 분 대기)
 watch kubectl get hpa
@@ -301,10 +301,10 @@ watch kubectl get pods
 ### 테스트 리소스 삭제
 ```bash
 # 모든 테스트 리소스 삭제
-kubectl delete deployment test-app
-kubectl delete service test-app-service  
-kubectl delete ingress test-app-ingress
-kubectl delete hpa test-app-hpa
+kubectl delete deployment dev-app
+kubectl delete service dev-app-service  
+kubectl delete ingress dev-app-ingress
+kubectl delete hpa dev-app-hpa
 
 # DNS 레코드는 External DNS가 자동으로 정리함
 ```

@@ -44,15 +44,7 @@ locals {
   common_tags = data.terraform_remote_state.common.outputs.common_tags
 }
 
-provider "aws" {
-  region = local.region
-
-  default_tags {
-    tags = local.common_tags
-  }
-}
-
-# static 상태 참조
+# static 상태 참조 (01-static의 EBS 볼륨 정보 포함)
 data "terraform_remote_state" "static" {
   backend = "s3"
 
@@ -96,18 +88,17 @@ data "terraform_remote_state" "eks" {
   }
 }
 
-# EKS 클러스터 정보
 locals {
   cluster_name = data.terraform_remote_state.eks.outputs.cluster_name
-  cluster_endpoint = data.terraform_remote_state.eks.outputs.cluster_endpoint
-  cluster_oidc_issuer_url = data.terraform_remote_state.eks.outputs.cluster_oidc_issuer_url
-  
-  # 네트워크 정보 (04-eks와 동일한 VPC/서브넷 사용)
-  vpc_id = data.terraform_remote_state.network.outputs.vpc_id
-  private_subnet_ids = data.terraform_remote_state.network.outputs.private_subnet_ids
-  
-  # 보안 그룹 정보
-  eks_node_sg_id = data.terraform_remote_state.eks.outputs.eks_node_security_group_id
+}
+
+
+provider "aws" {
+  region = local.region
+
+  default_tags {
+    tags = local.common_tags
+  }
 }
 
 # AWS 계정 정보 (IAM 역할 ARN 구성에 필요)
@@ -139,7 +130,7 @@ provider "helm" {
   }
 }
 
-# 🎯 kubectl provider 설정 추가
+# kubectl provider 설정
 provider "kubectl" {
   host                   = data.aws_eks_cluster.main.endpoint
   cluster_ca_certificate = base64decode(data.aws_eks_cluster.main.certificate_authority[0].data)
