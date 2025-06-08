@@ -1,312 +1,94 @@
-# 🚀 Pumati 백엔드 애플리케이션 설정 (AWS EKS 최적화)
+# 🚀 Pumati 백엔드 - 최소 설정
 
-# 📦 기본 설정
-nameOverride: ""
-fullnameOverride: ""
-
-# 🔄 복제본 수 (HPA가 관리하므로 최소값)
-replicaCount: 1
-
-# 🐳 컨테이너 이미지 설정 (ECR 사용)
+# 📦 컨테이너 이미지 설정
 image:
-  repository: 236450698266.dkr.ecr.ap-northeast-2.amazonaws.com/pumati-dev-backend-ecr
+  repository: 236450698266.dkr.ecr.ap-northeast-2.amazonaws.com/pumati-backend
   pullPolicy: Always
   tag: "latest"
 
-# 🔐 ECR 접근을 위한 이미지 풀 시크릿 (IRSA로 자동 처리됨)
-imagePullSecrets: []
+# 📊 기본 배포 설정
+replicaCount: 1
 
-# 👤 서비스 계정 설정 (백엔드용 IRSA 권한)
-serviceAccount:
-  create: true
-  annotations:
-    eks.amazonaws.com/role-arn: arn:aws:iam::236450698266:role/pumati-dev-backend-role
-  name: ""
-
-# 🔒 Pod 보안 컨텍스트
-podSecurityContext:
-  fsGroup: 2000
-  runAsNonRoot: true
-  runAsUser: 1000
-
-# 🛡️ 컨테이너 보안 컨텍스트
-securityContext:
-  capabilities:
-    drop:
-    - ALL
-  readOnlyRootFilesystem: false
-  runAsNonRoot: true
-  runAsUser: 1000
-  allowPrivilegeEscalation: false
-
-# 🌐 서비스 설정
+# 🌐 서비스 설정 (간단한 ClusterIP)
 service:
   type: ClusterIP
   port: 80
   targetPort: 8080
 
-# 🚪 AWS ALB Ingress 설정
-ingress:
-  enabled: false
-  className: "alb"
-  annotations:
-    # ALB 기본 설정
-    alb.ingress.kubernetes.io/scheme: internet-facing
-    alb.ingress.kubernetes.io/target-type: ip
-    alb.ingress.kubernetes.io/ssl-redirect: "443"
-    
-    # SSL 인증서 (ACM) - 실제 인증서 ARN으로 교체 필요
-    # alb.ingress.kubernetes.io/certificate-arn: arn:aws:acm:ap-northeast-2:236450698266:certificate/your-cert-arn
-    
-    # 리스너 포트 설정
-    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS": 443}]'
-    
-    # 헬스체크 설정
-    alb.ingress.kubernetes.io/healthcheck-path: /api/actuator/health
-    alb.ingress.kubernetes.io/healthcheck-interval-seconds: "30"
-    alb.ingress.kubernetes.io/healthcheck-timeout-seconds: "5"
-    alb.ingress.kubernetes.io/healthy-threshold-count: "2"
-    alb.ingress.kubernetes.io/unhealthy-threshold-count: "3"
-    
-    # 고급 설정
-    alb.ingress.kubernetes.io/load-balancer-attributes: idle_timeout.timeout_seconds=300
-    
-    # External DNS
-    external-dns.alpha.kubernetes.io/hostname: api.tebutebu.com
-
-  hosts:
-    - host: api.tebutebu.com
-      paths:
-        - path: /api
-          pathType: Prefix
-        - path: /oauth2
-          pathType: Prefix
-        - path: /actuator/health
-          pathType: Prefix
-
-# 💪 리소스 제한 (운영 환경 최적화)
+# 💪 최소 리소스 제한
 resources:
   limits:
-    cpu: 2000m
-    memory: 2Gi
-  requests:
-    cpu: 500m
+    cpu: 1000m
     memory: 1Gi
+  requests:
+    cpu: 200m
+    memory: 512Mi
 
-# 📈 HPA 오토스케일링 설정
-autoscaling:
-  enabled: false
-  minReplicas: 2
-  maxReplicas: 10
-  targetCPUUtilizationPercentage: 70
-  targetMemoryUtilizationPercentage: 80
-
-# 🎯 노드 선택자 (Karpenter 관리 노드)
-nodeSelector:
-  node-type: application
-
-# 🏷️ 톨러레이션 (필요시)
-tolerations: []
-
-# 🎯 어피니티 (가용영역 분산)
-affinity:
-  podAntiAffinity:
-    preferredDuringSchedulingIgnoredDuringExecution:
-    - weight: 100
-      podAffinityTerm:
-        labelSelector:
-          matchExpressions:
-          - key: app.kubernetes.io/name
-            operator: In
-            values:
-            - pumati-backend
-        topologyKey: topology.kubernetes.io/zone
-
-# 🌍 환경 변수 (운영 환경)
-env:
-  - name: SPRING_PROFILES_ACTIVE
-    value: "production"
-  - name: SERVER_PORT
-    value: "8080"
-  - name: TZ
-    value: "Asia/Seoul"
-    
-  # 🗄️ 데이터베이스 연결 정보 (실제 RDS 엔드포인트 - 나중에 업데이트 필요)
-  - name: DB_HOST
-    value: "localhost"  # 실제 RDS 엔드포인트로 교체 필요
-  - name: DB_PORT
-    value: "3306"
-  - name: DB_NAME
-    value: "pumati"
-    
-  # 📦 Redis 연결 정보 (ElastiCache - 나중에 업데이트 필요)
-  - name: REDIS_HOST
-    value: "localhost"  # 실제 Redis 엔드포인트로 교체 필요
-  - name: REDIS_PORT
-    value: "6379"
-    
-  # ☁️ AWS 설정
-  - name: AWS_REGION
-    value: "ap-northeast-2"
-  - name: AWS_DEFAULT_REGION
-    value: "ap-northeast-2"
-
-# 🔐 시크릿 환경 변수 (Secrets Manager 연동)
-secretEnv:
-  - name: DB_USERNAME
-    valueFrom:
-      secretKeyRef:
-        name: pumati-db-secret
-        key: username
-  - name: DB_PASSWORD
-    valueFrom:
-      secretKeyRef:
-        name: pumati-db-secret
-        key: password
-  - name: JWT_SECRET
-    valueFrom:
-      secretKeyRef:
-        name: pumati-app-secret
-        key: jwt-secret
-  - name: OAUTH2_CLIENT_SECRET
-    valueFrom:
-      secretKeyRef:
-        name: pumati-oauth-secret
-        key: client-secret
-
-# 📋 ConfigMap 설정 (Spring Boot 설정)
-configMap:
-  enabled: true
-  data:
-    application.yml: |
-      server:
-        port: 8080
-        servlet:
-          context-path: /api
-      
-      spring:
-        application:
-          name: pumati-backend
-        
-        datasource:
-          url: jdbc:mysql://${DB_HOST}:${DB_PORT}/${DB_NAME}?useSSL=true&serverTimezone=Asia/Seoul&characterEncoding=UTF-8
-          username: ${DB_USERNAME}
-          password: ${DB_PASSWORD}
-          driver-class-name: com.mysql.cj.jdbc.Driver
-          hikari:
-            maximum-pool-size: 20
-            minimum-idle: 5
-            connection-timeout: 20000
-            idle-timeout: 300000
-            max-lifetime: 1200000
-        
-        jpa:
-          hibernate:
-            ddl-auto: validate
-          show-sql: false
-          properties:
-            hibernate:
-              dialect: org.hibernate.dialect.MySQL8Dialect
-              format_sql: true
-              use_sql_comments: true
-        
-        redis:
-          host: ${REDIS_HOST}
-          port: ${REDIS_PORT}
-          timeout: 2000ms
-          lettuce:
-            pool:
-              max-active: 8
-              max-idle: 8
-              min-idle: 0
-      
-      # 📊 Actuator 설정 (모니터링)  
-      management:
-        endpoints:
-          web:
-            exposure:
-              include: health,info,metrics,prometheus
-        endpoint:
-          health:
-            show-details: when-authorized
-        health:
-          db:
-            enabled: true
-          redis:
-            enabled: true
-      
-      # 📝 로깅 설정
-      logging:
-        level:
-          com.pumati: INFO
-          org.springframework.security: INFO
-          org.hibernate.SQL: WARN
-        pattern:
-          console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
-        file:
-          name: /app/logs/application.log
-          max-size: 100MB
-          max-history: 30
-
-# 🔧 헬스체크 설정 (AWS ALB 최적화)
+# 🔧 간단한 헬스체크
 livenessProbe:
   httpGet:
-    path: /api/actuator/health/liveness
+    path: /
     port: 8080
-    scheme: HTTP
-  initialDelaySeconds: 90
+  initialDelaySeconds: 60
   periodSeconds: 30
-  timeoutSeconds: 10
-  failureThreshold: 3
-  successThreshold: 1
 
 readinessProbe:
   httpGet:
-    path: /api/actuator/health/readiness
+    path: /
     port: 8080
-    scheme: HTTP
   initialDelaySeconds: 30
   periodSeconds: 10
-  timeoutSeconds: 5
-  failureThreshold: 3
-  successThreshold: 1
 
-# 📁 볼륨 설정 (로그 및 임시 파일)
-volumes:
-  - name: logs
-    emptyDir:
-      sizeLimit: 1Gi
-  - name: tmp
-    emptyDir:
-      sizeLimit: 100Mi
+# 🎯 노드 선택자 (시스템 노드에 배포)
+nodeSelector:
+  node-type: system
 
-volumeMounts:
-  - name: logs
-    mountPath: /app/logs
-  - name: tmp
-    mountPath: /tmp
+# ===== 모든 고급 기능 비활성화 =====
 
-# 🛡️ Pod 중단 예산 (고가용성)
+# 🚪 Ingress 비활성화
+ingress:
+  enabled: false
+
+# 📈 HPA 비활성화  
+autoscaling:
+  enabled: false
+
+# 🛡️ PodDisruptionBudget 비활성화
 podDisruptionBudget:
   enabled: false
-  minAvailable: 1
 
-# 🔄 롤링 업데이트 전략
+# 📋 ConfigMap 비활성화 (도커에 이미 설정 포함)
+configMap:
+  enabled: false
+
+# 🌍 환경 변수 없음 (도커파일에 이미 포함)
+env: []
+
+# 🔐 시크릿 환경 변수 없음
+secretEnv: []
+
+# 📁 볼륨 없음
+volumes: []
+volumeMounts: []
+
+# 🏷️ 추가 설정들 없음
+tolerations: []
+affinity: {}
+podLabels: {}
+
+# 🔐 보안 컨텍스트 기본값
+podSecurityContext: {}
+securityContext: {}
+
+# 👤 서비스 계정 기본값
+serviceAccount:
+  create: false
+  annotations: {}
+  name: ""
+
+# 🔄 업데이트 전략 기본값
 strategy:
   type: RollingUpdate
   rollingUpdate:
     maxUnavailable: 1
-    maxSurge: 1
-
-# 🎯 Pod 종료 설정
-terminationGracePeriodSeconds: 30
-
-# 🔐 보안 정책
-podSecurityPolicy:
-  enabled: false
-
-# 🏷️ 추가 라벨
-podLabels:
-  app.kubernetes.io/component: backend
-  app.kubernetes.io/part-of: pumati
-  version: v1 
+    maxSurge: 1 

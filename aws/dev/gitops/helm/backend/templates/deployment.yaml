@@ -1,4 +1,4 @@
-# 🚀 Pumati 백엔드 애플리케이션 Deployment 템플릿
+# 🚀 Pumati 백엔드 애플리케이션 Deployment (간소화 버전)
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -23,34 +23,15 @@ spec:
   template:
     metadata:
       annotations:
-        # 📋 설정 변경 시 자동 재배포를 위한 체크섬
-        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
         # 🔄 Pod 재시작을 위한 타임스탬프
         rollme: {{ randAlphaNum 5 | quote }}
       labels:
         {{- include "pumati-backend.selectorLabels" . | nindent 8 }}
-        # 🏷️ 추가 라벨
-        {{- with .Values.podLabels }}
-        {{- toYaml . | nindent 8 }}
-        {{- end }}
         
     spec:
-      {{- with .Values.imagePullSecrets }}
-      imagePullSecrets:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
-      
-      # 👤 서비스 계정 (IRSA 권한)
-      serviceAccountName: {{ include "pumati-backend.serviceAccountName" . }}
-      
       # 🔒 Pod 보안 컨텍스트
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
-      
-      # 🎯 Pod 종료 대기 시간
-      {{- if .Values.terminationGracePeriodSeconds }}
-      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
-      {{- end }}
       
       containers:
         - name: {{ .Chart.Name }}
@@ -68,35 +49,15 @@ spec:
               containerPort: {{ .Values.service.targetPort }}
               protocol: TCP
               
-          # 🌍 환경 변수 설정
+          # 🌍 환경 변수 설정 (조건부)
+          {{- if .Values.env }}
           env:
-            # 기본 환경 변수
             {{- range .Values.env }}
             - name: {{ .name }}
               value: {{ .value | quote }}
             {{- end }}
+          {{- end }}
             
-            # 🔐 시크릿 환경 변수
-            {{- range .Values.secretEnv }}
-            - name: {{ .name }}
-              valueFrom:
-                {{- toYaml .valueFrom | nindent 16 }}
-            {{- end }}
-            
-            # 📋 Pod 정보 환경 변수
-            - name: POD_NAME
-              valueFrom:
-                fieldRef:
-                  fieldPath: metadata.name
-            - name: POD_NAMESPACE
-              valueFrom:
-                fieldRef:
-                  fieldPath: metadata.namespace
-            - name: POD_IP
-              valueFrom:
-                fieldRef:
-                  fieldPath: status.podIP
-                  
           # 🔧 헬스체크 설정
           livenessProbe:
             {{- toYaml .Values.livenessProbe | nindent 12 }}
@@ -108,43 +69,17 @@ spec:
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
             
-          # 📁 볼륨 마운트
+          # 📁 볼륨 마운트 (조건부)
+          {{- if .Values.volumeMounts }}
           volumeMounts:
-            # ConfigMap 마운트
-            {{- if .Values.configMap.enabled }}
-            - name: config
-              mountPath: /app/config
-              readOnly: true
-            {{- end }}
-            
-            # 추가 볼륨 마운트
-            {{- with .Values.volumeMounts }}
-            {{- toYaml . | nindent 12 }}
-            {{- end }}
-            
-          # 🛡️ 라이프사이클 훅 (우아한 종료)
-          lifecycle:
-            preStop:
-              exec:
-                command:
-                  - /bin/sh
-                  - -c
-                  - "sleep 15"
+            {{- toYaml .Values.volumeMounts | nindent 12 }}
+          {{- end }}
                   
-      # 📁 볼륨 설정
+      # 📁 볼륨 설정 (조건부)
+      {{- if .Values.volumes }}
       volumes:
-        # ConfigMap 볼륨
-        {{- if .Values.configMap.enabled }}
-        - name: config
-          configMap:
-            name: {{ include "pumati-backend.fullname" . }}-config
-            defaultMode: 0644
-        {{- end }}
-        
-        # 추가 볼륨
-        {{- with .Values.volumes }}
-        {{- toYaml . | nindent 8 }}
-        {{- end }}
+        {{- toYaml .Values.volumes | nindent 8 }}
+      {{- end }}
         
       # 🎯 노드 선택자
       {{- with .Values.nodeSelector }}
@@ -152,13 +87,13 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       
-      # 🎯 어피니티 설정
+      # 🎯 어피니티 설정 (조건부)
       {{- with .Values.affinity }}
       affinity:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       
-      # 🏷️ 톨러레이션
+      # 🏷️ 톨러레이션 (조건부)
       {{- with .Values.tolerations }}
       tolerations:
         {{- toYaml . | nindent 8 }}
