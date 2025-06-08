@@ -17,10 +17,7 @@ keywords:
 
 # 메인테이너 정보
 maintainers:
-  - name: Pumati Team
-    email: team@pumati.com
+  - name: jacky
 
 # 홈페이지 및 소스 정보
-home: https://pumati.com
-sources:
-  - https://github.com/pumati/backend 
+home: https://tebutebu.com

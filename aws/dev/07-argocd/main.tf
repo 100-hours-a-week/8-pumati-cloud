@@ -677,21 +677,21 @@ resource "helm_release" "argocd" {
   ]
 }
 
-# 🚀 백엔드 애플리케이션용 네임스페이스 생성
-resource "kubernetes_namespace" "pumati_backend" {
+# 애플리케이션용 네임스페이스 생성
+resource "kubernetes_namespace" "pumati" {
   metadata {
-    name = "pumati-backend"
+    name = "pumati"
     
     labels = {
-      name = "pumati-backend"
-      "app.kubernetes.io/name"      = "pumati-backend"
-      "app.kubernetes.io/component" = "backend"
+      name = "pumati"
+      "app.kubernetes.io/name"      = "pumati"
+      "app.kubernetes.io/component" = "pumati"
       "app.kubernetes.io/part-of"   = "pumati"
     }
   }
 }
 
-# 🚀 ArgoCD Application - 백엔드 배포
+# ArgoCD Application - 백엔드 배포
 resource "kubectl_manifest" "pumati_backend_application" {
   yaml_body = <<-EOT
 apiVersion: argoproj.io/v1alpha1
@@ -716,10 +716,13 @@ spec:
     helm:
       valueFiles:
         - values.yaml
+      values: |
+        nodeSelector:
+          node-type: system
         
   destination:
     server: https://kubernetes.default.svc
-    namespace: ${kubernetes_namespace.pumati_backend.metadata[0].name}
+    namespace: ${kubernetes_namespace.pumati.metadata[0].name}
   
   syncPolicy:
     automated:
@@ -758,6 +761,80 @@ EOT
   # ArgoCD가 완전히 설치된 후에 Application 생성
   depends_on = [
     helm_release.argocd,
-    kubernetes_namespace.pumati_backend
+    kubernetes_namespace.pumati
+  ]
+}
+
+# ArgoCD Application - 프론트엔드 배포 (새로 추가)
+resource "kubectl_manifest" "pumati_frontend_application" {
+  yaml_body = <<-EOT
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: pumati-frontend
+  namespace: ${kubernetes_namespace.argocd.metadata[0].name}
+  labels:
+    app.kubernetes.io/name: pumati-frontend
+    app.kubernetes.io/component: frontend
+    app.kubernetes.io/part-of: pumati
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  
+  source:
+    repoURL: https://github.com/100-hours-a-week/8-pumati-cloud.git
+    targetRevision: jacky
+    path: aws/dev/gitops/helm/frontend
+    
+    helm:
+      valueFiles:
+        - values.yaml
+      values: |
+        nodeSelector:
+          node-type: system
+        
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: ${kubernetes_namespace.pumati.metadata[0].name}
+  
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+      allowEmpty: false
+    
+    syncOptions:
+      - CreateNamespace=true
+      - PrunePropagationPolicy=foreground
+      - PruneLast=true
+      - ApplyOutOfSyncOnly=true
+    
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+  
+  ignoreDifferences:
+    - group: apps
+      kind: Deployment
+      jsonPointers:
+        - /spec/replicas
+    - group: ""
+      kind: Service
+      jsonPointers:
+        - /spec/clusterIP
+EOT
+
+  # kubectl 설정
+  force_conflicts   = true
+  server_side_apply = true
+  
+  # ArgoCD가 완전히 설치된 후에 Application 생성
+  depends_on = [
+    helm_release.argocd,
+    kubernetes_namespace.pumati
   ]
 }

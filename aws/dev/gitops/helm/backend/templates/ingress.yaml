@@ -1,4 +1,4 @@
-# 백엔드 애플리케이션 Ingress 템플릿
+# 🚪 Pumati 백엔드 AWS ALB Ingress 템플릿
 {{- if .Values.ingress.enabled -}}
 apiVersion: networking.k8s.io/v1
 kind: Ingress
@@ -6,14 +6,25 @@ metadata:
   name: {{ include "pumati-backend.fullname" . }}
   labels:
     {{- include "pumati-backend.labels" . | nindent 4 }}
-  {{- with .Values.ingress.annotations }}
   annotations:
+    # 🎯 기본 AWS ALB 어노테이션 (values.yaml에서 정의)
+    {{- with .Values.ingress.annotations }}
     {{- toYaml . | nindent 4 }}
-  {{- end }}
+    {{- end }}
+    
+    # 🔧 추가 ALB 최적화 설정
+    alb.ingress.kubernetes.io/backend-protocol: HTTP
+    alb.ingress.kubernetes.io/success-codes: "200,404"
+    alb.ingress.kubernetes.io/group.name: pumati-backend
+    
+    # 🏷️ 태그 설정
+    alb.ingress.kubernetes.io/tags: Environment=dev,Application=pumati,Component=backend
+    
 spec:
   {{- if .Values.ingress.className }}
   ingressClassName: {{ .Values.ingress.className }}
   {{- end }}
+  
   {{- if .Values.ingress.tls }}
   tls:
     {{- range .Values.ingress.tls }}
@@ -24,6 +35,7 @@ spec:
       secretName: {{ .secretName }}
     {{- end }}
   {{- end }}
+  
   rules:
     {{- range .Values.ingress.hosts }}
     - host: {{ .host | quote }}
