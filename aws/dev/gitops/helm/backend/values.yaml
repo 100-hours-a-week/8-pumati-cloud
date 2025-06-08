@@ -40,7 +40,7 @@ nodeSelector:
 
 # 🚪 Ingress 설정 (/api, /oauth2 -> 백엔드)
 ingress:
-  enabled: false  # 일시 비활성화 후 문제 해결
+  enabled: true   # 간단한 템플릿으로 다시 활성화
 
 # 📈 HPA 비활성화  
 autoscaling:

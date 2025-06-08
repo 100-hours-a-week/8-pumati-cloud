@@ -595,6 +595,12 @@ resource "helm_release" "argocd" {
 
         replicas = 1
         
+        # 🚀 빠른 폴링 간격 설정 (30초)
+        extraArgs = [
+          "--app-resync=30",                    # 애플리케이션 동기화 간격 30초
+          "--repo-server-timeout-seconds=60"    # 리포지토리 서버 타임아웃 60초
+        ]
+        
         resources = {
           limits = {
             cpu    = "1000m"
@@ -648,6 +654,13 @@ resource "helm_release" "argocd" {
           # 🔧 실제 생성된 해시 값으로 업데이트
           argocdServerAdminPassword = "$2y$05$IZWP9eSNwRQFbP2OocU9mOyI6PfUKdnj7oX25gIGbIrzGMv6ctn6e"  # admin123!
           argocdServerAdminPasswordMtime = "2023-01-01T00:00:00Z"
+        }
+
+        # 🚀 ArgoCD 컨트롤러 설정 (빠른 동기화)
+        cm = {
+          "timeout.reconciliation" = "30s"      # Git 폴링 간격 30초
+          "timeout.hard.reconciliation" = "0s"  # 하드 리컨실리에이션 비활성화
+          "application.instanceLabelKey" = "argocd.argoproj.io/instance"
         }
 
         rbac = {
