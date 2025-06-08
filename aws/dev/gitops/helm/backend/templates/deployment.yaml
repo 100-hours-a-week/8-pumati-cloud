@@ -19,12 +19,14 @@ spec:
   
   selector:
     matchLabels:
-      app: pumati-backend
+      app.kubernetes.io/name: pumati-backend
+      app.kubernetes.io/instance: pumati-backend
       
   template:
     metadata:
       labels:
-        app: pumati-backend
+        app.kubernetes.io/name: pumati-backend
+        app.kubernetes.io/instance: pumati-backend
         version: v1
         
     spec:
