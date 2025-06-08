@@ -44,7 +44,10 @@ ingress:
 
 # 📈 HPA 비활성화  
 autoscaling:
-  enabled: false
+  enabled: true
+  minReplicas: 1  # 최소 1개 Pod 보장
+  maxReplicas: 3
+  targetCPUUtilizationPercentage: 80
 
 # 🛡️ PodDisruptionBudget 비활성화
 podDisruptionBudget:
