@@ -720,7 +720,7 @@ resource "kubernetes_manifest" "pumati_backend_application" {
       # Git 저장소 소스 설정
       source = {
         repoURL        = "https://github.com/100-hours-a-week/8-pumati-cloud.git"  # 실제 Git 저장소 URL
-        targetRevision = "HEAD"  # main 브랜치
+        targetRevision = "jacky"  # jacky 브랜치 바라보기
         path           = "aws/dev/gitops/helm/backend"  # Helm 차트 경로
         
         # Helm 설정
