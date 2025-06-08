@@ -1,0 +1,93 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: pumati-backend  # 백엔드 애플리케이션 이름
+  namespace: argocd     # ArgoCD 네임스페이스
+  labels:
+    app.kubernetes.io/name: pumati-backend
+    app.kubernetes.io/component: backend
+    app.kubernetes.io/part-of: pumati
+spec:
+  # ArgoCD 프로젝트 설정
+  project: default
+  
+  # Git 저장소 소스 설정
+  source:
+    repoURL: https://github.com/your-username/8-pumati-cloud.git  # 실제 Git 저장소 URL로 변경 필요
+    targetRevision: HEAD  # main 브랜치 또는 특정 브랜치/태그
+    path: aws/dev/gitops/helm/backend  # Helm 차트 경로
+    
+    # Helm 설정
+    helm:
+      # values.yaml 파일 사용
+      valueFiles:
+        - values.yaml
+      
+      # 추가 Helm 값 오버라이드 (필요시)
+      values: |
+        # 환경별 설정 오버라이드
+        replicaCount: 2
+        
+        image:
+          repository: pumati/backend  # ECR 주소로 변경 필요
+          tag: "latest"
+          pullPolicy: Always
+        
+        ingress:
+          hosts:
+            - host: api.pumati.example.com  # 실제 도메인으로 변경 필요
+              paths:
+                - path: /
+                  pathType: Prefix
+          tls:
+            - secretName: backend-tls
+              hosts:
+                - api.pumati.example.com
+        
+        # 데이터베이스 연결 설정
+        env:
+          - name: SPRING_PROFILES_ACTIVE
+            value: "production"
+          - name: DB_HOST  
+            value: "mysql.pumati.local"  # 실제 DB 호스트로 변경 필요
+          - name: DB_NAME
+            value: "pumati"
+  
+  # 배포 대상 클러스터 설정
+  destination:
+    server: https://kubernetes.default.svc  # 같은 클러스터 내 배포
+    namespace: pumati-backend  # 백엔드 네임스페이스
+  
+  # 동기화 정책 설정
+  syncPolicy:
+    # 자동 동기화 활성화
+    automated:
+      prune: true      # 불필요한 리소스 자동 삭제
+      selfHeal: true   # 수동 변경 시 자동 복구
+      allowEmpty: false
+    
+    # 동기화 옵션
+    syncOptions:
+      - CreateNamespace=true    # 네임스페이스 자동 생성
+      - PrunePropagationPolicy=foreground
+      - PruneLast=true
+      - ApplyOutOfSyncOnly=true
+    
+    # 재시도 정책
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+  
+  # 무시할 차이점 설정 (불필요한 동기화 방지)
+  ignoreDifferences:
+    - group: apps
+      kind: Deployment
+      jsonPointers:
+        - /spec/replicas  # HPA에 의한 레플리카 수 변경 무시
+    - group: ""
+      kind: Service
+      jsonPointers:
+        - /spec/clusterIP  # 클러스터 IP 변경 무시 
