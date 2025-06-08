@@ -28,17 +28,15 @@ resources:
     cpu: 200m
     memory: 512Mi
 
-# 🔧 간단한 헬스체크
+# 🔧 TCP 포트 체크 (HTTP 에러 방지)
 livenessProbe:
-  httpGet:
-    path: /
+  tcpSocket:
     port: 8080
   initialDelaySeconds: 60
   periodSeconds: 30
 
 readinessProbe:
-  httpGet:
-    path: /
+  tcpSocket:
     port: 8080
   initialDelaySeconds: 30
   periodSeconds: 10
