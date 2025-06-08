@@ -58,13 +58,6 @@ spec:
             {{- end }}
           {{- end }}
             
-          # 🔧 헬스체크 설정
-          livenessProbe:
-            {{- toYaml .Values.livenessProbe | nindent 12 }}
-            
-          readinessProbe:
-            {{- toYaml .Values.readinessProbe | nindent 12 }}
-            
           # 💪 리소스 제한
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
