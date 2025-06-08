@@ -27,7 +27,6 @@ spec:
       labels:
         app.kubernetes.io/name: pumati-backend
         app.kubernetes.io/instance: pumati-backend
-        version: v1
         
     spec:
       containers:
