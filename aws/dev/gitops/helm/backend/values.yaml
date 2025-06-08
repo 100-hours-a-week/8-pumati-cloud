@@ -47,7 +47,7 @@ service:
 
 # 🚪 AWS ALB Ingress 설정
 ingress:
-  enabled: true
+  enabled: false
   className: "alb"
   annotations:
     # ALB 기본 설정
@@ -288,7 +288,7 @@ volumeMounts:
 
 # 🛡️ Pod 중단 예산 (고가용성)
 podDisruptionBudget:
-  enabled: true
+  enabled: false
   minAvailable: 1
 
 # 🔄 롤링 업데이트 전략
