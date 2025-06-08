@@ -692,158 +692,68 @@ resource "kubernetes_namespace" "pumati_backend" {
 }
 
 # 🚀 ArgoCD Application - 백엔드 배포
-resource "kubernetes_manifest" "pumati_backend_application" {
-  manifest = {
-    apiVersion = "argoproj.io/v1alpha1"
-    kind       = "Application"
+resource "kubectl_manifest" "pumati_backend_application" {
+  yaml_body = <<-EOT
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: pumati-backend
+  namespace: ${kubernetes_namespace.argocd.metadata[0].name}
+  labels:
+    app.kubernetes.io/name: pumati-backend
+    app.kubernetes.io/component: backend
+    app.kubernetes.io/part-of: pumati
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  
+  source:
+    repoURL: https://github.com/100-hours-a-week/8-pumati-cloud.git
+    targetRevision: jacky
+    path: aws/dev/gitops/helm/backend
     
-    metadata = {
-      name      = "pumati-backend"
-      namespace = kubernetes_namespace.argocd.metadata[0].name
-      
-      labels = {
-        "app.kubernetes.io/name"      = "pumati-backend"
-        "app.kubernetes.io/component" = "backend"
-        "app.kubernetes.io/part-of"   = "pumati"
-      }
-      
-      # 🔧 Finalizer 설정 (리소스 정리 보장)
-      finalizers = [
-        "resources-finalizer.argocd.argoproj.io"
-      ]
-    }
+    helm:
+      valueFiles:
+        - values.yaml
+        
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: ${kubernetes_namespace.pumati_backend.metadata[0].name}
+  
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+      allowEmpty: false
     
-    spec = {
-      # ArgoCD 프로젝트 설정
-      project = "default"
-      
-      # Git 저장소 소스 설정
-      source = {
-        repoURL        = "https://github.com/100-hours-a-week/8-pumati-cloud.git"  # 실제 Git 저장소 URL
-        targetRevision = "jacky"  # jacky 브랜치 바라보기
-        path           = "aws/dev/gitops/helm/backend"  # Helm 차트 경로
-        
-        # Helm 설정
-        helm = {
-          # values.yaml 파일 사용
-          valueFiles = ["values.yaml"]
-          
-          # 🔧 환경별 설정 오버라이드
-          values = yamlencode({
-            # 복제본 수 설정
-            replicaCount = 2
-            
-            # 컨테이너 이미지 설정 (ECR 주소로 변경 필요)
-            image = {
-              repository = "pumati/backend"  # ECR 주소로 나중에 변경
-              tag        = "latest"
-              pullPolicy = "Always"
-            }
-            
-            # 인그레스 설정 (실제 도메인으로 변경 필요)
-            ingress = {
-              enabled = true
-              hosts = [
-                {
-                  host = "api.${local.domain_name}"  # 실제 도메인 사용
-                  paths = [
-                    {
-                      path     = "/"
-                      pathType = "Prefix"
-                    }
-                  ]
-                }
-              ]
-              tls = [
-                {
-                  secretName = "backend-tls"
-                  hosts      = ["api.${local.domain_name}"]
-                }
-              ]
-            }
-            
-            # 🔧 환경 변수 설정 (이미지의 .env 파일 사용을 위해 최소화)
-            env = [
-              {
-                name  = "SPRING_PROFILES_ACTIVE"
-                value = "production"
-              }
-              # DB 관련 환경변수는 제거 - 이미지의 .env 파일 사용
-            ]
-            
-            # 리소스 제한 설정
-            resources = {
-              limits = {
-                cpu    = "1000m"
-                memory = "1Gi"
-              }
-              requests = {
-                cpu    = "500m"
-                memory = "512Mi"
-              }
-            }
-            
-            # 🔧 노드 선택자 (Karpenter 관리 노드에 배치)
-            nodeSelector = {
-              "node-type" = "application"  # Karpenter가 관리하는 애플리케이션 노드
-            }
-          })
-        }
-      }
-      
-      # 배포 대상 클러스터 설정
-      destination = {
-        server    = "https://kubernetes.default.svc"  # 같은 클러스터 내 배포
-        namespace = kubernetes_namespace.pumati_backend.metadata[0].name
-      }
-      
-      # 🔄 동기화 정책 설정
-      syncPolicy = {
-        # 자동 동기화 활성화
-        automated = {
-          prune      = true   # 불필요한 리소스 자동 삭제
-          selfHeal   = true   # 수동 변경 시 자동 복구
-          allowEmpty = false
-        }
-        
-        # 동기화 옵션
-        syncOptions = [
-          "CreateNamespace=true",    # 네임스페이스 자동 생성
-          "PrunePropagationPolicy=foreground",
-          "PruneLast=true",
-          "ApplyOutOfSyncOnly=true"
-        ]
-        
-        # 재시도 정책
-        retry = {
-          limit = 5
-          backoff = {
-            duration    = "5s"
-            factor      = 2
-            maxDuration = "3m"
-          }
-        }
-      }
-      
-      # 🔍 무시할 차이점 설정 (불필요한 동기화 방지)
-      ignoreDifferences = [
-        {
-          group = "apps"
-          kind  = "Deployment"
-          jsonPointers = [
-            "/spec/replicas"  # HPA에 의한 레플리카 수 변경 무시
-          ]
-        },
-        {
-          group = ""
-          kind  = "Service"
-          jsonPointers = [
-            "/spec/clusterIP"  # 클러스터 IP 변경 무시
-          ]
-        }
-      ]
-    }
-  }
+    syncOptions:
+      - CreateNamespace=true
+      - PrunePropagationPolicy=foreground
+      - PruneLast=true
+      - ApplyOutOfSyncOnly=true
+    
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+  
+  ignoreDifferences:
+    - group: apps
+      kind: Deployment
+      jsonPointers:
+        - /spec/replicas
+    - group: ""
+      kind: Service
+      jsonPointers:
+        - /spec/clusterIP
+EOT
+
+  # kubectl 설정
+  force_conflicts   = true
+  server_side_apply = true
   
   # ArgoCD가 완전히 설치된 후에 Application 생성
   depends_on = [

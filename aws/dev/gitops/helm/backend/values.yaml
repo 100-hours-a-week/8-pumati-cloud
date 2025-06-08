@@ -44,23 +44,14 @@ service:
 # 인그레스 설정
 ingress:
   enabled: true
-  className: "nginx"
-  annotations:
-    cert-manager.io/cluster-issuer: "letsencrypt-prod"
-    nginx.ingress.kubernetes.io/ssl-redirect: "true"
-    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
-    nginx.ingress.kubernetes.io/cors-allow-origin: "*"
-    nginx.ingress.kubernetes.io/cors-allow-methods: "GET, POST, PUT, DELETE, OPTIONS"
-    nginx.ingress.kubernetes.io/cors-allow-headers: "DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range,Authorization"
+  className: "alb"
   hosts:
-    - host: api.pumati.example.com  # 실제 도메인으로 변경 필요
+    - host: dev.tebutebu.com  # 메인 도메인 사용
       paths:
-        - path: /
+        - path: /api          # 백엔드 API 경로
           pathType: Prefix
-  tls:
-    - secretName: backend-tls
-      hosts:
-        - api.pumati.example.com
+        - path: /oauth2       # OAuth2 경로  
+          pathType: Prefix
 
 # 리소스 제한
 resources:
