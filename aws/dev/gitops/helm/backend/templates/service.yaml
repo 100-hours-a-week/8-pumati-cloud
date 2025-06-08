@@ -1,16 +1,17 @@
-# 백엔드 애플리케이션 Service 템플릿
+# 🌐 간단한 Pumati 백엔드 Service
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ include "pumati-backend.fullname" . }}
+  name: pumati-backend
+  namespace: pumati
   labels:
-    {{- include "pumati-backend.labels" . | nindent 4 }}
+    app: pumati-backend
 spec:
-  type: {{ .Values.service.type }}
+  type: ClusterIP
   ports:
-    - port: {{ .Values.service.port }}
-      targetPort: {{ .Values.service.targetPort }}
+    - port: 80
+      targetPort: 8080
       protocol: TCP
       name: http
   selector:
-    {{- include "pumati-backend.selectorLabels" . | nindent 4 }} 
+    app: pumati-backend 

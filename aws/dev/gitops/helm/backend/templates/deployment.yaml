@@ -1,96 +1,57 @@
-# 🚀 Pumati 백엔드 애플리케이션 Deployment (간소화 버전)
+# 🚀 간단한 Pumati 백엔드 Deployment
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "pumati-backend.fullname" . }}
+  name: pumati-backend
+  namespace: pumati
   labels:
-    {{- include "pumati-backend.labels" . | nindent 4 }}
+    app: pumati-backend
+    version: v1
 spec:
-  {{- if not .Values.autoscaling.enabled }}
-  replicas: {{ .Values.replicaCount }}
-  {{- end }}
+  replicas: 1
   
   # 🔄 롤링 업데이트 전략
-  {{- with .Values.strategy }}
   strategy:
-    {{- toYaml . | nindent 4 }}
-  {{- end }}
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 1
   
   selector:
     matchLabels:
-      {{- include "pumati-backend.selectorLabels" . | nindent 6 }}
+      app: pumati-backend
       
   template:
     metadata:
-      annotations:
-        # 🔄 Pod 재시작을 위한 타임스탬프
-        rollme: {{ randAlphaNum 5 | quote }}
       labels:
-        {{- include "pumati-backend.selectorLabels" . | nindent 8 }}
+        app: pumati-backend
+        version: v1
         
     spec:
-      # 🔒 Pod 보안 컨텍스트
-      securityContext:
-        {{- toYaml .Values.podSecurityContext | nindent 8 }}
-      
       containers:
-        - name: {{ .Chart.Name }}
-          # 🛡️ 컨테이너 보안 컨텍스트
-          securityContext:
-            {{- toYaml .Values.securityContext | nindent 12 }}
-            
-          # 🐳 컨테이너 이미지
-          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
-          imagePullPolicy: {{ .Values.image.pullPolicy }}
+        - name: pumati-backend
+          # 🐳 ECR 이미지
+          image: "236450698266.dkr.ecr.ap-northeast-2.amazonaws.com/pumati-dev-backend-ecr:latest"
+          imagePullPolicy: Always
           
           # 🌐 포트 설정
           ports:
             - name: http
-              containerPort: {{ .Values.service.targetPort }}
+              containerPort: 8080
               protocol: TCP
-              
-          # 🌍 환경 변수 설정 (조건부)
-          {{- if .Values.env }}
-          env:
-            {{- range .Values.env }}
-            - name: {{ .name }}
-              value: {{ .value | quote }}
-            {{- end }}
-          {{- end }}
             
           # 💪 리소스 제한
           resources:
-            {{- toYaml .Values.resources | nindent 12 }}
-            
-          # 📁 볼륨 마운트 (조건부)
-          {{- if .Values.volumeMounts }}
-          volumeMounts:
-            {{- toYaml .Values.volumeMounts | nindent 12 }}
-          {{- end }}
-                  
-      # 📁 볼륨 설정 (조건부)
-      {{- if .Values.volumes }}
-      volumes:
-        {{- toYaml .Values.volumes | nindent 8 }}
-      {{- end }}
+            limits:
+              cpu: 1000m
+              memory: 1Gi
+            requests:
+              cpu: 200m
+              memory: 512Mi
         
-      # 🎯 노드 선택자
-      {{- with .Values.nodeSelector }}
+      # 🎯 노드 선택자 (application 노드에 배포)
       nodeSelector:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
-      
-      # 🎯 어피니티 설정 (조건부)
-      {{- with .Values.affinity }}
-      affinity:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
-      
-      # 🏷️ 톨러레이션 (조건부)
-      {{- with .Values.tolerations }}
-      tolerations:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
+        node-type: application
       
       # 🔄 DNS 정책
       dnsPolicy: ClusterFirst
