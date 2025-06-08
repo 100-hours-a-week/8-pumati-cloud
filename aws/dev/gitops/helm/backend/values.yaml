@@ -38,9 +38,23 @@ nodeSelector:
 
 # ===== 모든 고급 기능 비활성화 =====
 
-# 🚪 Ingress 비활성화
+# 🚪 Ingress 설정 (/api, /oauth2 -> 백엔드)
 ingress:
-  enabled: false
+  enabled: true
+  className: "alb"
+  annotations:
+    kubernetes.io/ingress.class: alb
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}]'
+  hosts:
+    - host: ""  # ALB는 host 없이 사용 가능
+      paths:
+        - path: /api
+          pathType: Prefix
+        - path: /oauth2
+          pathType: Prefix
+  tls: []
 
 # 📈 HPA 비활성화  
 autoscaling:
