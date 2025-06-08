@@ -398,11 +398,10 @@ resource "aws_eks_node_group" "system" {
   # 인스턴스 타입 설정
   # t3.small: 2vCPU, 2GB RAM - 시스템 컴포넌트에 충분
   instance_types = [
-  "t3.small",    # 1순위: 2vCPU, 2GB RAM
-  "t3a.small",   # 2순위: 2vCPU, 2GB RAM (AMD 프로세서, 더 저렴)
-  #"t2.small",    # 3순위: 1vCPU, 2GB RAM (버스트 타입)
-  #"t3.medium",    # 4순위: 2vCPU, 4GB RAM (여유 있음)
-  #"t3a.medium"
+  # "t3.small",    # 1순위: 2vCPU, 2GB RAM
+  # "t3a.small",   # 2순위: 2vCPU, 2GB RAM (AMD 프로세서, 더 저렴)
+  "t3.medium",    # 4순위: 2vCPU, 4GB RAM (여유 있음)
+  "t3a.medium"
 ]
   # 용량 타입: 온디맨드 (안정성 우선)
   # 시스템 컴포넌트는 항상 실행되어야 하므로 스팟 인스턴스 사용 안함
@@ -419,10 +418,10 @@ resource "aws_eks_node_group" "system" {
     min_size = 1
     
     # 최대 노드 수: 3개 (시스템 컴포넌트가 많아져도 충분)
-    max_size = 10
+    max_size = 5
     
     # 초기 노드 수: 1개 (2개 AZ에 각각 1개씩 배치하여 고가용성을 원한다면 2로.)
-    desired_size = 2
+    desired_size = 1
   }
 
   # 노드 업데이트 설정

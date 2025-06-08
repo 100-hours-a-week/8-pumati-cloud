@@ -22,7 +22,31 @@ resource "kubernetes_service_account" "argocd_server" {
   }
 }
 
-# ArgoCD 서버용 IAM 역할 생성
+# ArgoCD 컨트롤러용 서비스 계정 생성
+resource "kubernetes_service_account" "argocd_application_controller" {
+  metadata {
+    name      = "argocd-application-controller"
+    namespace = kubernetes_namespace.argocd.metadata[0].name
+    
+    annotations = {
+      "eks.amazonaws.com/role-arn" = aws_iam_role.argocd_controller.arn
+    }
+  }
+}
+
+# ArgoCD Repo Server용 서비스 계정 생성
+resource "kubernetes_service_account" "argocd_repo_server" {
+  metadata {
+    name      = "argocd-repo-server"
+    namespace = kubernetes_namespace.argocd.metadata[0].name
+    
+    annotations = {
+      "eks.amazonaws.com/role-arn" = aws_iam_role.argocd_repo_server.arn
+    }
+  }
+}
+
+# ArgoCD 서버용 IAM 역할 생성 (수정된 버전)
 resource "aws_iam_role" "argocd_server" {
   name = "${local.project_name}-${local.environment}-argocd-server-role"
 
@@ -37,8 +61,8 @@ resource "aws_iam_role" "argocd_server" {
         }
         Condition = {
           StringEquals = {
-            "${replace(data.terraform_remote_state.eks.outputs.oidc_provider_url, "https://", "")}:sub" = "system:serviceaccount:argocd:argocd-server"
-            "${replace(data.terraform_remote_state.eks.outputs.oidc_provider_url, "https://", "")}:aud" = "sts.amazonaws.com"
+            "${replace(data.terraform_remote_state.eks.outputs.cluster_oidc_issuer_url, "https://", "")}:sub" = "system:serviceaccount:argocd:argocd-server"
+            "${replace(data.terraform_remote_state.eks.outputs.cluster_oidc_issuer_url, "https://", "")}:aud" = "sts.amazonaws.com"
           }
         }
       }
@@ -48,7 +72,59 @@ resource "aws_iam_role" "argocd_server" {
   tags = local.common_tags
 }
 
-# ArgoCD 서버용 IAM 정책 연결 (필요한 경우 추가 권한 부여)
+# ArgoCD 컨트롤러용 IAM 역할 생성 (수정된 버전)
+resource "aws_iam_role" "argocd_controller" {
+  name = "${local.project_name}-${local.environment}-argocd-controller-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = "sts:AssumeRoleWithWebIdentity"
+        Effect = "Allow"
+        Principal = {
+          Federated = data.terraform_remote_state.eks.outputs.oidc_provider_arn
+        }
+        Condition = {
+          StringEquals = {
+            "${replace(data.terraform_remote_state.eks.outputs.cluster_oidc_issuer_url, "https://", "")}:sub" = "system:serviceaccount:argocd:argocd-application-controller"
+            "${replace(data.terraform_remote_state.eks.outputs.cluster_oidc_issuer_url, "https://", "")}:aud" = "sts.amazonaws.com"
+          }
+        }
+      }
+    ]
+  })
+
+  tags = local.common_tags
+}
+
+# ArgoCD Repo Server용 IAM 역할 생성 (수정된 버전)
+resource "aws_iam_role" "argocd_repo_server" {
+  name = "${local.project_name}-${local.environment}-argocd-repo-server-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = "sts:AssumeRoleWithWebIdentity"
+        Effect = "Allow"
+        Principal = {
+          Federated = data.terraform_remote_state.eks.outputs.oidc_provider_arn
+        }
+        Condition = {
+          StringEquals = {
+            "${replace(data.terraform_remote_state.eks.outputs.cluster_oidc_issuer_url, "https://", "")}:sub" = "system:serviceaccount:argocd:argocd-repo-server"
+            "${replace(data.terraform_remote_state.eks.outputs.cluster_oidc_issuer_url, "https://", "")}:aud" = "sts.amazonaws.com"
+          }
+        }
+      }
+    ]
+  })
+
+  tags = local.common_tags
+}
+
+# ArgoCD 서버용 IAM 정책 연결 (GitOps 운영에 필요한 모든 권한)
 resource "aws_iam_role_policy" "argocd_server_policy" {
   name = "${local.project_name}-${local.environment}-argocd-server-policy"
   role = aws_iam_role.argocd_server.id
@@ -56,11 +132,199 @@ resource "aws_iam_role_policy" "argocd_server_policy" {
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
+      # 🐳 ECR 접근 권한 (컨테이너 이미지 pull)
+      {
+        Effect = "Allow"
+        Action = [
+          "ecr:GetAuthorizationToken",           # ECR 로그인 토큰 획득
+          "ecr:BatchCheckLayerAvailability",     # 이미지 레이어 존재 확인
+          "ecr:GetDownloadUrlForLayer",          # 이미지 레이어 다운로드 URL 획득
+          "ecr:BatchGetImage",                   # 이미지 매니페스트 획득
+          "ecr:DescribeRepositories",            # ECR 저장소 정보 조회
+          "ecr:DescribeImages",                  # 이미지 정보 조회
+          "ecr:ListImages"                       # 이미지 목록 조회
+        ]
+        Resource = "*"
+      },
+      
+      # 🔐 Secrets Manager 접근 권한 (DB 비밀번호, API 키 등)
+      {
+        Effect = "Allow"
+        Action = [
+          "secretsmanager:GetSecretValue",       # 시크릿 값 조회
+          "secretsmanager:DescribeSecret",       # 시크릿 메타데이터 조회
+          "secretsmanager:ListSecrets"           # 시크릿 목록 조회
+        ]
+        Resource = "*"
+      },
+      
+      # 📋 Systems Manager Parameter Store 접근 권한 (설정값 관리)
+      {
+        Effect = "Allow"
+        Action = [
+          "ssm:GetParameter",                    # 파라미터 값 조회
+          "ssm:GetParameters",                   # 여러 파라미터 값 조회
+          "ssm:GetParametersByPath",             # 경로별 파라미터 조회
+          "ssm:DescribeParameters"               # 파라미터 메타데이터 조회
+        ]
+        Resource = "*"
+      },
+      
+      # 📊 CloudWatch 로그 권한 (ArgoCD 로그 기록)
+      {
+        Effect = "Allow"
+        Action = [
+          "logs:CreateLogGroup",                 # 로그 그룹 생성
+          "logs:CreateLogStream",                # 로그 스트림 생성
+          "logs:PutLogEvents",                   # 로그 이벤트 기록
+          "logs:DescribeLogGroups",              # 로그 그룹 조회
+          "logs:DescribeLogStreams"              # 로그 스트림 조회
+        ]
+        Resource = "*"
+      },
+      
+      # ☸️ EKS 클러스터 정보 조회 권한 (클러스터 상태 확인)
+      {
+        Effect = "Allow"
+        Action = [
+          "eks:DescribeCluster",                 # 클러스터 정보 조회
+          "eks:ListClusters",                    # 클러스터 목록 조회
+          "eks:DescribeNodegroup",               # 노드 그룹 정보 조회
+          "eks:ListNodegroups"                   # 노드 그룹 목록 조회
+        ]
+        Resource = "*"
+      },
+      
+      # 🏷️ 태그 관리 권한 (리소스 태깅)
+      {
+        Effect = "Allow"
+        Action = [
+          "tag:GetResources",                    # 태그된 리소스 조회
+          "tag:TagResources",                    # 리소스에 태그 추가
+          "tag:UntagResources"                   # 리소스에서 태그 제거
+        ]
+        Resource = "*"
+      },
+      
+      # 🔍 EC2 인스턴스 정보 조회 권한 (노드 상태 확인)
+      {
+        Effect = "Allow"
+        Action = [
+          "ec2:DescribeInstances",               # EC2 인스턴스 정보 조회
+          "ec2:DescribeInstanceTypes",           # 인스턴스 타입 정보 조회
+          "ec2:DescribeAvailabilityZones",       # 가용 영역 정보 조회
+          "ec2:DescribeSubnets",                 # 서브넷 정보 조회
+          "ec2:DescribeSecurityGroups"           # 보안 그룹 정보 조회
+        ]
+        Resource = "*"
+      },
+      
+      # 📈 CloudWatch 메트릭 권한 (모니터링)
+      {
+        Effect = "Allow"
+        Action = [
+          "cloudwatch:PutMetricData",            # 커스텀 메트릭 전송
+          "cloudwatch:GetMetricStatistics",      # 메트릭 통계 조회
+          "cloudwatch:ListMetrics"               # 메트릭 목록 조회
+        ]
+        Resource = "*"
+      },
+      
+      # 🔔 SNS 알림 권한 (배포 알림)
+      {
+        Effect = "Allow"
+        Action = [
+          "sns:Publish",                         # SNS 메시지 발송
+          "sns:ListTopics",                      # SNS 토픽 목록 조회
+          "sns:GetTopicAttributes"               # SNS 토픽 속성 조회
+        ]
+        Resource = "*"
+      },
+      
+      # 🗄️ S3 접근 권한 (Helm 차트, 설정 파일 저장소)
+      {
+        Effect = "Allow"
+        Action = [
+          "s3:GetObject",                        # S3 객체 다운로드
+          "s3:PutObject",                        # S3 객체 업로드
+          "s3:DeleteObject",                     # S3 객체 삭제
+          "s3:ListBucket",                       # S3 버킷 내용 조회
+          "s3:GetBucketLocation"                 # S3 버킷 위치 조회
+        ]
+        Resource = [
+          "arn:aws:s3:::${local.project_name}-*",
+          "arn:aws:s3:::${local.project_name}-*/*"
+        ]
+      }
+    ]
+  })
+}
+
+# ArgoCD 컨트롤러용 IAM 정책 (Kubernetes 리소스 관리 + ECR 접근)
+resource "aws_iam_role_policy" "argocd_controller_policy" {
+  name = "${local.project_name}-${local.environment}-argocd-controller-policy"
+  role = aws_iam_role.argocd_controller.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      # 🐳 ECR 접근 권한 (컨테이너 이미지 pull - 가장 중요!)
+      {
+        Effect = "Allow"
+        Action = [
+          "ecr:GetAuthorizationToken",
+          "ecr:BatchCheckLayerAvailability",
+          "ecr:GetDownloadUrlForLayer",
+          "ecr:BatchGetImage",
+          "ecr:DescribeRepositories",
+          "ecr:DescribeImages",
+          "ecr:ListImages"
+        ]
+        Resource = "*"
+      },
+      
+      # 🔐 Secrets Manager 접근 (애플리케이션 시크릿 관리)
       {
         Effect = "Allow"
         Action = [
           "secretsmanager:GetSecretValue",
-          "secretsmanager:DescribeSecret"
+          "secretsmanager:DescribeSecret",
+          "secretsmanager:ListSecrets"
+        ]
+        Resource = "*"
+      },
+      
+      # 📋 Parameter Store 접근 (설정값 관리)
+      {
+        Effect = "Allow"
+        Action = [
+          "ssm:GetParameter",
+          "ssm:GetParameters",
+          "ssm:GetParametersByPath",
+          "ssm:DescribeParameters"
+        ]
+        Resource = "*"
+      },
+      
+      # 📊 CloudWatch 로그 (배포 로그 기록)
+      {
+        Effect = "Allow"
+        Action = [
+          "logs:CreateLogGroup",
+          "logs:CreateLogStream",
+          "logs:PutLogEvents",
+          "logs:DescribeLogGroups",
+          "logs:DescribeLogStreams"
+        ]
+        Resource = "*"
+      },
+      
+      # ☸️ EKS 클러스터 정보 조회
+      {
+        Effect = "Allow"
+        Action = [
+          "eks:DescribeCluster",
+          "eks:ListClusters"
         ]
         Resource = "*"
       }
@@ -68,87 +332,248 @@ resource "aws_iam_role_policy" "argocd_server_policy" {
   })
 }
 
-# ArgoCD Helm 차트 설치
+# ArgoCD Repo Server용 IAM 정책 (Git 저장소 + Helm 차트 접근)
+resource "aws_iam_role_policy" "argocd_repo_server_policy" {
+  name = "${local.project_name}-${local.environment}-argocd-repo-server-policy"
+  role = aws_iam_role.argocd_repo_server.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      # 🐳 ECR 접근 권한 (Helm 차트에서 이미지 정보 확인)
+      {
+        Effect = "Allow"
+        Action = [
+          "ecr:GetAuthorizationToken",
+          "ecr:BatchCheckLayerAvailability",
+          "ecr:GetDownloadUrlForLayer",
+          "ecr:BatchGetImage",
+          "ecr:DescribeRepositories",
+          "ecr:DescribeImages",
+          "ecr:ListImages"
+        ]
+        Resource = "*"
+      },
+      
+      # 🗄️ S3 접근 권한 (Helm 차트 저장소)
+      {
+        Effect = "Allow"
+        Action = [
+          "s3:GetObject",
+          "s3:ListBucket",
+          "s3:GetBucketLocation"
+        ]
+        Resource = [
+          "arn:aws:s3:::${local.project_name}-*",
+          "arn:aws:s3:::${local.project_name}-*/*"
+        ]
+      },
+      
+      # 🔐 Secrets Manager 접근 (Git 인증 정보)
+      {
+        Effect = "Allow"
+        Action = [
+          "secretsmanager:GetSecretValue",
+          "secretsmanager:DescribeSecret"
+        ]
+        Resource = "*"
+      },
+      
+      # 📊 CloudWatch 로그
+      {
+        Effect = "Allow"
+        Action = [
+          "logs:CreateLogGroup",
+          "logs:CreateLogStream",
+          "logs:PutLogEvents"
+        ]
+        Resource = "*"
+      }
+    ]
+  })
+}
+
+#==============================================================================
+# ArgoCD용 StorageClass 생성 (Jenkins 패턴과 동일)
+#==============================================================================
+resource "kubernetes_storage_class" "argocd_ebs_direct" {
+  metadata {
+    name = "argocd-ebs-direct"
+
+    labels = {
+      "app.kubernetes.io/name"      = "argocd"
+      "app.kubernetes.io/component" = "storage"
+    }
+  }
+
+  # EBS CSI 드라이버 사용
+  storage_provisioner = "ebs.csi.aws.com"
+
+  # 볼륨 바인딩 모드 - 즉시 바인딩
+  volume_binding_mode = "Immediate"
+
+  # 파라미터 설정
+  parameters = {
+    type      = "gp3"
+    fsType    = "ext4"
+    encrypted = "true"
+  }
+
+  # PV 삭제 시 정책
+  reclaim_policy = "Retain"
+
+  # 볼륨 확장 허용
+  allow_volume_expansion = true
+}
+
+#==============================================================================
+# ArgoCD 서버용 PV (01-static의 EBS 볼륨 사용)
+#==============================================================================
+resource "kubernetes_persistent_volume" "argocd_server" {
+  metadata {
+    name = "argocd-server-pv"
+
+    labels = {
+      "app.kubernetes.io/name"      = "argocd"
+      "app.kubernetes.io/component" = "server-storage"
+    }
+  }
+
+  spec {
+    capacity = {
+      storage = "${data.terraform_remote_state.static.outputs.argocd_server_ebs_size}Gi"
+    }
+
+    access_modes = ["ReadWriteOnce"]
+
+    # EBS 볼륨 연결 설정
+    persistent_volume_source {
+      aws_elastic_block_store {
+        volume_id = data.terraform_remote_state.static.outputs.argocd_server_ebs_volume_id
+        fs_type   = "ext4"
+      }
+    }
+
+    # 볼륨이 위치한 가용영역 지정
+    node_affinity {
+      required {
+        node_selector_term {
+          match_expressions {
+            key      = "topology.kubernetes.io/zone"
+            operator = "In"
+            values   = [data.terraform_remote_state.static.outputs.argocd_server_ebs_availability_zone]
+          }
+        }
+      }
+    }
+
+    # PV 삭제 시에도 EBS 볼륨은 보존
+    persistent_volume_reclaim_policy = "Retain"
+    storage_class_name               = kubernetes_storage_class.argocd_ebs_direct.metadata[0].name
+  }
+
+  # StorageClass 생성 후에 PV 생성
+  depends_on = [kubernetes_storage_class.argocd_ebs_direct]
+}
+
+#==============================================================================
+# ArgoCD 서버용 PVC
+#==============================================================================
+resource "kubernetes_persistent_volume_claim" "argocd_server" {
+  metadata {
+    name      = "argocd-server-pvc"
+    namespace = kubernetes_namespace.argocd.metadata[0].name
+
+    labels = {
+      "app.kubernetes.io/name"      = "argocd"
+      "app.kubernetes.io/component" = "server-storage"
+    }
+  }
+
+  spec {
+    access_modes       = ["ReadWriteOnce"]
+    storage_class_name = kubernetes_storage_class.argocd_ebs_direct.metadata[0].name
+
+    resources {
+      requests = {
+        storage = "${data.terraform_remote_state.static.outputs.argocd_server_ebs_size}Gi"
+      }
+    }
+
+    # 특정 PV에 바인딩
+    volume_name = kubernetes_persistent_volume.argocd_server.metadata[0].name
+  }
+
+  depends_on = [
+    kubernetes_persistent_volume.argocd_server,
+    kubernetes_storage_class.argocd_ebs_direct
+  ]
+}
+
+# ArgoCD Helm 차트 설치 (올바른 볼륨 마운트 경로)
 resource "helm_release" "argocd" {
   name       = "argocd"
   repository = "https://argoproj.github.io/argo-helm"
   chart      = "argo-cd"
-  version    = "5.51.6"  # 안정적인 버전 사용
+  version    = "5.51.6"
   namespace  = kubernetes_namespace.argocd.metadata[0].name
 
-  # ArgoCD 서버 설정
   values = [
     yamlencode({
-      # 글로벌 설정
+      # 🎯 시스템 노드에 모든 컴포넌트 배치
       global = {
         domain = "argocd.${local.domain_name}"
-        
-        # 🎯 모든 ArgoCD 컴포넌트를 시스템 노드에 배치
         nodeSelector = {
           "node-type" = "system"
         }
-        
-        # 🔧 시스템 노드의 taint를 허용하는 톨러레이션 (필요시 활성화)
-        # tolerations = [
-        #   {
-        #     key      = "node-type"
-        #     operator = "Equal"
-        #     value    = "system"
-        #     effect   = "NoSchedule"
-        #   }
-        # ]
       }
 
-      # ArgoCD 서버 설정
+      # ArgoCD 서버 설정 (충돌하지 않는 경로 사용)
       server = {
-        # 서비스 계정 설정
         serviceAccount = {
           create = false
           name   = kubernetes_service_account.argocd_server.metadata[0].name
         }
 
-        # 🎯 서버 전용 노드 선택자 (글로벌 설정 재정의)
-        nodeSelector = {
-          "node-type" = "system"
-          "role"      = "system-component"
-        }
+        replicas = 1
 
-        # 인그레스 설정
-        ingress = {
-          enabled = true
-          ingressClassName = "nginx"
-          annotations = {
-            "cert-manager.io/cluster-issuer" = "letsencrypt-prod"
-            "nginx.ingress.kubernetes.io/ssl-redirect" = "true"
-            "nginx.ingress.kubernetes.io/backend-protocol" = "GRPC"
+        # 🎯 EBS 볼륨 연결 (충돌하지 않는 경로)
+        volumes = [
+          {
+            name = "argocd-server-data"
+            persistentVolumeClaim = {
+              claimName = kubernetes_persistent_volume_claim.argocd_server.metadata[0].name
+            }
           }
-          hosts = [
-            {
-              host = "argocd.${local.domain_name}"
-              paths = [
-                {
-                  path = "/*"
-                  pathType = "Prefix"
-                }
-              ]
-            }
-          ]
-          tls = [
-            {
-              secretName = "argocd-server-tls"
-              hosts = [
-                "argocd.${local.domain_name}"
-              ]
-            }
-          ]
-        }
-
-        # 추가 설정
-        extraArgs = [
-          "--insecure"  # 인그레스에서 TLS 종료하므로 내부는 insecure 모드
         ]
 
-        # 🔧 리소스 제한 (시스템 노드 리소스 고려)
+        volumeMounts = [
+          {
+            name      = "argocd-server-data"
+            mountPath = "/var/lib/argocd"  # 🔧 충돌하지 않는 데이터 저장 경로
+          }
+        ]
+
+        # 🔧 AWS Load Balancer Controller용 Ingress 설정
+        ingress = {
+          enabled = true
+          ingressClassName = "alb"
+          annotations = {
+            "alb.ingress.kubernetes.io/scheme" = "internet-facing"
+            "alb.ingress.kubernetes.io/target-type" = "ip"
+            "alb.ingress.kubernetes.io/ssl-redirect" = "443"
+            "alb.ingress.kubernetes.io/certificate-arn" = data.terraform_remote_state.static.outputs.acm_certificate_arn
+            "alb.ingress.kubernetes.io/listen-ports" = "[{\"HTTP\": 80}, {\"HTTPS\": 443}]"
+            "external-dns.alpha.kubernetes.io/hostname" = "argocd.${local.domain_name}"
+          }
+          
+          hosts = ["argocd.${local.domain_name}"]
+          tls = []
+        }
+
+        # 🔧 HTTP 모드로 실행
+        extraArgs = ["--insecure"]
+        
         resources = {
           limits = {
             cpu    = "500m"
@@ -159,37 +584,16 @@ resource "helm_release" "argocd" {
             memory = "256Mi"
           }
         }
-
-        # 🚀 고가용성을 위한 복제본 설정
-        replicas = 2
-        
-        # 🔄 Pod 분산 배치 (Anti-Affinity)
-        affinity = {
-          podAntiAffinity = {
-            preferredDuringSchedulingIgnoredDuringExecution = [
-              {
-                weight = 100
-                podAffinityTerm = {
-                  labelSelector = {
-                    matchLabels = {
-                      "app.kubernetes.io/name" = "argocd-server"
-                    }
-                  }
-                  topologyKey = "kubernetes.io/hostname"
-                }
-              }
-            ]
-          }
-        }
       }
 
       # ArgoCD 컨트롤러 설정
       controller = {
-        # 🎯 컨트롤러도 시스템 노드에 배치
-        nodeSelector = {
-          "node-type" = "system"
-          "role"      = "system-component"
+        serviceAccount = {
+          create = false
+          name   = kubernetes_service_account.argocd_application_controller.metadata[0].name
         }
+
+        replicas = 1
         
         resources = {
           limits = {
@@ -201,18 +605,16 @@ resource "helm_release" "argocd" {
             memory = "512Mi"
           }
         }
-
-        # 🚀 컨트롤러 고가용성 설정
-        replicas = 1  # 컨트롤러는 단일 인스턴스 권장 (리더 선출 복잡성 방지)
       }
 
       # ArgoCD Repo Server 설정
       repoServer = {
-        # 🎯 Repo Server도 시스템 노드에 배치
-        nodeSelector = {
-          "node-type" = "system"
-          "role"      = "system-component"
+        serviceAccount = {
+          create = false
+          name   = kubernetes_service_account.argocd_repo_server.metadata[0].name
         }
+
+        replicas = 1
         
         resources = {
           limits = {
@@ -224,38 +626,10 @@ resource "helm_release" "argocd" {
             memory = "256Mi"
           }
         }
-
-        # 🚀 Repo Server 고가용성 설정
-        replicas = 2
-        
-        # 🔄 Pod 분산 배치
-        affinity = {
-          podAntiAffinity = {
-            preferredDuringSchedulingIgnoredDuringExecution = [
-              {
-                weight = 100
-                podAffinityTerm = {
-                  labelSelector = {
-                    matchLabels = {
-                      "app.kubernetes.io/name" = "argocd-repo-server"
-                    }
-                  }
-                  topologyKey = "kubernetes.io/hostname"
-                }
-              }
-            ]
-          }
-        }
       }
 
-      # ArgoCD Redis 설정
+      # Redis 설정
       redis = {
-        # 🎯 Redis도 시스템 노드에 배치
-        nodeSelector = {
-          "node-type" = "system"
-          "role"      = "system-component"
-        }
-        
         resources = {
           limits = {
             cpu    = "200m"
@@ -268,18 +642,14 @@ resource "helm_release" "argocd" {
         }
       }
 
-      # ArgoCD 설정
+      # ArgoCD 설정 (정확한 admin123! 해시)
       configs = {
-        # 초기 관리자 비밀번호 설정 (변경 필요)
         secret = {
-          argocdServerAdminPassword = "$2a$10$rRyBsGSHK6.uc8fntPwVIuLVHgsAhAX7TcdrqW/RADU0uh7CaChLa"  # password
+          # 🔧 실제 생성된 해시 값으로 업데이트
+          argocdServerAdminPassword = "$2y$05$IZWP9eSNwRQFbP2OocU9mOyI6PfUKdnj7oX25gIGbIrzGMv6ctn6e"  # admin123!
           argocdServerAdminPasswordMtime = "2023-01-01T00:00:00Z"
         }
 
-        # 저장소 설정 (필요시 추가)
-        repositories = {}
-
-        # RBAC 설정
         rbac = {
           "policy.default" = "role:readonly"
           "policy.csv" = <<-EOT
@@ -293,210 +663,18 @@ resource "helm_release" "argocd" {
     })
   ]
 
-  # Helm 차트 설치 대기 시간 설정
   timeout = 600
 
   depends_on = [
     kubernetes_namespace.argocd,
-    kubernetes_service_account.argocd_server
+    kubernetes_service_account.argocd_server,
+    kubernetes_service_account.argocd_application_controller,
+    kubernetes_service_account.argocd_repo_server,
+    aws_iam_role_policy.argocd_server_policy,
+    aws_iam_role_policy.argocd_controller_policy,
+    aws_iam_role_policy.argocd_repo_server_policy,
+    kubernetes_persistent_volume_claim.argocd_server
   ]
 }
 
-# ArgoCD CLI 접근을 위한 포트 포워딩 서비스 (선택사항)
-resource "kubernetes_service" "argocd_server_nodeport" {
-  metadata {
-    name      = "argocd-server-nodeport"
-    namespace = kubernetes_namespace.argocd.metadata[0].name
-  }
-
-  spec {
-    type = "NodePort"
-    
-    port {
-      name        = "server"
-      port        = 80
-      target_port = 8080
-      node_port   = 30080
-    }
-
-    port {
-      name        = "grpc"
-      port        = 443
-      target_port = 8080
-      node_port   = 30443
-    }
-
-    selector = {
-      "app.kubernetes.io/name" = "argocd-server"
-    }
-  }
-}
-
-# 프론트엔드 애플리케이션을 위한 ArgoCD Application
-resource "kubectl_manifest" "argocd_frontend_app" {
-  yaml_body = yamlencode({
-    apiVersion = "argoproj.io/v1alpha1"
-    kind       = "Application"
-    metadata = {
-      name      = "pumati-frontend"
-      namespace = kubernetes_namespace.argocd.metadata[0].name
-      finalizers = [
-        "resources-finalizer.argocd.argoproj.io"
-      ]
-    }
-    spec = {
-      project = "default"
-      source = {
-        # 로컬 Helm 차트 사용 (Git 저장소로 변경 가능)
-        path           = "aws/dev/07-argocd/helm/frontend"
-        repoURL        = "https://github.com/pumati/infrastructure"  # 실제 Git 저장소로 변경 필요
-        targetRevision = "HEAD"
-        helm = {
-          valueFiles = ["values.yaml"]
-          # Jenkins에서 이미지 태그를 동적으로 업데이트할 수 있도록 설정
-          parameters = [
-            {
-              name  = "image.tag"
-              value = "latest"
-            },
-            {
-              name  = "ingress.hosts[0].host"
-              value = "pumati.${local.domain_name}"
-            },
-            {
-              name  = "ingress.tls[0].hosts[0]"
-              value = "pumati.${local.domain_name}"
-            }
-          ]
-        }
-      }
-      destination = {
-        server    = "https://kubernetes.default.svc"
-        namespace = "pumati-frontend"
-      }
-      syncPolicy = {
-        automated = {
-          prune    = true
-          selfHeal = true
-        }
-        syncOptions = [
-          "CreateNamespace=true"
-        ]
-      }
-    }
-  })
-
-  depends_on = [helm_release.argocd]
-}
-
-# 백엔드 애플리케이션을 위한 ArgoCD Application
-resource "kubectl_manifest" "argocd_backend_app" {
-  yaml_body = yamlencode({
-    apiVersion = "argoproj.io/v1alpha1"
-    kind       = "Application"
-    metadata = {
-      name      = "pumati-backend"
-      namespace = kubernetes_namespace.argocd.metadata[0].name
-      finalizers = [
-        "resources-finalizer.argocd.argoproj.io"
-      ]
-    }
-    spec = {
-      project = "default"
-      source = {
-        # 로컬 Helm 차트 사용 (Git 저장소로 변경 가능)
-        path           = "aws/dev/07-argocd/helm/backend"
-        repoURL        = "https://github.com/pumati/infrastructure"  # 실제 Git 저장소로 변경 필요
-        targetRevision = "HEAD"
-        helm = {
-          valueFiles = ["values.yaml"]
-          # Jenkins에서 이미지 태그를 동적으로 업데이트할 수 있도록 설정
-          parameters = [
-            {
-              name  = "image.tag"
-              value = "latest"
-            },
-            {
-              name  = "ingress.hosts[0].host"
-              value = "api.${local.domain_name}"
-            },
-            {
-              name  = "ingress.tls[0].hosts[0]"
-              value = "api.${local.domain_name}"
-            },
-            {
-              name  = "env[2].value"  # DB_HOST
-              value = data.terraform_remote_state.db.outputs.mysql_private_ip
-            }
-          ]
-        }
-      }
-      destination = {
-        server    = "https://kubernetes.default.svc"
-        namespace = "pumati-backend"
-      }
-      syncPolicy = {
-        automated = {
-          prune    = true
-          selfHeal = true
-        }
-        syncOptions = [
-          "CreateNamespace=true"
-        ]
-      }
-    }
-  })
-
-  depends_on = [helm_release.argocd]
-}
-
-# Jenkins 웹훅을 위한 ArgoCD 설정
-resource "kubectl_manifest" "argocd_webhook_config" {
-  yaml_body = yamlencode({
-    apiVersion = "v1"
-    kind       = "ConfigMap"
-    metadata = {
-      name      = "argocd-notifications-cm"
-      namespace = kubernetes_namespace.argocd.metadata[0].name
-      labels = {
-        "app.kubernetes.io/name" = "argocd-notifications"
-        "app.kubernetes.io/part-of" = "argocd"
-      }
-    }
-    data = {
-      # Jenkins 트리거를 위한 웹훅 설정
-      "service.webhook.jenkins" = yamlencode({
-        url = "http://jenkins.${local.domain_name}/generic-webhook-trigger/invoke"
-        headers = [
-          {
-            name  = "Content-Type"
-            value = "application/json"
-          }
-        ]
-      })
-      
-      # 알림 템플릿 설정
-      "template.app-deployed" = yamlencode({
-        webhook = {
-          jenkins = {
-            method = "POST"
-            body = jsonencode({
-              app_name    = "{{.app.metadata.name}}"
-              app_status  = "{{.app.status.sync.status}}"
-              revision    = "{{.app.status.sync.revision}}"
-              timestamp   = "{{.timestamp}}"
-            })
-          }
-        }
-      })
-      
-      # 트리거 설정
-      "trigger.on-deployed" = yamlencode({
-        - when = "app.status.sync.status == 'Synced'"
-          send = ["app-deployed"]
-      })
-    }
-  })
-
-  depends_on = [helm_release.argocd]
-}
+# 🗑️ Application 정의 제거 - 나중에 GitOps 폴더 준비 후 추가

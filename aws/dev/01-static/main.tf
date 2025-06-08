@@ -426,4 +426,48 @@ resource "aws_ecr_lifecycle_policy" "frontend" {
 # 현재 AWS 계정 ID 조회 (ECR 정책용)
 data "aws_caller_identity" "current" {}
 
-
+# ArgoCD 서버용 EBS 볼륨 생성
+resource "aws_ebs_volume" "argocd_server" {
+  # 첫 번째 가용영역에 생성 (private subnet과 동일한 AZ)
+  availability_zone = "ap-northeast-2a"
+  
+  # 볼륨 설정
+  size = 20   # 20GB - ArgoCD 설정, 사용자 데이터, Git 캐시 등 (Jenkins보다 작음)
+  type = "gp3"  # GP3: 비용 효율적이고 성능 좋음
+  
+  # GP3 성능 설정
+  iops       = 3000   # 기본 3000 IOPS (충분함)
+  throughput = 125    # 기본 125 MiB/s (충분함)
+  
+  # 보안 설정
+  encrypted  = true   # 데이터 암호화
+  # kms_key_id를 지정하지 않으면 기본 AWS 관리형 키 사용
+  
+  # 스냅샷 설정
+  snapshot_id = null  # 새로운 볼륨 생성
+  
+  # 태그 설정
+  tags = merge(
+    local.common_tags,
+    {
+      Name        = "${local.project_name}-${local.environment}-argocd-server-ebs"
+      Purpose     = "ArgoCD Server Data Storage"
+      Component   = "GitOps"
+      Environment = local.environment
+      VolumeType  = "argocd-server"
+      
+      # Kubernetes에서 볼륨을 찾을 수 있지만 클러스터 삭제 시 보존되도록 shared 사용
+      "kubernetes.io/cluster/${local.project_name}-${local.environment}-eks" = "shared"
+      "kubernetes.io/created-for/pv/name" = "argocd-server-pv"
+    }
+  )
+  
+  # 볼륨 삭제 방지 (실수로 삭제되지 않도록)
+  lifecycle {
+    # prevent_destroy = true
+    ignore_changes = [
+      # 스냅샷에서 복원할 때 변경될 수 있는 속성들 무시
+      snapshot_id,
+    ]
+  }
+}

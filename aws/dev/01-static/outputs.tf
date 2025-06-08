@@ -170,3 +170,65 @@ output "ecr_login_command" {
   description = "ECR 로그인 명령어 (Jenkins에서 사용)"
   value       = "aws ecr get-login-password --region ap-northeast-2 | docker login --username AWS --password-stdin ${aws_ecr_repository.backend.repository_url}"
 }
+
+#==============================================================================
+# ArgoCD EBS 볼륨 관련 출력 (Jenkins 패턴과 동일하게)
+#==============================================================================
+
+# ArgoCD 서버 EBS 볼륨 정보
+output "argocd_server_ebs_volume_id" {
+  description = "ArgoCD 서버용 EBS 볼륨 ID"
+  value       = aws_ebs_volume.argocd_server.id
+}
+
+output "argocd_server_ebs_volume_arn" {
+  description = "ArgoCD 서버용 EBS 볼륨 ARN"
+  value       = aws_ebs_volume.argocd_server.arn
+}
+
+output "argocd_server_ebs_availability_zone" {
+  description = "ArgoCD 서버 EBS 볼륨이 위치한 가용영역"
+  value       = aws_ebs_volume.argocd_server.availability_zone
+}
+
+output "argocd_server_ebs_size" {
+  description = "ArgoCD 서버 EBS 볼륨 크기 (GB)"
+  value       = aws_ebs_volume.argocd_server.size
+}
+
+output "argocd_server_ebs_type" {
+  description = "ArgoCD 서버 EBS 볼륨 타입"
+  value       = aws_ebs_volume.argocd_server.type
+}
+
+output "argocd_server_ebs_encrypted" {
+  description = "ArgoCD 서버 EBS 볼륨 암호화 여부"
+  value       = aws_ebs_volume.argocd_server.encrypted
+}
+
+# ArgoCD 07에서 사용할 종합 정보
+output "argocd_ebs_info" {
+  description = "ArgoCD 구성에 필요한 EBS 볼륨 정보"
+  value = {
+    volume_id         = aws_ebs_volume.argocd_server.id
+    availability_zone = aws_ebs_volume.argocd_server.availability_zone
+    size             = aws_ebs_volume.argocd_server.size
+    type             = aws_ebs_volume.argocd_server.type
+    encrypted        = aws_ebs_volume.argocd_server.encrypted
+    iops             = aws_ebs_volume.argocd_server.iops
+    throughput       = aws_ebs_volume.argocd_server.throughput
+  }
+}
+
+# Kubernetes에서 사용할 볼륨 선택기 정보
+output "argocd_volume_selector" {
+  description = "Kubernetes PV에서 사용할 볼륨 선택기 정보"
+  value = {
+    volume_id = aws_ebs_volume.argocd_server.id
+    zone      = aws_ebs_volume.argocd_server.availability_zone
+    tags = {
+      "kubernetes.io/created-for/pv/name" = "argocd-server-pv"
+      VolumeType = "argocd-server"
+    }
+  }
+}
