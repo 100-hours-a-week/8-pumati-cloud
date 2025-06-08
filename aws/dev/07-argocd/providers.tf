@@ -21,6 +21,7 @@ terraform {
       source  = "gavinbunney/kubectl"
       version = "~> 1.14"
     }
+# argocd provider는 08-deploy에서 사용
   }
 }
 
@@ -137,3 +138,6 @@ provider "kubectl" {
   token                  = data.aws_eks_cluster_auth.main.token
   load_config_file       = false
 }
+
+# ArgoCD Provider는 08-deploy에서 설정
+# 여기서는 ArgoCD 서버 설치만 담당

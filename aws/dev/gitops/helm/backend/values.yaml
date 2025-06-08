@@ -95,7 +95,7 @@ resources:
 
 # 📈 HPA 오토스케일링 설정
 autoscaling:
-  enabled: true
+  enabled: false
   minReplicas: 2
   maxReplicas: 10
   targetCPUUtilizationPercentage: 70
