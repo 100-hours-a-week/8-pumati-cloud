@@ -29,6 +29,11 @@ spec:
         {{- include "pumati-backend.selectorLabels" . | nindent 8 }}
         
     spec:
+      # 👤 서비스 계정 (조건부)
+      {{- if .Values.serviceAccount.create }}
+      serviceAccountName: {{ include "pumati-backend.serviceAccountName" . }}
+      {{- end }}
+      
       # 🔒 Pod 보안 컨텍스트
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}

@@ -1,5 +1,9 @@
 # 🚀 Pumati 백엔드 - 최소 설정
 
+# 📦 기본 설정
+nameOverride: ""
+fullnameOverride: ""
+
 # 📦 컨테이너 이미지 설정
 image:
   repository: 236450698266.dkr.ecr.ap-northeast-2.amazonaws.com/pumati-backend
