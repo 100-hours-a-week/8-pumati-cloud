@@ -41,7 +41,7 @@ readinessProbe:
 
 # 🎯 노드 선택자 (시스템 노드에 배포)
 nodeSelector:
-  node-type: system
+  node-type: application
 
 # ===== 모든 고급 기능 비활성화 =====
 
