@@ -42,12 +42,13 @@ nodeSelector:
 ingress:
   enabled: true   # 간단한 템플릿으로 다시 활성화
 
-# 📈 HPA 비활성화  
+# 📈 HPA 설정 (부하 테스트 및 운영용)
 autoscaling:
   enabled: true
-  minReplicas: 1  # 최소 1개 Pod 보장
-  maxReplicas: 3
-  targetCPUUtilizationPercentage: 80
+  minReplicas: 1                        # 최소 1개 Pod (노드 유지)
+  maxReplicas: 100                       # 최대 100개 Pod (부하 테스트 대비)
+  targetCPUUtilizationPercentage: 70    # CPU 70% 시 스케일 업
+  targetMemoryUtilizationPercentage: 80 # 메모리 80% 시 스케일 업
 
 # 🛡️ PodDisruptionBudget 비활성화
 podDisruptionBudget:
@@ -87,4 +88,25 @@ strategy:
   type: RollingUpdate
   rollingUpdate:
     maxUnavailable: 1
-    maxSurge: 1 
+    maxSurge: 1
+
+# # 🔧 헬스체크 활성화 (HPA 안정성을 위해)
+# livenessProbe:
+#   enabled: true
+#   httpGet:
+#     path: /actuator/health
+#     port: 8080
+#   initialDelaySeconds: 60
+#   periodSeconds: 30
+#   timeoutSeconds: 10
+#   failureThreshold: 3
+
+# readinessProbe:
+#   enabled: true
+#   httpGet:
+#     path: /actuator/health
+#     port: 8080
+#   initialDelaySeconds: 30
+#   periodSeconds: 10
+#   timeoutSeconds: 5
+#   failureThreshold: 3 
