@@ -10,10 +10,10 @@ output "backend_application_name" {
   value       = argocd_application.pumati_backend.metadata[0].name
 }
 
-output "frontend_application_name" {
-  description = "ArgoCD에 배포된 프론트엔드 애플리케이션 이름"
-  value       = argocd_application.pumati_frontend.metadata[0].name
-}
+# output "frontend_application_name" {
+#   description = "ArgoCD에 배포된 프론트엔드 애플리케이션 이름"
+#   value       = argocd_application.pumati_frontend.metadata[0].name
+# }
 
 output "argocd_server_url" {
   description = "ArgoCD 서버 접속 URL"

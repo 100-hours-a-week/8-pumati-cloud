@@ -6,7 +6,7 @@ fullnameOverride: ""
 
 # 📦 컨테이너 이미지 설정
 image:
-  repository: 236450698266.dkr.ecr.ap-northeast-2.amazonaws.com/pumati-backend
+  repository: 236450698266.dkr.ecr.ap-northeast-2.amazonaws.com/pumati-dev-backend-ecr
   pullPolicy: Always
   tag: "latest"
 
