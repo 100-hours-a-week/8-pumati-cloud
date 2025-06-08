@@ -2,13 +2,12 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: pumati-backend
-  namespace: pumati
+  name: {{ include "pumati-backend.fullname" . }}
+  namespace: {{ .Release.Namespace }}
   labels:
-    app: pumati-backend
-    version: v1
+    {{- include "pumati-backend.labels" . | nindent 4 }}
 spec:
-  replicas: 1
+  replicas: {{ .Values.replicaCount }}
   
   # 🔄 롤링 업데이트 전략
   strategy:
@@ -19,46 +18,37 @@ spec:
   
   selector:
     matchLabels:
-      app.kubernetes.io/name: pumati-backend
-      app.kubernetes.io/instance: pumati-backend
+      {{- include "pumati-backend.selectorLabels" . | nindent 6 }}
       
   template:
     metadata:
       labels:
-        app.kubernetes.io/name: pumati-backend
-        app.kubernetes.io/instance: pumati-backend
+        {{- include "pumati-backend.selectorLabels" . | nindent 8 }}
         
     spec:
       containers:
         - name: pumati-backend
           # 🐳 ECR 이미지
-          image: "236450698266.dkr.ecr.ap-northeast-2.amazonaws.com/pumati-dev-backend-ecr:latest"
-          imagePullPolicy: Always
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
           
           # 🌐 포트 설정
           ports:
             - name: http
               containerPort: 8080
               protocol: TCP
+          
+          # 🌍 환경 변수
+          {{- if .Values.env }}
+          env:
+            {{- toYaml .Values.env | nindent 12 }}
+          {{- end }}
             
           # 💪 리소스 제한
+          {{- if .Values.resources }}
           resources:
-            limits:
-              cpu: 1000m
-              memory: 1Gi
-            requests:
-              cpu: 200m
-              memory: 512Mi
-        
-          # 🎯 노드 선택자 (application 노드에 배포)
-          nodeSelector:
-            node-type: application
-          
-          # 🔄 DNS 정책
-          dnsPolicy: ClusterFirst
-          
-          # 🔄 재시작 정책
-          restartPolicy: Always
+            {{- toYaml .Values.resources | nindent 12 }}
+          {{- end }}
 
           {{- if .Values.livenessProbe.enabled }}
           livenessProbe:
@@ -91,12 +81,13 @@ spec:
             failureThreshold: {{ .Values.readinessProbe.failureThreshold }}
           {{- end }}
         
-      # 🎯 노드 선택자 (application 노드에 배포)
+      # 🎯 노드 선택자
+      {{- if .Values.nodeSelector }}
       nodeSelector:
-        node-type: application
+        {{- toYaml .Values.nodeSelector | nindent 8 }}
+      {{- end }}
       
       # 🔄 DNS 정책
       dnsPolicy: ClusterFirst
       
-      # 🔄 재시작 정책
-      restartPolicy: Always 
+      # ❌ restartPolicy 제거 (Deployment에서는 사용 불가) 
