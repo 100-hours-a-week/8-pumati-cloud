@@ -818,11 +818,11 @@ spec:
           values: ["spot"]  # 스팟 인스턴스만!
         - key: "node.kubernetes.io/instance-type"
           operator: In
-          values: ["t3.small", "t3a.small"]  # 비용 최적화
+          values: ["t3.medium", "t3a.medium"]  # 비용 최적화
       
       # ✅ 노드 수명 관리 (올바른 위치)
-      expireAfter: 10m  # 10분간 미사용시 제거
-      terminationGracePeriod: 30s
+      expireAfter: 1h  # 1시간 미사용시 제거
+      terminationGracePeriod: 5m
       
       # 스팟 인스턴스 Taints (필요시 주석 해제)
       # taints:

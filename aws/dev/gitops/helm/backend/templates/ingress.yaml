@@ -14,7 +14,8 @@ metadata:
 spec:
   ingressClassName: alb
   rules:
-    - http:  # 도메인 없이 ALB 직접 접근
+    - host: dev.tebutebu.com
+      http:
         paths:
           # /api 경로 → 백엔드 서비스
           - path: /api
