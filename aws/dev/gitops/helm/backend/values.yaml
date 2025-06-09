@@ -10,8 +10,8 @@ image:
   pullPolicy: Always
   tag: jacky-31
 
-# 📊 기본 배포 설정
-replicaCount: 1
+# 📊 기본 배포 설정 (OAuth 세션 안정성을 위해 1개 고정)
+replicaCount: 1  # OAuth 문제 해결까지 고정
 
 # 🌐 서비스 설정
 service:
@@ -22,8 +22,8 @@ service:
   # ⚠️  주의: 카카오 로그인 시 authorization_request_not_found 에러 방지
   # 동일한 클라이언트 IP의 요청을 같은 Pod로 라우팅하여 세션 유지
   sessionAffinity:
-    enabled: false  # 임시 비활성화 - 문제 파악용
-    timeoutSeconds: 1800  # 30분 (OAuth 플로우 완료에 충분한 시간)
+    enabled: true  # OAuth 플로우를 위해 필수 활성화
+    timeoutSeconds: 900   # 15분 (OAuth 플로우 완료에 충분한 시간)
 
 # 💪 t3.small 최적화 리소스
 resources:
@@ -69,14 +69,19 @@ env:
     value: "https://kauth.kakao.com/oauth/authorize"
   - name: SPRING_SECURITY_OAUTH2_CLIENT_PROVIDER_KAKAO_TOKEN_URI
     value: "https://kauth.kakao.com/oauth/token"
+  # 🔧 세션 저장소 설정 (향후 Redis 연동을 위한 준비)
+  - name: SPRING_SESSION_STORE_TYPE
+    value: "none"  # 현재는 기본 메모리 세션, 추후 redis로 변경 예정
+  - name: SERVER_SERVLET_SESSION_COOKIE_NAME
+    value: "PUMATI_SESSION"  # 세션 쿠키 이름 명시
 
 # 🎯 노드 선택자
 nodeSelector:
   node-type: application
 
-# 📈 HPA 설정 (t3.small 최적화)
+# 📈 HPA 설정 (OAuth 세션 안정성을 위해 임시 비활성화)
 autoscaling:
-  enabled: true
+  enabled: false  # OAuth 문제 해결까지 임시 비활성화
   minReplicas: 1
   maxReplicas: 3
   targetCPUUtilizationPercentage: 75
