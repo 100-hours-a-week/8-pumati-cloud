@@ -1044,7 +1044,8 @@ resource "aws_iam_policy" "aws_load_balancer_controller_policy" {
           "elasticloadbalancing:CreateListener",
           "elasticloadbalancing:DeleteListener",
           "elasticloadbalancing:CreateRule",
-          "elasticloadbalancing:DeleteRule"
+          "elasticloadbalancing:DeleteRule",
+          "elasticloadbalancing:ModifyRule"
         ]
         Resource = "*"
       },

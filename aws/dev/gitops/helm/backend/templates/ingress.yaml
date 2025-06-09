@@ -1,4 +1,4 @@
-# 🌐 간단한 Pumati 백엔드 Ingress
+# 🌐 Pumati 백엔드 Ingress (HTTPS 지원)
 {{- if .Values.ingress.enabled }}
 apiVersion: networking.k8s.io/v1
 kind: Ingress
@@ -10,7 +10,10 @@ metadata:
     kubernetes.io/ingress.class: alb
     alb.ingress.kubernetes.io/scheme: internet-facing
     alb.ingress.kubernetes.io/target-type: ip
-    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}]'
+    # 🔥 HTTPS 설정 추가
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS": 443}]'
+    alb.ingress.kubernetes.io/certificate-arn: "arn:aws:acm:ap-northeast-2:236450698266:certificate/63c6ca35-1946-4bd0-8057-b5fe5c656dd5"
+    alb.ingress.kubernetes.io/ssl-redirect: '443'  # HTTP → HTTPS 리다이렉트
 spec:
   ingressClassName: alb
   rules:
