@@ -77,7 +77,7 @@ env:
 
 # 🎯 노드 선택자
 nodeSelector:
-  node-type: system
+  node-type: application
 
 # 📈 HPA 설정 (OAuth 세션 안정성을 위해 임시 비활성화)
 autoscaling:
