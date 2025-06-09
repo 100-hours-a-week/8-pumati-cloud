@@ -1,0 +1,56 @@
+# 기본 설정값들 (개발/운영 환경에서 오버라이드 가능)
+
+# 애플리케이션 이미지 설정
+image:
+  repository: your-registry/frontend  # 컨테이너 이미지 저장소
+  tag: "latest"  # 이미지 태그
+  pullPolicy: IfNotPresent  # 이미지 풀 정책
+
+# 복제본 수 설정
+replicaCount: 1  # 개발 환경에서는 1개만 실행
+
+# 서비스 설정
+service:
+  type: ClusterIP  # 서비스 타입
+  port: 80  # 서비스 포트
+  targetPort: 3000  # 컨테이너 포트
+
+# 인그레스 설정 (외부 접근을 위한)
+ingress:
+  enabled: false  # 기본적으로 비활성화 (필요시 환경별로 활성화)
+  className: ""
+  annotations: {}
+  hosts:
+    - host: frontend-dev.local
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+
+# 리소스 제한 설정
+resources:
+  limits:
+    cpu: 500m     # CPU 최대 사용량
+    memory: 512Mi # 메모리 최대 사용량
+  requests:
+    cpu: 100m     # CPU 최소 요청량
+    memory: 128Mi # 메모리 최소 요청량
+
+# Health Check 설정
+healthCheck:
+  enabled: true
+  path: /health  # 헬스체크 엔드포인트
+  initialDelaySeconds: 30  # 초기 대기 시간
+  periodSeconds: 10        # 체크 주기
+
+# 환경 변수 설정
+env:
+  - name: NODE_ENV
+    value: "development"  # 개발 환경 설정
+  - name: API_BASE_URL
+    value: "http://backend-service:8080"  # 백엔드 API URL
+
+# 보안 컨텍스트
+securityContext:
+  runAsNonRoot: true  # 루트가 아닌 사용자로 실행
+  runAsUser: 1000     # 사용자 ID 

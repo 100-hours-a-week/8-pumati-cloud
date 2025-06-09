@@ -1,0 +1,41 @@
+{{- if .Values.ingress.enabled -}}  {{/* 인그레스가 활성화된 경우에만 생성 */}}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "frontend.fullname" . }}  # 인그레스 이름
+  labels:
+    {{- include "frontend.labels" . | nindent 4 }}  # 공통 레이블
+  {{- with .Values.ingress.annotations }}  # 어노테이션이 있는 경우
+  annotations:
+    {{- toYaml . | nindent 4 }}  # 어노테이션 추가
+  {{- end }}
+spec:
+  {{- if .Values.ingress.className }}  # 인그레스 클래스가 지정된 경우
+  ingressClassName: {{ .Values.ingress.className }}  # 인그레스 클래스 설정
+  {{- end }}
+  {{- if .Values.ingress.tls }}  # TLS 설정이 있는 경우
+  tls:
+    {{- range .Values.ingress.tls }}  # TLS 설정 배열 순회
+    - hosts:
+        {{- range .hosts }}  # 호스트 배열 순회
+        - {{ . | quote }}  # 호스트 이름
+        {{- end }}
+      secretName: {{ .secretName }}  # TLS 시크릿 이름
+    {{- end }}
+  {{- end }}
+  rules:
+    {{- range .Values.ingress.hosts }}  # 호스트 규칙 배열 순회
+    - host: {{ .host | quote }}  # 호스트 이름
+      http:
+        paths:
+          {{- range .paths }}  # 경로 배열 순회
+          - path: {{ .path }}  # URL 경로
+            pathType: {{ .pathType }}  # 경로 타입
+            backend:
+              service:
+                name: {{ include "frontend.fullname" $ }}  # 백엔드 서비스 이름
+                port:
+                  number: {{ $.Values.service.port }}  # 서비스 포트
+          {{- end }}
+    {{- end }}
+{{- end }} 

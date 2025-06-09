@@ -1,4 +1,4 @@
-# 🌐 간단한 Pumati 백엔드 Service
+# 🌐 Pumati 백엔드 Service - OAuth 세션 보장을 위한 Session Affinity 추가
 apiVersion: v1
 kind: Service
 metadata:
@@ -7,10 +7,17 @@ metadata:
   labels:
     app: pumati-backend
 spec:
-  type: ClusterIP
+  type: {{ .Values.service.type }}
+  {{- if .Values.service.sessionAffinity.enabled }}
+  # 🔐 Session Affinity - OAuth 로그인 세션 유지를 위해 필수!
+  sessionAffinity: ClientIP
+  sessionAffinityConfig:
+    clientIP:
+      timeoutSeconds: {{ .Values.service.sessionAffinity.timeoutSeconds }}  # OAuth 플로우 완료 + 여유시간
+  {{- end }}
   ports:
-    - port: 80
-      targetPort: 8080
+    - port: {{ .Values.service.port }}
+      targetPort: {{ .Values.service.targetPort }}
       protocol: TCP
       name: http
   selector:

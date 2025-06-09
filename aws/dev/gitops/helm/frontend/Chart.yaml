@@ -1,0 +1,10 @@
+apiVersion: v2  # Helm 차트 API 버전
+name: frontend  # 차트 이름
+description: 프론트엔드 애플리케이션을 위한 Helm 차트  # 차트 설명
+type: application  # 차트 타입 (application 또는 library)
+version: 0.1.0  # 차트 버전
+appVersion: "1.0.0"  # 애플리케이션 버전
+keywords:  # 검색을 위한 키워드
+  - frontend
+  - react
+  - web

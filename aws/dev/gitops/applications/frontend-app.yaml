@@ -1,0 +1,31 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: frontend-dev  # 개발 환경 프론트엔드 애플리케이션 이름
+  namespace: argocd   # ArgoCD 네임스페이스
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default  # ArgoCD 프로젝트
+  source:
+    repoURL: https://github.com/your-repo/8-pumati-cloud.git  # 실제 저장소 URL로 변경 필요
+    targetRevision: HEAD  # 배포할 브랜치/태그
+    path: aws/dev/gitops/helm/frontend  # 프론트엔드 Helm 차트 경로
+    helm:
+      valueFiles:
+        - values-dev.yaml  # 개발 환경용 값 파일
+  destination:
+    server: https://kubernetes.default.svc  # 대상 클러스터
+    namespace: frontend-dev  # 프론트엔드가 배포될 네임스페이스
+  syncPolicy:
+    automated:  # 자동 동기화 활성화
+      prune: true      # 불필요한 리소스 자동 제거
+      selfHeal: true   # 설정 변경 자동 복구
+    syncOptions:
+      - CreateNamespace=true  # 네임스페이스 자동 생성
+    retry:  # 동기화 실패 시 재시도 설정
+      limit: 5  # 최대 재시도 횟수
+      backoff:
+        duration: 5s     # 재시도 간격
+        factor: 2        # 재시도 간격 증가 배수
+        maxDuration: 3m  # 최대 재시도 간격 

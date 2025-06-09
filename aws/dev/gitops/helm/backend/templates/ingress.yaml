@@ -19,10 +19,12 @@ metadata:
       routing.http.preserve_host_header.enabled=true,
       routing.http.x_forwarded_for.enabled=true,
       routing.http2.enabled=true
-    # 🎯 헤더 보존 및 추가 설정
+    # 🎯 헤더 보존 및 Session Affinity 설정 (OAuth 세션 유지)
     alb.ingress.kubernetes.io/target-group-attributes: |
       preserve_client_ip.enabled=true,
-      proxy_protocol_v2.enabled=false
+      proxy_protocol_v2.enabled=false,
+      stickiness.enabled=true,
+      stickiness.lb_cookie.duration_seconds=10800
 spec:
   ingressClassName: alb
   rules:

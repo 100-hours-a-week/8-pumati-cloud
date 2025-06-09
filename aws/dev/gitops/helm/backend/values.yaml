@@ -18,6 +18,12 @@ service:
   type: ClusterIP
   port: 80
   targetPort: 8080
+  # 🔐 Session Affinity - OAuth 세션 유지를 위해 활성화
+  # ⚠️  주의: 카카오 로그인 시 authorization_request_not_found 에러 방지
+  # 동일한 클라이언트 IP의 요청을 같은 Pod로 라우팅하여 세션 유지
+  sessionAffinity:
+    enabled: true
+    timeoutSeconds: 10800  # 3시간 (OAuth 플로우 + 브라우저 세션 여유시간)
 
 # 💪 t3.small 최적화 리소스
 resources:
@@ -28,7 +34,7 @@ resources:
     cpu: 300m
     memory: 768Mi
 
-# 🌍 환경 변수 (JVM + 로깅 최적화)
+# 🌍 환경 변수 (JVM + 로깅 + OAuth 세션 최적화)
 env:
   - name: LOGGING_LEVEL_ROOT
     value: "ERROR"
@@ -42,6 +48,13 @@ env:
     value: "20"
   - name: SERVER_TOMCAT_MAX_CONNECTIONS
     value: "50"
+  # 🔐 OAuth 세션 설정 - 카카오 로그인 안정성 향상
+  - name: SERVER_SERVLET_SESSION_TIMEOUT
+    value: "PT3H"  # 3시간 세션 유지
+  - name: SERVER_SERVLET_SESSION_COOKIE_SECURE
+    value: "true"  # HTTPS 전용 쿠키
+  - name: SERVER_SERVLET_SESSION_COOKIE_HTTP_ONLY
+    value: "true"  # XSS 방지
 
 # 🎯 노드 선택자
 nodeSelector:

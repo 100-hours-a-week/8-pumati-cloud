@@ -1,0 +1,53 @@
+# 개발 환경 전용 설정값들
+
+# 이미지 설정 (개발용)
+image:
+  tag: "dev"  # 개발용 이미지 태그
+  pullPolicy: Always  # 개발 환경에서는 항상 최신 이미지 가져오기
+
+# 복제본 수 (개발 환경)
+replicaCount: 1  # 개발 환경에서는 1개만 실행
+
+# 인그레스 활성화 (개발 환경에서 외부 접근 허용)
+ingress:
+  enabled: true  # 개발 환경에서는 인그레스 활성화
+  className: "nginx"  # Nginx 인그레스 컨트롤러 사용
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /  # URL 재작성 규칙
+    cert-manager.io/cluster-issuer: "letsencrypt-staging"  # 개발용 SSL 인증서
+  hosts:
+    - host: frontend-dev.pumati.local  # 개발 환경 도메인
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: frontend-dev-tls  # TLS 시크릿 이름
+      hosts:
+        - frontend-dev.pumati.local
+
+# 리소스 제한 (개발 환경용 - 더 적은 리소스)
+resources:
+  limits:
+    cpu: 200m     # 개발 환경에서는 더 적은 CPU
+    memory: 256Mi # 개발 환경에서는 더 적은 메모리
+  requests:
+    cpu: 50m      # 최소 CPU 요청량
+    memory: 64Mi  # 최소 메모리 요청량
+
+# 환경 변수 (개발 환경 전용)
+env:
+  - name: NODE_ENV
+    value: "development"
+  - name: API_BASE_URL
+    value: "http://backend-dev.pumati.local"  # 개발 환경 백엔드 URL
+  - name: DEBUG
+    value: "true"  # 개발 환경에서는 디버그 모드 활성화
+  - name: LOG_LEVEL
+    value: "debug"  # 상세한 로그 레벨
+
+# Health Check 설정 (개발 환경용)
+healthCheck:
+  enabled: true
+  path: /health
+  initialDelaySeconds: 15  # 개발 환경에서는 더 빠른 시작
+  periodSeconds: 5         # 더 자주 체크 
