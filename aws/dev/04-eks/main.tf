@@ -190,8 +190,8 @@ resource "aws_iam_role_policy_attachment" "eks_cluster_policy" {
 #==============================================================================
 # EKS 클러스터 생성
 #==============================================================================
-# 🎯 클러스터 버전 1.28:
-# 안정성: 현재 AWS에서 지원하는 안정적인 최신 버전
+# 🎯 클러스터 버전 1.31:
+# 안정성: AWS EKS에서 표준 지원하는 안정적인 버전 (2025년 11월까지 지원)
 # 보안 패치: 최신 보안 업데이트 포함
 # 기능성: 최신 Kubernetes 기능 사용 가능
 # 🌐 엔드포인트 설정 (Public + Private):
@@ -216,7 +216,7 @@ resource "aws_iam_role_policy_attachment" "eks_cluster_policy" {
 resource "aws_eks_cluster" "main" {
   # 클러스터 기본 설정
   name     = "${local.project_name}-${local.environment}-eks-cluster"
-  version  = "1.28"  # Kubernetes 버전 (안정적인 최신 버전 사용)
+  version  = "1.31"  # Kubernetes 버전 (안정적인 최신 버전 사용)
   role_arn = aws_iam_role.eks_cluster_role.arn
 
   # VPC 구성: 클러스터가 사용할 서브넷 지정
@@ -581,7 +581,7 @@ resource "aws_eks_addon" "vpc_cni" {
 }
 
 #------------------------------------------------------------------------------
-# 17. CoreDNS Add-on (EKS 1.28 호환 버전)
+# 17. CoreDNS Add-on (EKS 1.31 호환 버전)
 #------------------------------------------------------------------------------
 # Kubernetes 클러스터 내부 DNS 서비스
 # Pod들이 서비스 이름으로 서로를 찾을 수 있도록 하는 DNS 해석 서비스
@@ -589,8 +589,8 @@ resource "aws_eks_addon" "coredns" {
   cluster_name = aws_eks_cluster.main.name
   addon_name   = "coredns"
   
-  # EKS 1.28과 호환되는 CoreDNS 버전
-  addon_version = "v1.10.1-eksbuild.18"
+  # EKS 1.31과 호환되는 CoreDNS 버전
+  addon_version = "v1.11.3-eksbuild.1"
   
   resolve_conflicts_on_create = "OVERWRITE"
   resolve_conflicts_on_update = "OVERWRITE"
