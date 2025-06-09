@@ -38,12 +38,6 @@ resource "argocd_application" "pumati_backend" {
         value_files = [
           "values.yaml"
         ]
-        # 추가 values 설정 (노드 셀렉터로 application 노드에 배포)
-        values = yamlencode({
-          nodeSelector = {
-            "node-type" = "application"
-          }
-        })
       }
     }
 

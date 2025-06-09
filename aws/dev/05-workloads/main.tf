@@ -705,14 +705,16 @@ spec:
   amiSelectorTerms:
     - name: "amazon-eks-node-al2023-x86_64-standard-1.31-*"  # Kubernetes 1.31.7 AMI만 선택
   
-  # 서브넷 선택 - 명시적으로 프라이빗 서브넷 지정
+  # 서브넷 선택 - 태그 기반으로 프라이빗 서브넷 선택 (더 안정적)
   subnetSelectorTerms:
-    - id: ${local.private_subnet_ids[0]}  # ap-northeast-2a 프라이빗 서브넷
-    - id: ${local.private_subnet_ids[1]}  # ap-northeast-2c 프라이빗 서브넷
+    - tags:
+        karpenter.sh/discovery: "${local.cluster_name}"
+        Type: "private"
   
-  # 보안 그룹 선택 - 명시적으로 EKS 노드 보안 그룹 지정
+  # 보안 그룹 선택 - 태그 기반으로 EKS 노드 보안 그룹 선택
   securityGroupSelectorTerms:
-    - id: ${local.eks_node_sg_id}  # 태그 검색 대신 명시적 ID 사용
+    - tags:
+        karpenter.sh/discovery: "${local.cluster_name}"
   
   # IAM 인스턴스 프로파일
   instanceProfile: ${aws_iam_instance_profile.karpenter_node_profile.name}

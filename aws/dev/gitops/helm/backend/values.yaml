@@ -64,7 +64,7 @@ env:
   - name: SERVER_USE_FORWARD_HEADERS
     value: "true"  # X-Forwarded-* 헤더 사용
   - name: SERVER_FORWARD_HEADERS_STRATEGY
-    value: "NATIVE"  # Spring Boot 네이티브 헤더 처리
+    value: "FRAMEWORK"  # Spring Framework 헤더 처리 (ALB 호환성 향상)
   - name: SPRING_SECURITY_OAUTH2_CLIENT_PROVIDER_KAKAO_AUTHORIZATION_URI
     value: "https://kauth.kakao.com/oauth/authorize"
   - name: SPRING_SECURITY_OAUTH2_CLIENT_PROVIDER_KAKAO_TOKEN_URI
