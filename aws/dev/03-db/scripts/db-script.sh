@@ -29,7 +29,7 @@ log_message "  DB_USERNAME: $DB_USERNAME"
 log_message "  S3_BUCKET_NAME: $S3_BUCKET_NAME"
 log_message "  AWS_REGION: $AWS_REGION"
 
-# 환경 변수를 로컬 변수로 설정
+# 환경 변수를 로컬 변수로 설정 (환경변수 사용)
 DB_NAME="$DB_NAME"
 DB_USERNAME="$DB_USERNAME"
 DB_PASSWORD_SECRET_NAME="$DB_PASSWORD_SECRET_NAME"
@@ -176,8 +176,8 @@ log_message "S3에서 최신 백업 파일 검색 중..."
 LATEST_BACKUP=$(aws s3 ls s3://$S3_BUCKET/backups/ --recursive | grep '\.sql\.gz$' | sort | tail -n 1 | awk '{print $4}')
 
 # fallback 백업 파일 S3 URI 설정 (URL 대신 S3 URI 사용)
-FALLBACK_BACKUP_S3="s3://pumati-test-db-backup/tbdb-2025-06-01_18-00-01.sql.gz"
-FALLBACK_BACKUP_FILE="tbdb-2025-06-01_18-00-01.sql.gz"
+FALLBACK_BACKUP_S3="s3://pumati-dev-db-backup/tbdb_20250609_011839.sql.gz"
+FALLBACK_BACKUP_FILE="tbdb_20250609_011839.sql.gz"
 
 # 작업 디렉터리 생성
 mkdir -p $BACKUP_DIR
@@ -269,17 +269,25 @@ fi
 # DB 백업 스크립트 생성
 log_message "DB 백업 스크립트 생성 중..."
 
-cat > /usr/local/bin/db-backup.sh << 'EOF'
+# 1. 현재 백업 스크립트 백업
+sudo cp /usr/local/bin/db-backup.sh /usr/local/bin/db-backup.sh.backup
+
+# 2. 새로운 백업 스크립트 생성
+sudo tee /usr/local/bin/db-backup.sh > /dev/null << 'EOF'
 #!/bin/bash
 
-# DB 연결 정보
-DB_NAME="${db_name}"
+# 환경 변수 설정
+DB_NAME="tbdb"
 DB_USER="root"
-# Secrets Manager에서 비밀번호 가져오기
-DB_PASSWORD=$(aws secretsmanager get-secret-value --secret-id ${db_password_secret_name} --region ${aws_region} --query SecretString --output text)
+AWS_REGION="ap-northeast-2"
+DB_PASSWORD_SECRET_NAME="pumati-dev-db-password"
+S3_BUCKET="pumati-s3-jacky"
 
-# S3 버킷 정보
-S3_BUCKET="${s3_bucket_name}"
+# AWS CLI 기본 리전 설정
+aws configure set default.region $AWS_REGION
+
+# Secrets Manager에서 비밀번호 가져오기
+DB_PASSWORD=$(aws secretsmanager get-secret-value --secret-id $DB_PASSWORD_SECRET_NAME --region $AWS_REGION --query SecretString --output text)
 
 # 백업 파일 설정
 TIMESTAMP=$(date +%Y-%m-%d_%H-%M-%S)
@@ -310,13 +318,15 @@ if [ $? -eq 0 ]; then
   gzip -f $BACKUP_FILE
   
   # S3에 업로드
-  aws s3 cp $GZIP_FILE s3://$S3_BUCKET/backups/$(basename $GZIP_FILE)
+  aws s3 cp $GZIP_FILE s3://$S3_BUCKET/backups/$(basename $GZIP_FILE) --region $AWS_REGION
   
   # 업로드 결과 확인
   if [ $? -eq 0 ]; then
     log_backup "S3 업로드 성공: s3://$S3_BUCKET/backups/$(basename $GZIP_FILE)"
+    echo "✅ 백업 완료: $(basename $GZIP_FILE)"
   else
     log_backup "S3 업로드 실패!"
+    echo "❌ S3 업로드 실패!"
   fi
   
   # 임시 파일 정리
@@ -324,13 +334,18 @@ if [ $? -eq 0 ]; then
   log_backup "임시 파일 정리 완료"
 else
   log_backup "백업 실패!"
+  echo "❌ 백업 실패!"
 fi
 
 log_backup "백업 작업 완료"
 EOF
 
-# 스크립트 실행 권한 부여
-chmod +x /usr/local/bin/db-backup.sh
+# 3. 실행 권한 부여
+sudo chmod +x /usr/local/bin/db-backup.sh
+
+# 4. 백업 테스트
+sudo /usr/local/bin/db-backup.sh
+
 log_message "DB 백업 스크립트 생성 완료"
 
 # cron 작업 설정 (매일 아침 9시)
@@ -338,25 +353,37 @@ log_message "백업 cron 작업 설정 중..."
 echo "0 9 * * * /usr/local/bin/db-backup.sh" | crontab -
 log_message "백업 cron 작업 설정 완료"
 
+# 환경 변수 파일 생성
+log_message "DB 환경 변수 파일 생성 중..."
+cat > /etc/db-config.env << EOF
+DB_NAME=$DB_NAME
+DB_USER=root
+AWS_REGION=$AWS_REGION
+DB_PASSWORD_SECRET_NAME=$DB_PASSWORD_SECRET_NAME
+S3_BUCKET=$S3_BUCKET_NAME
+EOF
+
 # DB 복원 스크립트 생성 (풍부한 기능 버전)
 log_message "DB 복원 스크립트 생성 중..."
 
 cat > /usr/local/bin/db-restore.sh << 'EOF'
 #!/bin/bash
 
-# DB 연결 정보
-DB_NAME="${db_name}"
-DB_USER="root"
-# Secrets Manager에서 비밀번호 가져오기
-DB_PASSWORD=$(aws secretsmanager get-secret-value --secret-id ${db_password_secret_name} --region ${aws_region} --query SecretString --output text)
+# 환경 변수 파일 읽기
+if [ -f /etc/db-config.env ]; then
+  source /etc/db-config.env
+fi
 
-# S3 버킷 정보
-S3_BUCKET="${s3_bucket_name}"
+# AWS CLI 기본 리전 설정
+aws configure set default.region $AWS_REGION
+
+# Secrets Manager에서 비밀번호 가져오기
+DB_PASSWORD=$(aws secretsmanager get-secret-value --secret-id $DB_PASSWORD_SECRET_NAME --region $AWS_REGION --query SecretString --output text)
 
 # 복원 설정
 RESTORE_DIR="/tmp/db-restore"
-LOG_FILE="/var/log/db-restore.log"
-FALLBACK_BACKUP="s3://pumati-test-db-backup/tbdb-2025-06-01_18-00-01.sql.gz"
+LOG_FILE="/tmp/db-restore.log"
+FALLBACK_BACKUP="s3://pumati-dev-db-backup/tbdb_20250609_011839.sql.gz"
 
 # 색상 코드
 RED='\033[0;31m'
@@ -446,7 +473,7 @@ list_backups() {
     echo ""
   done
   
-  echo "🔄 fallback 백업 파일: tbdb-2025-06-01_18-00-01.sql.gz"
+  echo "🔄 fallback 백업 파일: tbdb_20250609_011839.sql.gz"
   echo ""
 }
 

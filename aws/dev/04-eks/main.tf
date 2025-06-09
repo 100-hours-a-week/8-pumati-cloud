@@ -71,12 +71,21 @@ resource "aws_security_group" "eks_node_sg" {
     self        = true
   }
 
-  # 2) VPC 내에서 필요한 포트들만 허용
+  # 2) VPC 내에서 필요한 포트들만 허용 (TCP)
   ingress {
-    description = "Required ports from VPC"
+    description = "Required ports from VPC (TCP)"
     from_port   = 0
     to_port     = 65535
     protocol    = "tcp"
+    cidr_blocks = [local.vpc_cidr_block]
+  }
+
+  # 3) VPC 내에서 UDP 트래픽 허용 (DNS, DHCP 등)
+  ingress {
+    description = "Required ports from VPC (UDP)"
+    from_port   = 0
+    to_port     = 65535
+    protocol    = "udp"
     cidr_blocks = [local.vpc_cidr_block]
   }
 

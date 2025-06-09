@@ -142,7 +142,8 @@ resource "aws_iam_policy" "s3_backup_policy" {
           "s3:PutObject",
           "s3:GetObject",
           "s3:ListBucket",
-          "s3:DeleteObject"
+          "s3:DeleteObject",
+          "s3:ListAllMyBuckets"  # DB 복원 스크립트에서 필요
         ]
         Resource = [
           # DB 백업 버킷 권한
@@ -152,6 +153,14 @@ resource "aws_iam_policy" "s3_backup_policy" {
           "arn:aws:s3:::${local.tfstate_bucket}",
           "arn:aws:s3:::${local.tfstate_bucket}/scripts/*"
         ]
+      },
+      {
+        # s3:ListAllMyBuckets는 모든 버킷에 대한 권한이 필요
+        Effect = "Allow"
+        Action = [
+          "s3:ListAllMyBuckets"
+        ]
+        Resource = "*"
       }
     ]
   })

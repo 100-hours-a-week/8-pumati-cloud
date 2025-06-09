@@ -1041,63 +1041,51 @@ resource "aws_iam_policy" "aws_load_balancer_controller_policy" {
       {
         Effect = "Allow"
         Action = [
+          # 🔥 리스너 관련 모든 권한
           "elasticloadbalancing:CreateListener",
           "elasticloadbalancing:DeleteListener",
+          "elasticloadbalancing:ModifyListener",           # 🆕 추가
+          "elasticloadbalancing:DescribeListeners",        # 🆕 추가
+          "elasticloadbalancing:DescribeListenerCertificates", # 🆕 추가
+          
+          # 🔥 리스너 규칙 관련 모든 권한  
           "elasticloadbalancing:CreateRule",
           "elasticloadbalancing:DeleteRule",
-          "elasticloadbalancing:ModifyRule"
+          "elasticloadbalancing:ModifyRule",
+          "elasticloadbalancing:DescribeRules",            # 🆕 추가
+          
+          # 🔥 로드밸런서 관련 추가 권한
+          "elasticloadbalancing:CreateLoadBalancer",       # 🆕 추가
+          "elasticloadbalancing:DeleteLoadBalancer",       # 🆕 추가
+          "elasticloadbalancing:ModifyLoadBalancerAttributes", # 🆕 추가
+          "elasticloadbalancing:DescribeLoadBalancers",    # 🆕 추가
+          "elasticloadbalancing:DescribeLoadBalancerAttributes", # 🆕 추가
+          
+          # 🔥 타겟 그룹 관련 추가 권한
+          "elasticloadbalancing:CreateTargetGroup",        # 🆕 추가
+          "elasticloadbalancing:DeleteTargetGroup",        # 🆕 추가
+          "elasticloadbalancing:ModifyTargetGroup",        # 🆕 추가
+          "elasticloadbalancing:ModifyTargetGroupAttributes", # 🆕 추가
+          "elasticloadbalancing:DescribeTargetGroups",     # 🆕 추가
+          "elasticloadbalancing:DescribeTargetGroupAttributes", # 🆕 추가
+          "elasticloadbalancing:DescribeTargetHealth",     # 🆕 추가
+          "elasticloadbalancing:RegisterTargets",          # 🆕 추가
+          "elasticloadbalancing:DeregisterTargets",        # 🆕 추가
+          
+          # 🔥 SSL/TLS 관련 권한
+          "elasticloadbalancing:DescribeSSLPolicies",      # 🆕 추가
+          
+          # 🔥 태그 관련 권한
+          "elasticloadbalancing:AddTags",                  # 🆕 추가
+          "elasticloadbalancing:RemoveTags",               # 🆕 추가
+          "elasticloadbalancing:DescribeTags",             # 🆕 추가
+          
+          # 🔥 기타 필수 권한
+          "elasticloadbalancing:SetIpAddressType",         # 🆕 추가
+          "elasticloadbalancing:SetSecurityGroups",        # 🆕 추가
+          "elasticloadbalancing:SetSubnets"                # 🆕 추가
         ]
         Resource = "*"
-      },
-      {
-        Effect = "Allow"
-        Action = [
-          "elasticloadbalancing:AddTags",
-          "elasticloadbalancing:RemoveTags"
-        ]
-        Resource = [
-          "arn:aws:elasticloadbalancing:*:*:targetgroup/*/*",
-          "arn:aws:elasticloadbalancing:*:*:loadbalancer/net/*/*",
-          "arn:aws:elasticloadbalancing:*:*:loadbalancer/app/*/*"
-        ]
-        Condition = {
-          Null = {
-            "aws:RequestTag/elbv2.k8s.aws/cluster" = "true"
-            "aws:ResourceTag/elbv2.k8s.aws/cluster" = "false"
-          }
-        }
-      },
-      {
-        Effect = "Allow"
-        Action = [
-          "elasticloadbalancing:AddTags",
-          "elasticloadbalancing:RemoveTags"
-        ]
-        Resource = [
-          "arn:aws:elasticloadbalancing:*:*:listener/net/*/*/*",
-          "arn:aws:elasticloadbalancing:*:*:listener/app/*/*/*",
-          "arn:aws:elasticloadbalancing:*:*:listener-rule/net/*/*/*",
-          "arn:aws:elasticloadbalancing:*:*:listener-rule/app/*/*/*"
-        ]
-      },
-      {
-        Effect = "Allow"
-        Action = [
-          "elasticloadbalancing:ModifyLoadBalancerAttributes",
-          "elasticloadbalancing:SetIpAddressType",
-          "elasticloadbalancing:SetSecurityGroups",
-          "elasticloadbalancing:SetSubnets",
-          "elasticloadbalancing:DeleteLoadBalancer",
-          "elasticloadbalancing:ModifyTargetGroup",
-          "elasticloadbalancing:ModifyTargetGroupAttributes",
-          "elasticloadbalancing:DeleteTargetGroup"
-        ]
-        Resource = "*"
-        Condition = {
-          Null = {
-            "aws:ResourceTag/elbv2.k8s.aws/cluster" = "false"
-          }
-        }
       },
       {
         Effect = "Allow"

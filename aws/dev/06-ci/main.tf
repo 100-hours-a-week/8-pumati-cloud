@@ -308,7 +308,7 @@ resource "helm_release" "jenkins" {
         }
 
         # 🔧 Jenkins URL 설정 강화
-        jenkinsUrl       = "https://jenkins.${local.domain_name}"
+        jenkinsUrl       = "http://jenkins.jenkins.svc.cluster.local:8080"
         jenkinsUriPrefix = "/"
 
         # 🔧 마스터에서 빌드 실행 비활성화 (중요!)
@@ -354,10 +354,14 @@ resource "helm_release" "jenkins" {
                   {
                     kubernetes = {
                       name          = "kubernetes"
-                      serverUrl     = ""
+                      serverUrl     = "https://kubernetes.default.svc"
                       namespace     = "jenkins"
-                      jenkinsUrl    = "http://jenkins.jenkins.svc.cluster.local:8080"
-                      jenkinsTunnel = "jenkins-agent.jenkins.svc.cluster.local:50000"
+                      # ⭐️ WebSocket 방식: 외부 도메인 URL 사용 (에이전트가 ALB를 통해 연결)
+                      jenkinsUrl    = "https://jenkins.${local.domain_name}"
+                      # ⭐️ WebSocket 사용 시 jenkinsTunnel은 비워둠 (설정하면 TCP 모드로 강제됨)
+                      # jenkinsTunnel = ""  # 명시적으로 비워둠
+                      # ⭐️ WebSocket 활성화 - ALB가 HTTP(S) 업그레이드 자동 지원
+                      webSocket     = true
                       containerCap  = 20
                       maxRequestsPerHost = 32
                       skipTlsVerify = true
@@ -449,6 +453,9 @@ resource "helm_release" "jenkins" {
               "routing.http.preserve_host_header.enabled=true",
               "routing.http.xff_header_processing.mode=append"
             ])
+            
+            # ⭐️ WebSocket 지원을 위한 타임아웃 설정 (긴 빌드 대응)
+            "alb.ingress.kubernetes.io/backend-protocol-version" = "HTTP1"
           }
           hostName = "jenkins.${local.domain_name}"
           path     = "/*"
@@ -461,6 +468,14 @@ resource "helm_release" "jenkins" {
             }
           ]
         }
+
+        # 💥 agentListenerService는 레거시 TCP 방식이므로 제거합니다.
+        # agentListenerService = {
+        #   enabled = true
+        #   type    = "ClusterIP"
+        #   port    = 50000
+        #   name    = "jenkins-agent"
+        # }
 
         # 노드 선택 (시스템 노드에 배치)
         # nodeSelector = {
@@ -532,9 +547,11 @@ resource "helm_release" "jenkins" {
         }
       }
 
-      # 에이전트 설정 비활성화
+      # ⭐️ 에이전트 WebSocket 설정 - 핵심 옵션!
       agent = {
-        enabled = false
+        enabled   = false     # 정적 에이전트는 비활성화 (동적 에이전트만 사용)
+        websocket = true      # 🔥 핵심: WebSocket 방식 활성화
+        podName   = "jenkins-agent-{{.Build.Number}}-{{randAlphaNum 5}}"
       }
 
       # 🔥 StatefulSet의 volumeClaimTemplates 비활성화
