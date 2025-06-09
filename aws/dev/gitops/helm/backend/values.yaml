@@ -8,7 +8,7 @@ fullnameOverride: ""
 image:
   repository: 236450698266.dkr.ecr.ap-northeast-2.amazonaws.com/pumati-dev-backend-ecr
   pullPolicy: Always
-  tag: "latest"
+  tag: jacky-28
 
 # 📊 기본 배포 설정
 replicaCount: 1
