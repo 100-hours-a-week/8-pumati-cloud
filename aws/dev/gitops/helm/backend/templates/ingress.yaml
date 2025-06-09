@@ -14,17 +14,18 @@ metadata:
     alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS": 443}]'
     alb.ingress.kubernetes.io/certificate-arn: "arn:aws:acm:ap-northeast-2:236450698266:certificate/63c6ca35-1946-4bd0-8057-b5fe5c656dd5"
     alb.ingress.kubernetes.io/ssl-redirect: '443'  # HTTP → HTTPS 리다이렉트
-    # 🌐 명시적 헤더 설정 (Nginx 설정과 동일한 효과)
+    # 🌐 OAuth 콜백을 위한 헤더 설정 강화
     alb.ingress.kubernetes.io/load-balancer-attributes: |
       routing.http.preserve_host_header.enabled=true,
       routing.http.x_forwarded_for.enabled=true,
       routing.http2.enabled=true
-    # 🎯 헤더 보존 및 Session Affinity 설정 (OAuth 세션 유지)
+    # 🔐 OAuth 리다이렉트를 위한 추가 헤더 설정
+    alb.ingress.kubernetes.io/backend-protocol: HTTP
+    alb.ingress.kubernetes.io/healthcheck-protocol: HTTP
+    # 🎯 헤더 보존 설정 (Session Affinity는 K8s Service에서 처리)
     alb.ingress.kubernetes.io/target-group-attributes: |
       preserve_client_ip.enabled=true,
-      proxy_protocol_v2.enabled=false,
-      stickiness.enabled=true,
-      stickiness.lb_cookie.duration_seconds=10800
+      proxy_protocol_v2.enabled=false
 spec:
   ingressClassName: alb
   rules:

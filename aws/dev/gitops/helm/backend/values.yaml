@@ -22,8 +22,8 @@ service:
   # ⚠️  주의: 카카오 로그인 시 authorization_request_not_found 에러 방지
   # 동일한 클라이언트 IP의 요청을 같은 Pod로 라우팅하여 세션 유지
   sessionAffinity:
-    enabled: true
-    timeoutSeconds: 10800  # 3시간 (OAuth 플로우 + 브라우저 세션 여유시간)
+    enabled: false  # 임시 비활성화 - 문제 파악용
+    timeoutSeconds: 1800  # 30분 (OAuth 플로우 완료에 충분한 시간)
 
 # 💪 t3.small 최적화 리소스
 resources:
@@ -40,6 +40,11 @@ env:
     value: "ERROR"
   - name: LOGGING_LEVEL_ORG_SPRINGFRAMEWORK
     value: "ERROR"
+  # 🔍 OAuth 디버깅을 위한 로깅 활성화
+  - name: LOGGING_LEVEL_ORG_SPRINGFRAMEWORK_SECURITY_OAUTH2
+    value: "DEBUG"
+  - name: LOGGING_LEVEL_ORG_SPRINGFRAMEWORK_WEB_CLIENT
+    value: "DEBUG"
   - name: LOGGING_LEVEL_COM_ZAXXER_HIKARI
     value: "ERROR"
   - name: JAVA_OPTS
@@ -55,6 +60,15 @@ env:
     value: "true"  # HTTPS 전용 쿠키
   - name: SERVER_SERVLET_SESSION_COOKIE_HTTP_ONLY
     value: "true"  # XSS 방지
+  # 🎯 OAuth 특화 설정 - ALB 프록시 대응
+  - name: SERVER_USE_FORWARD_HEADERS
+    value: "true"  # X-Forwarded-* 헤더 사용
+  - name: SERVER_FORWARD_HEADERS_STRATEGY
+    value: "NATIVE"  # Spring Boot 네이티브 헤더 처리
+  - name: SPRING_SECURITY_OAUTH2_CLIENT_PROVIDER_KAKAO_AUTHORIZATION_URI
+    value: "https://kauth.kakao.com/oauth/authorize"
+  - name: SPRING_SECURITY_OAUTH2_CLIENT_PROVIDER_KAKAO_TOKEN_URI
+    value: "https://kauth.kakao.com/oauth/token"
 
 # 🎯 노드 선택자
 nodeSelector:
