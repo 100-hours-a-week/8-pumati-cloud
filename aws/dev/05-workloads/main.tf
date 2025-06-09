@@ -701,11 +701,9 @@ spec:
   # 🔧 AMI 패밀리를 AL2023으로 설정 (최신 권장)
   amiFamily: AL2023
   
-  # 🔧 태그 기반 AMI 선택 (alias 대신 tags 사용)
+  # 🔧 최신 Kubernetes 버전(1.31.7) AMI 선택 - 특정 버전 명시
   amiSelectorTerms:
-    - tags:
-        karpenter.sh/discovery: "${local.cluster_name}"
-    - name: "amazon-eks-node-al2023-*"  # AL2023 AMI 패턴
+    - name: "amazon-eks-node-al2023-x86_64-standard-1.31-*"  # Kubernetes 1.31.7 AMI만 선택
   
   # 서브넷 선택 - 태그 기반 자동 검색
   subnetSelectorTerms:
@@ -764,6 +762,7 @@ EOF
     Environment: "${local.environment}"
     Project: "${local.project_name}"
     AMIFamily: "AL2023"
+    KubernetesVersion: "1.31.7"  # 버전 명시
 EOT
 
   # kubectl 설정
