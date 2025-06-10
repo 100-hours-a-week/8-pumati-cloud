@@ -22,9 +22,8 @@ metadata:
     # 🔐 OAuth 리다이렉트를 위한 추가 헤더 설정
     alb.ingress.kubernetes.io/backend-protocol: HTTP
     alb.ingress.kubernetes.io/healthcheck-protocol: HTTP
-    # 🎯 헤더 보존 설정 (Session Affinity는 K8s Service에서 처리)
-    alb.ingress.kubernetes.io/target-group-attributes: |
-      preserve_client_ip.enabled=true
+    # 🎯 타겟 그룹 설정 (HTTP 프로토콜 호환)
+    # preserve_client_ip.enabled는 HTTP 프로토콜에서 지원되지 않으므로 제거
 spec:
   ingressClassName: alb
   rules:
