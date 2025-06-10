@@ -3,7 +3,7 @@
 # 애플리케이션 이미지 설정
 image:
   repository: your-registry/frontend  # 컨테이너 이미지 저장소
-  tag: "latest"  # 이미지 태그
+  tag: "jacky-19"
   pullPolicy: IfNotPresent  # 이미지 풀 정책
 
 # 복제본 수 설정
