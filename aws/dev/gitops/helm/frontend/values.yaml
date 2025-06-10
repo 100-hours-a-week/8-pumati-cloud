@@ -4,7 +4,7 @@
 image:
   repository: 236450698266.dkr.ecr.ap-northeast-2.amazonaws.com/pumati-dev-frontend-ecr  # 컨테이너 이미지 저장소
   tag: "jacky-19"
-  pullPolicy: IfNotPresent  # 이미지 풀 정책
+  pullPolicy: IfNotPresent  # 이미지 풀 정책. IfNotPresent는 이미지가 없으면 다운로드 하지 않음
 
 # 복제본 수 설정
 replicaCount: 1  # 개발 환경에서는 1개만 실행
