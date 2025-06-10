@@ -65,10 +65,6 @@ env:
     value: "true"  # X-Forwarded-* 헤더 사용
   - name: SERVER_FORWARD_HEADERS_STRATEGY
     value: "FRAMEWORK"  # Spring Framework 헤더 처리 (ALB 호환성 향상)
-  - name: SPRING_SECURITY_OAUTH2_CLIENT_PROVIDER_KAKAO_AUTHORIZATION_URI
-    value: "https://kauth.kakao.com/oauth/authorize"
-  - name: SPRING_SECURITY_OAUTH2_CLIENT_PROVIDER_KAKAO_TOKEN_URI
-    value: "https://kauth.kakao.com/oauth/token"
   # 🔧 세션 저장소 설정 (향후 Redis 연동을 위한 준비)
   - name: SPRING_SESSION_STORE_TYPE
     value: "none"  # 현재는 기본 메모리 세션, 추후 redis로 변경 예정
