@@ -59,8 +59,8 @@ healthCheck:
 env:
   - name: NODE_ENV
     value: "production"  # 컨테이너 런타임에서는 production 모드
-  - name: API_BASE_URL
-    value: "http://pumati-backend.pumati.svc.cluster.local"  # 서버 사이드용 (Kubernetes 내부 통신)
+  # - name: API_BASE_URL
+  #   value: "http://pumati-backend.pumati.svc.cluster.local"  # 서버 사이드용 (Kubernetes 내부 통신)
 
 # 보안 컨텍스트
 securityContext:
