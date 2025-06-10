@@ -1,8 +1,8 @@
 # 🚀 Pumati 백엔드 - t3.small 최적화 설정
 
-# 📦 기본 설정
-nameOverride: ""
-fullnameOverride: ""
+# 📦 기본 설정 (통일된 네이밍)
+nameOverride: "pumati-backend"
+fullnameOverride: "pumati-backend"
 
 # 📦 컨테이너 이미지 설정
 image:

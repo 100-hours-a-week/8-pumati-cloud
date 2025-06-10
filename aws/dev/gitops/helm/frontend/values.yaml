@@ -1,5 +1,9 @@
 # 개발 환경 프론트엔드 설정
 
+# 🏷️ 이름 설정 (백엔드와 통일된 네이밍)
+nameOverride: "pumati-frontend"
+fullnameOverride: "pumati-frontend"
+
 # 애플리케이션 이미지 설정
 image:
   repository: 236450698266.dkr.ecr.ap-northeast-2.amazonaws.com/pumati-dev-frontend-ecr  # 컨테이너 이미지 저장소
@@ -15,9 +19,9 @@ service:
   port: 80  # 서비스 포트
   targetPort: 3000  # 컨테이너 포트
 
-# 인그레스 설정 (개발 환경에서 외부 접근 허용)
+# 인그레스 설정 (프론트엔드 전용 - 백엔드와 분리)
 ingress:
-  enabled: true  # 개발 환경에서는 인그레스 활성화
+  enabled: true  # 프론트엔드 독립 인그레스 활성화
   className: "alb"  # AWS Load Balancer Controller 사용
   annotations:
     # AWS ALB 설정
@@ -29,7 +33,7 @@ ingress:
     alb.ingress.kubernetes.io/backend-protocol: HTTP
     alb.ingress.kubernetes.io/healthcheck-protocol: HTTP
   hosts:
-    - host: dev.tebutebu.com  # 백엔드와 동일한 도메인 사용
+    - host: frontend.dev.tebutebu.com  # 프론트엔드 전용 서브도메인
       paths:
         - path: /
           pathType: Prefix
@@ -56,7 +60,9 @@ env:
   - name: NODE_ENV
     value: "development"  # 개발 환경 설정
   - name: API_BASE_URL
-    value: "http://backend-dev.pumati.local"  # 개발 환경 백엔드 URL
+    value: "http://pumati-backend.pumati.svc.cluster.local"  # 서버 사이드용 (Kubernetes 내부)
+  - name: NEXT_PUBLIC_API_BASE_URL
+    value: "https://dev.tebutebu.com/api"  # 클라이언트 사이드용 (백엔드 도메인으로 접근)
   - name: DEBUG
     value: "true"  # 개발 환경에서는 디버그 모드 활성화
   - name: LOG_LEVEL
