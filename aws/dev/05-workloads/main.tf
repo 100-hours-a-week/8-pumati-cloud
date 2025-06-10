@@ -691,6 +691,15 @@ data "aws_eks_cluster" "cluster" {
   name = local.cluster_name
 }
 
+resource "time_sleep" "wait_for_crds" {
+  depends_on = [
+    kubectl_manifest.karpenter_ec2nodeclasses_crd,
+    kubectl_manifest.karpenter_nodepools_crd,
+    kubectl_manifest.karpenter_nodeclaims_crd
+  ]
+  create_duration = "30s"
+}
+
 resource "kubectl_manifest" "karpenter_ec2nodeclass" {
   yaml_body = <<-EOT
 apiVersion: karpenter.k8s.aws/v1
@@ -711,27 +720,22 @@ spec:
         karpenter.sh/discovery: "${local.cluster_name}"
         Type: "private"
   
-  # 보안 그룹 선택 - 태그 기반으로 EKS 노드 보안 그룹 선택
+  # 보안 그룹 선택 - 04-eks에서 생성한 노드 보안 그룹 직접 지정
   securityGroupSelectorTerms:
-    - tags:
-        karpenter.sh/discovery: "${local.cluster_name}"
+    - id: "${local.eks_node_sg_id}"
   
   # IAM 인스턴스 프로파일
   instanceProfile: ${aws_iam_instance_profile.karpenter_node_profile.name}
   
-  # 🔧 올바른 userData - base64encode로 인코딩 (핵심!)
+  # 🔧 올바른 userData - DNS 수동 설정을 제거하고 bootstrap.sh에 위임
   userData: ${base64encode(<<-EOF
-apiVersion: node.eks.aws/v1alpha1
-kind: NodeConfig
-spec:
-  cluster:
-    name: ${local.cluster_name}
-    endpoint: ${data.aws_eks_cluster.cluster.endpoint}
-    certificateAuthority:
-      data: ${data.aws_eks_cluster.cluster.certificate_authority[0].data}
-  kubelet:
-    flags:
-      - --register-with-taints=karpenter.sh/unregistered:NoExecute
+#!/bin/bash
+# EKS 노드 설정 - 수동 DNS 설정을 제거하고 bootstrap.sh가 표준적인 방법으로 처리하도록 합니다.
+# 이 방법이 AL2023의 systemd-resolved와 충돌을 피하고 안정적인 DNS 해석을 보장합니다.
+/etc/eks/bootstrap.sh ${local.cluster_name} \
+  --cluster-endpoint ${data.aws_eks_cluster.cluster.endpoint} \
+  --b64-cluster-ca ${data.aws_eks_cluster.cluster.certificate_authority[0].data} \
+  --kubelet-extra-args '--register-with-taints=karpenter.sh/unregistered:NoExecute --cluster-dns=172.20.0.10 --cluster-domain=cluster.local'
 EOF
   )}
   
@@ -772,9 +776,7 @@ EOT
   
   # ✅ 올바른 의존성
   depends_on = [
-    kubectl_manifest.karpenter_nodeclaims_crd,
-    kubectl_manifest.karpenter_nodepools_crd,
-    kubectl_manifest.karpenter_ec2nodeclasses_crd,
+    time_sleep.wait_for_crds,  # 명시적 대기
     helm_release.karpenter,
     data.aws_eks_cluster.cluster  # 클러스터 정보 조회 후
   ]
@@ -1606,6 +1608,82 @@ resource "helm_release" "metrics_server" {
   depends_on = [
     helm_release.external_dns
   ]
+}
+
+#==============================================================================
+# 🌐 네트워크 정책: CoreDNS 접근 허용
+#==============================================================================
+
+# 🎯 목적:
+# 클러스터의 모든 파드가 CoreDNS에 DNS 쿼리를 보낼 수 있도록 허용합니다.
+# 보안을 위해 기본적으로 파드 간 통신을 차단하는 정책이 있을 경우,
+# 이 정책이 없으면 application 노드의 파드가 외부 도메인을 해석하지 못하는
+# 문제가 발생할 수 있습니다. (예: 카카오 로그인 API 호출 실패)
+
+resource "kubectl_manifest" "allow_dns_access_to_coredns" {
+  yaml_body = <<-EOT
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  # 정책 이름: coredns로의 dns 트래픽 허용
+  name: allow-dns-traffic-to-coredns
+  # CoreDNS가 위치한 kube-system 네임스페이스에 생성
+  namespace: kube-system
+spec:
+  # 정책 적용 대상: CoreDNS 파드 (k8s-app: kube-dns 레이블을 가진 파드)
+  podSelector:
+    matchLabels:
+      k8s-app: kube-dns
+  policyTypes:
+    - Ingress
+  ingress:
+    # 어떤 파드로부터 오는 트래픽을 허용할 것인지 정의
+    - from:
+        # 모든 네임스페이스를 대상으로 함
+        - namespaceSelector: {}
+      # 허용할 포트: DNS 쿼리에 사용되는 UDP/53 및 TCP/53
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+EOT
+
+  # Metrics Server 설치 후에 적용하여 의존성 관리
+  depends_on = [
+    helm_release.metrics_server
+  ]
+}
+
+#==============================================================================
+# 🔐 보안 그룹 규칙: 노드 간 DNS 통신 허용
+#==============================================================================
+
+# 🎯 목적:
+# 진단 결과(nslookup timeout)는 Karpenter 노드와 CoreDNS 파드(system 노드에 위치)
+# 간의 통신이 AWS 보안 그룹 수준에서 차단되고 있음을 강력하게 시사합니다.
+# 이 규칙은 노드들이 사용하는 공용 보안 그룹(eks_node_sg_id)에
+# 자기 자신으로부터 오는 DNS(UDP/TCP 53) 트래픽을 명시적으로 허용하여
+# 클러스터 내부의 모든 노드 간 DNS 통신이 원활하게 이루어지도록 보장합니다.
+
+resource "aws_security_group_rule" "allow_dns_ingress_udp_from_self" {
+  type                     = "ingress"
+  from_port                = 53
+  to_port                  = 53
+  protocol                 = "udp"
+  source_security_group_id = local.eks_node_sg_id
+  security_group_id        = local.eks_node_sg_id
+  description              = "Allow Ingress DNS (UDP) from other nodes in the same SG (for CoreDNS)"
+}
+
+resource "aws_security_group_rule" "allow_dns_ingress_tcp_from_self" {
+  type                     = "ingress"
+  from_port                = 53
+  to_port                  = 53
+  protocol                 = "tcp"
+  source_security_group_id = local.eks_node_sg_id
+  security_group_id        = local.eks_node_sg_id
+  description              = "Allow Ingress DNS (TCP) from other nodes in the same SG (for CoreDNS)"
 }
 
 #==============================================================================

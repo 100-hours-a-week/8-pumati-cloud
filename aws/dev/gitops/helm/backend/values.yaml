@@ -75,9 +75,9 @@ env:
   - name: SERVER_SERVLET_SESSION_COOKIE_NAME
     value: "PUMATI_SESSION"  # 세션 쿠키 이름 명시
 
-# 🎯 노드 선택자
+# 🎯 노드 선택 설정 (System 노드에만 배포)
 nodeSelector:
-  node-type: application
+  node-type: system  # 시스템 노드에만 배포
 
 # 📈 HPA 설정 (OAuth 세션 안정성을 위해 임시 비활성화)
 autoscaling:
@@ -107,10 +107,22 @@ secretEnv: []
 volumes: []
 volumeMounts: []
 
-# 🏷️ 추가 설정들 없음
-tolerations: []
-affinity: {}
-podLabels: {}
+# 🏷️ System 노드의 taint 허용을 위한 toleration 설정
+tolerations:
+  - key: node-type
+    operator: Equal
+    value: system
+    effect: NoSchedule
+
+# 📁 어피니티 설정 (시스템 노드 선호)
+affinity:
+  nodeAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: node-type
+              operator: In
+              values: ["system"]
 
 # 🔐 보안 컨텍스트 기본값
 podSecurityContext: {}

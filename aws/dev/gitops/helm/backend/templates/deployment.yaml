@@ -87,6 +87,18 @@ spec:
         {{- toYaml .Values.nodeSelector | nindent 8 }}
       {{- end }}
       
+      # 🏷️ Tolerations (System 노드의 taint 허용)
+      {{- if .Values.tolerations }}
+      tolerations:
+        {{- toYaml .Values.tolerations | nindent 8 }}
+      {{- end }}
+      
+      # 📍 Affinity (노드 어피니티 설정)
+      {{- if .Values.affinity }}
+      affinity:
+        {{- toYaml .Values.affinity | nindent 8 }}
+      {{- end }}
+      
       # 🔄 DNS 정책
       dnsPolicy: ClusterFirst
       

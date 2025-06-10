@@ -1,0 +1,22 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: netshoot-debug
+  namespace: default
+spec:
+  containers:
+  - name: netshoot
+    image: nicolaka/netshoot
+    # 파드가 종료되지 않고 계속 실행되도록 유지하는 명령어입니다.
+    command: ["/bin/bash"]
+    args: ["-c", "while true; do sleep 3600; done"]
+  # 🎯 중요: 이 파드를 반드시 Karpenter가 생성한 'application' 노드에 배포합니다.
+  # Terraform의 NodePool에 정의된 레이블과 일치시켜야 합니다.
+  nodeSelector:
+    node-type: application
+  # application 노드에 taint가 설정되어 있을 수 있으므로, 이를 허용(tolerate)합니다.
+  tolerations:
+  - key: "node-type"
+    operator: "Equal"
+    value: "application"
+    effect: "NoSchedule" 
