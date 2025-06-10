@@ -5,10 +5,10 @@ output "pumati_namespace" {
   value       = kubernetes_namespace.pumati.metadata[0].name
 }
 
-output "backend_application_name" {
-  description = "ArgoCD에 배포된 백엔드 애플리케이션 이름"
-  value       = argocd_application.pumati_backend.metadata[0].name
-}
+# output "backend_application_name" {
+#   description = "ArgoCD에 배포된 백엔드 애플리케이션 이름"
+#   value       = argocd_application.pumati_backend.metadata[0].name
+# }
 
 # output "frontend_application_name" {
 #   description = "ArgoCD에 배포된 프론트엔드 애플리케이션 이름"
