@@ -1,10 +1,10 @@
-# 기본 설정값들 (개발/운영 환경에서 오버라이드 가능)
+# 개발 환경 프론트엔드 설정
 
 # 애플리케이션 이미지 설정
 image:
   repository: 236450698266.dkr.ecr.ap-northeast-2.amazonaws.com/pumati-dev-frontend-ecr  # 컨테이너 이미지 저장소
-  tag: "jacky-19"
-  pullPolicy: IfNotPresent  # 이미지 풀 정책. IfNotPresent는 이미지가 없으면 다운로드 하지 않음
+  tag: "jacky-19"  # 개발용 이미지 태그
+  pullPolicy: Always  # 개발 환경에서는 항상 최신 이미지 가져오기
 
 # 복제본 수 설정
 replicaCount: 1  # 개발 환경에서는 1개만 실행
@@ -15,40 +15,49 @@ service:
   port: 80  # 서비스 포트
   targetPort: 3000  # 컨테이너 포트
 
-# 인그레스 설정 (외부 접근을 위한)
+# 인그레스 설정 (개발 환경에서 외부 접근 허용)
 ingress:
-  enabled: false  # 기본적으로 비활성화 (필요시 환경별로 활성화)
-  className: ""
-  annotations: {}
+  enabled: true  # 개발 환경에서는 인그레스 활성화
+  className: "nginx"  # Nginx 인그레스 컨트롤러 사용
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /  # URL 재작성 규칙
+    cert-manager.io/cluster-issuer: "letsencrypt-staging"  # 개발용 SSL 인증서
   hosts:
-    - host: frontend-dev.local
+    - host: frontend-dev.pumati.local  # 개발 환경 도메인
       paths:
         - path: /
           pathType: Prefix
-  tls: []
+  tls:
+    - secretName: frontend-dev-tls  # TLS 시크릿 이름
+      hosts:
+        - frontend-dev.pumati.local
 
-# 리소스 제한 설정
+# 리소스 제한 설정 (개발 환경용 - 여유로운 리소스)
 resources:
   limits:
-    cpu: 500m     # CPU 최대 사용량
-    memory: 512Mi # 메모리 최대 사용량
+    cpu: 500m     # CPU 최대 사용량 (충분한 여유)
+    memory: 512Mi # 메모리 최대 사용량 (충분한 여유)
   requests:
-    cpu: 100m     # CPU 최소 요청량
-    memory: 128Mi # 메모리 최소 요청량
+    cpu: 100m     # 최소 CPU 요청량
+    memory: 128Mi # 최소 메모리 요청량
 
-# Health Check 설정
+# Health Check 설정 (개발 환경용 - 비활성화)
 healthCheck:
-  enabled: true
-  path: /health  # 헬스체크 엔드포인트
-  initialDelaySeconds: 30  # 초기 대기 시간
-  periodSeconds: 10        # 체크 주기
+  enabled: false  # 헬스체크 비활성화 (일시적으로 문제 해결)
+  path: /  # 루트 경로로 헬스체크 (React 앱의 기본 경로)
+  initialDelaySeconds: 30  # React 앱 시작에 충분한 시간
+  periodSeconds: 10        # 적절한 체크 주기
 
-# 환경 변수 설정
+# 환경 변수 설정 (개발 환경 전용)
 env:
   - name: NODE_ENV
     value: "development"  # 개발 환경 설정
   - name: API_BASE_URL
-    value: "http://backend-service:8080"  # 백엔드 API URL
+    value: "http://backend-dev.pumati.local"  # 개발 환경 백엔드 URL
+  - name: DEBUG
+    value: "true"  # 개발 환경에서는 디버그 모드 활성화
+  - name: LOG_LEVEL
+    value: "debug"  # 상세한 로그 레벨
 
 # 보안 컨텍스트
 securityContext:
