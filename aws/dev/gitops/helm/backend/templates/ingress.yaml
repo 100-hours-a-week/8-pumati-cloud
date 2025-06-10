@@ -6,24 +6,13 @@ metadata:
   name: pumati-backend-ingress
   namespace: pumati
   annotations:
-    # AWS ALB 설정
+    # 최소한의 ALB 설정만 유지
     kubernetes.io/ingress.class: alb
     alb.ingress.kubernetes.io/scheme: internet-facing
     alb.ingress.kubernetes.io/target-type: ip
-    # 🔥 HTTPS 설정 추가
     alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS": 443}]'
     alb.ingress.kubernetes.io/certificate-arn: "arn:aws:acm:ap-northeast-2:236450698266:certificate/63c6ca35-1946-4bd0-8057-b5fe5c656dd5"
-    alb.ingress.kubernetes.io/ssl-redirect: '443'  # HTTP → HTTPS 리다이렉트
-    # 🌐 OAuth 콜백을 위한 헤더 설정 강화
-    alb.ingress.kubernetes.io/load-balancer-attributes: |
-      routing.http.preserve_host_header.enabled=true,
-      routing.http.x_forwarded_for.enabled=true,
-      routing.http2.enabled=true
-    # 🔐 OAuth 리다이렉트를 위한 추가 헤더 설정
-    alb.ingress.kubernetes.io/backend-protocol: HTTP
-    alb.ingress.kubernetes.io/healthcheck-protocol: HTTP
-    # 🎯 타겟 그룹 설정 (HTTP 프로토콜 호환)
-    # preserve_client_ip.enabled는 HTTP 프로토콜에서 지원되지 않으므로 제거
+    alb.ingress.kubernetes.io/ssl-redirect: '443'
 spec:
   ingressClassName: alb
   rules:
