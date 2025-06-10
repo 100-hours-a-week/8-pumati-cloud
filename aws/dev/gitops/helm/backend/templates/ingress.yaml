@@ -24,8 +24,7 @@ metadata:
     alb.ingress.kubernetes.io/healthcheck-protocol: HTTP
     # 🎯 헤더 보존 설정 (Session Affinity는 K8s Service에서 처리)
     alb.ingress.kubernetes.io/target-group-attributes: |
-      preserve_client_ip.enabled=true,
-      proxy_protocol_v2.enabled=false
+      preserve_client_ip.enabled=true
 spec:
   ingressClassName: alb
   rules:

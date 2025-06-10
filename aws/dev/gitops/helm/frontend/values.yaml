@@ -18,19 +18,22 @@ service:
 # 인그레스 설정 (개발 환경에서 외부 접근 허용)
 ingress:
   enabled: true  # 개발 환경에서는 인그레스 활성화
-  className: "nginx"  # Nginx 인그레스 컨트롤러 사용
+  className: "alb"  # AWS Load Balancer Controller 사용
   annotations:
-    nginx.ingress.kubernetes.io/rewrite-target: /  # URL 재작성 규칙
-    cert-manager.io/cluster-issuer: "letsencrypt-staging"  # 개발용 SSL 인증서
+    # AWS ALB 설정
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS": 443}]'
+    alb.ingress.kubernetes.io/certificate-arn: "arn:aws:acm:ap-northeast-2:236450698266:certificate/63c6ca35-1946-4bd0-8057-b5fe5c656dd5"
+    alb.ingress.kubernetes.io/ssl-redirect: '443'  # HTTP → HTTPS 리다이렉트
+    alb.ingress.kubernetes.io/backend-protocol: HTTP
+    alb.ingress.kubernetes.io/healthcheck-protocol: HTTP
   hosts:
-    - host: frontend-dev.pumati.local  # 개발 환경 도메인
+    - host: dev.tebutebu.com  # 백엔드와 동일한 도메인 사용
       paths:
         - path: /
           pathType: Prefix
-  tls:
-    - secretName: frontend-dev-tls  # TLS 시크릿 이름
-      hosts:
-        - frontend-dev.pumati.local
+  tls: []  # ACM을 사용하므로 TLS 시크릿 불필요
 
 # 리소스 제한 설정 (개발 환경용 - 여유로운 리소스)
 resources:
