@@ -1,15 +1,20 @@
 # GitOps - App of Apps 배포 구성
 
-이 디렉토리는 ArgoCD의 App of Apps 패턴을 사용하여 프론트엔드 애플리케이션을 배포하는 구성을 포함합니다.
+이 디렉토리는 ArgoCD의 App of Apps 패턴을 사용하여 Pumati 애플리케이션들(백엔드, 프론트엔드)을 배포하는 구성을 포함합니다.
 
 ## 📁 디렉토리 구조
 
 ```
 aws/dev/gitops/
-├── app-of-apps.yaml          # 메인 App of Apps 애플리케이션
-├── applications/             # 개별 애플리케이션 정의
+├── app-of-apps.yaml          # 🚀 메인 App of Apps 애플리케이션
+├── applications/             # 📦 개별 애플리케이션 정의
+│   ├── backend-app.yaml      # 백엔드 애플리케이션 정의
 │   └── frontend-app.yaml     # 프론트엔드 애플리케이션 정의
-├── helm/                     # Helm 차트들
+├── helm/                     # ⚓ Helm 차트들
+│   ├── backend/              # 백엔드 Helm 차트
+│   │   ├── Chart.yaml        # 차트 메타데이터
+│   │   ├── values.yaml       # 기본 설정값
+│   │   └── templates/        # Kubernetes 템플릿
 │   └── frontend/             # 프론트엔드 Helm 차트
 │       ├── Chart.yaml        # 차트 메타데이터
 │       ├── values.yaml       # 기본 설정값
@@ -32,16 +37,20 @@ aws/dev/gitops/
 
 ### 2. 설정 수정
 
-#### Git 저장소 URL 변경
-다음 파일들에서 `https://github.com/your-repo/8-pumati-cloud.git`을 실제 저장소 URL로 변경:
+#### Git 저장소 URL 변경 ✅ (이미 완료됨)
+다음 파일들의 저장소 URL이 이미 업데이트되었습니다:
 - `app-of-apps.yaml`
+- `applications/backend-app.yaml`
 - `applications/frontend-app.yaml`
 
-#### 이미지 저장소 변경
-`helm/frontend/values.yaml`과 `helm/frontend/values-dev.yaml`에서:
+#### 이미지 저장소 변경 ⚠️ (설정 필요)
+다음 파일들에서 이미지 저장소를 실제 ECR로 변경해야 합니다:
+- `helm/backend/values.yaml`
+- `helm/frontend/values.yaml`과 `helm/frontend/values-dev.yaml`
+
 ```yaml
 image:
-  repository: your-registry/frontend  # 실제 이미지 저장소로 변경
+  repository: your-registry/frontend  # 실제 ECR 저장소로 변경 필요
 ```
 
 ### 3. App of Apps 배포
