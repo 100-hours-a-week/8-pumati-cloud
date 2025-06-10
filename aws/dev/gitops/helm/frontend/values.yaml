@@ -19,9 +19,9 @@ service:
   port: 80  # 서비스 포트
   targetPort: 3000  # 컨테이너 포트
 
-# 인그레스 설정 (프론트엔드 전용 - 백엔드와 분리)
+# 인그레스 설정 (백엔드 인그레스에서 통합 관리)
 ingress:
-  enabled: true  # 프론트엔드 독립 인그레스 활성화
+  enabled: false  # 백엔드 인그레스에서 경로 기반 라우팅으로 통합 관리
   className: "alb"  # AWS Load Balancer Controller 사용
   annotations:
     # AWS ALB 설정
