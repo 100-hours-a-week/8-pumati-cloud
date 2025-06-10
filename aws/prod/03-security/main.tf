@@ -143,14 +143,22 @@ module "frontend_iam" {
         ]
       },
       {
-      Effect = "Allow"
-      Action = [
-        "ecr:GetAuthorizationToken",
-        "ecr:BatchCheckLayerAvailability",
-        "ecr:GetDownloadUrlForLayer",
-        "ecr:BatchGetImage"
-      ],
-      Resource = "*"
+        Effect = "Allow"
+        Action = [
+          "ecr:GetAuthorizationToken",
+          "ecr:BatchCheckLayerAvailability",
+          "ecr:GetDownloadUrlForLayer",
+          "ecr:BatchGetImage"
+        ],
+        Resource = "*"
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "ecr:ListImages",
+          "ecr:DescribeRepositories"
+        ],
+        Resource = "arn:aws:ecr:ap-northeast-2:236450698266:repository/pumati-prod-frontend-ecr"
       }
     ]
   })
