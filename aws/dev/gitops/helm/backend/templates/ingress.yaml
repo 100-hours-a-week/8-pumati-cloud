@@ -21,7 +21,7 @@ spec:
       http:
         paths:
           # ✅ 헬스체크 경로 추가 (맨 위에)
-          - path: /actuator/health
+          - path: /api/actuator/health
             pathType: Exact
             backend:
               service:
