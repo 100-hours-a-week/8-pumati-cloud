@@ -55,18 +55,12 @@ healthCheck:
   initialDelaySeconds: 30  # React 앱 시작에 충분한 시간
   periodSeconds: 10        # 적절한 체크 주기
 
-# 환경 변수 설정 (개발 환경 전용)
+# 환경 변수 설정 (런타임 전용 - .env 파일과 중복 제거)
 env:
   - name: NODE_ENV
-    value: "development"  # 개발 환경 설정
-  - name: API_BASE_URL
-    value: "http://pumati-backend.pumati.svc.cluster.local"  # 서버 사이드용 (Kubernetes 내부)
-  - name: NEXT_PUBLIC_API_BASE_URL
-    value: "https://dev.tebutebu.com/api"  # 클라이언트 사이드용 (백엔드 도메인으로 접근)
-  - name: DEBUG
-    value: "true"  # 개발 환경에서는 디버그 모드 활성화
-  - name: LOG_LEVEL
-    value: "debug"  # 상세한 로그 레벨
+    value: "production"  # 컨테이너 런타임에서는 production 모드
+  # - name: API_BASE_URL
+  #   value: "http://pumati-backend.pumati.svc.cluster.local"  # 서버 사이드용 (Kubernetes 내부 통신)
 
 # 보안 컨텍스트
 securityContext:
