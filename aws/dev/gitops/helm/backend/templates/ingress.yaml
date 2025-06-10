@@ -20,6 +20,14 @@ spec:
     - host: dev.tebutebu.com
       http:
         paths:
+          # ✅ 헬스체크 경로 추가 (맨 위에)
+          - path: /actuator/health
+            pathType: Exact
+            backend:
+              service:
+                name: pumati-backend
+                port:
+                  number: 80
           # /api 경로 → 백엔드 서비스
           - path: /api
             pathType: Prefix
