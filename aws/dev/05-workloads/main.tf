@@ -707,12 +707,13 @@ kind: EC2NodeClass
 metadata:
   name: ${local.project_name}-${local.environment}-default
 spec:
-  # 🔧 AMI 패밀리를 AL2023으로 설정 (최신 권장)
-  amiFamily: AL2023
+  # ✅ AMI 패밀리를 AL2로 설정 (최신 권장)
+  amiFamily: AL2
   
-  # 🔧 최신 Kubernetes 버전(1.31.7) AMI 선택 - 특정 버전 명시
+  # ✅ 올바른 AMI 패턴으로 수정! 
   amiSelectorTerms:
-    - name: "amazon-eks-node-al2023-x86_64-standard-1.31-*"  # Kubernetes 1.31.7 AMI만 선택
+    - name: "amazon-eks-node-1.31-v*"  # 검색 결과 기반 올바른 패턴
+#==============================================================================
   
   # 서브넷 선택 - 태그 기반으로 프라이빗 서브넷 선택 (더 안정적)
   subnetSelectorTerms:
@@ -730,12 +731,7 @@ spec:
   # 🔧 올바른 userData - DNS 수동 설정을 제거하고 bootstrap.sh에 위임
   userData: ${base64encode(<<-EOF
 #!/bin/bash
-# EKS 노드 설정 - 수동 DNS 설정을 제거하고 bootstrap.sh가 표준적인 방법으로 처리하도록 합니다.
-# 이 방법이 AL2023의 systemd-resolved와 충돌을 피하고 안정적인 DNS 해석을 보장합니다.
-/etc/eks/bootstrap.sh ${local.cluster_name} \
-  --cluster-endpoint ${data.aws_eks_cluster.cluster.endpoint} \
-  --b64-cluster-ca ${data.aws_eks_cluster.cluster.certificate_authority[0].data} \
-  --kubelet-extra-args '--register-with-taints=karpenter.sh/unregistered:NoExecute --cluster-dns=172.20.0.10 --cluster-domain=cluster.local'
+/etc/eks/bootstrap.sh ${local.cluster_name}
 EOF
   )}
   
@@ -766,7 +762,7 @@ EOF
     Component: "Karpenter-Nodes"
     Environment: "${local.environment}"
     Project: "${local.project_name}"
-    AMIFamily: "AL2023"
+    AMIFamily: "AL2"
     KubernetesVersion: "1.31.7"  # 버전 명시
 EOT
 

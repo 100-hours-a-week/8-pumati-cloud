@@ -524,6 +524,35 @@ resource "aws_security_group_rule" "system_nodes_kubelet_api" {
   description = "Kubelet API for metrics and logs"
 }
 
+#------------------------------------------------------------------------------
+# 22. EKS 관리형 노드와 Karpenter 노드 간 통신 허용
+#------------------------------------------------------------------------------
+# EKS가 시스템 노드 그룹에 자동 생성한 보안 그룹과 
+# Karpenter 노드가 사용하는 우리 보안 그룹 간의 통신 허용
+
+# 시스템 노드 → Karpenter 노드 (모든 트래픽)
+resource "aws_security_group_rule" "system_to_karpenter_all" {
+  type                     = "ingress"
+  from_port                = 0
+  to_port                  = 0
+  protocol                 = "-1"
+  source_security_group_id = aws_eks_cluster.main.vpc_config[0].cluster_security_group_id
+  security_group_id        = aws_security_group.eks_node_sg.id
+  description              = "All traffic from EKS managed system nodes to Karpenter nodes"
+}
+
+# Karpenter 노드 → 시스템 노드 (모든 트래픽)
+# 04에서 추가한 규칙임.
+# resource "aws_security_group_rule" "karpenter_to_system_all" {
+#   type                     = "ingress"
+#   from_port                = 0
+#   to_port                  = 0
+#   protocol                 = "-1"
+#   source_security_group_id = aws_security_group.eks_node_sg.id
+#   security_group_id        = aws_eks_cluster.main.vpc_config[0].cluster_security_group_id
+#   description              = "All traffic from Karpenter nodes to EKS managed system nodes"
+# }
+
 #==============================================================================
 # EKS Add-ons (필수 구성 요소)
 #==============================================================================

@@ -477,10 +477,10 @@ resource "helm_release" "jenkins" {
         #   name    = "jenkins-agent"
         # }
 
-        # 노드 선택 (시스템 노드에 배치)
-        # nodeSelector = {
-        #   "node-type" = "system"
-        # }
+        # 노드 선택 (시스템 노드에 배치) - 주석 해제
+        nodeSelector = {
+          "node-type" = "system"
+        }
 
         # 톨러레이션 (시스템 노드의 taint 허용)
         tolerations = [
