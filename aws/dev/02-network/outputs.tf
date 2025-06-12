@@ -38,15 +38,15 @@ output "availability_zones" {
 }
 
 # NAT 게이트웨이 출력
-output "nat_gateway_ids" {
-  description = "NAT 게이트웨이 ID 목록"
-  value       = aws_nat_gateway.main[*].id
-}
+# output "nat_gateway_ids" {
+#   description = "NAT 게이트웨이 ID 목록"
+#   value       = aws_nat_gateway.main[*].id
+# }
 
-output "nat_gateway_public_ips" {
-  description = "NAT 게이트웨이 퍼블릭 IP"
-  value       = aws_eip.nat[*].public_ip
-}
+# output "nat_gateway_public_ips" {
+#   description = "NAT 게이트웨이 퍼블릭 IP"
+#   value       = aws_eip.nat[*].public_ip
+# }
 
 # 라우팅 테이블 출력
 output "public_route_table_id" {
@@ -95,4 +95,25 @@ output "private_subnet_cidrs" {
 output "db_subnet_cidrs" {
   description = "DB 서브넷 CIDR 블록 목록"
   value       = aws_subnet.db[*].cidr_block
+}
+
+# NAT 인스턴스 출력 (비용 절약용)
+output "nat_instance_id" {
+  description = "NAT 인스턴스 ID"
+  value       = aws_instance.nat_instance.id
+}
+
+output "nat_instance_public_ip" {
+  description = "NAT 인스턴스 퍼블릭 IP (Elastic IP)"
+  value       = aws_eip.nat_instance.public_ip
+}
+
+output "nat_instance_private_ip" {
+  description = "NAT 인스턴스 프라이빗 IP"
+  value       = aws_instance.nat_instance.private_ip
+}
+
+output "nat_instance_network_interface_id" {
+  description = "NAT 인스턴스 네트워크 인터페이스 ID"
+  value       = aws_instance.nat_instance.primary_network_interface_id
 }

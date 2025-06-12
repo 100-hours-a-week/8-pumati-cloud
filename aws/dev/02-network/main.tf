@@ -90,34 +90,38 @@ resource "aws_subnet" "db" {
   )
 }
 
-# Elastic IP for NAT Gateway (단일 NAT)
-resource "aws_eip" "nat" {
-  domain     = "vpc"
-  depends_on = [aws_internet_gateway.main]
+#-------------------------------
+# NAT Gateway (비활성화됨 - 비용 절약을 위해 NAT 인스턴스로 교체)
+#-------------------------------
 
-  tags = merge(
-    local.common_tags,
-    {
-      Name = "${local.project_name}-${local.environment}-nat-eip"
-      Type = "NAT Gateway EIP"
-    }
-  )
-}
+# Elastic IP for NAT Gateway (단일 NAT) - 비활성화
+# resource "aws_eip" "nat" {
+#   domain     = "vpc"
+#   depends_on = [aws_internet_gateway.main]
+# 
+#   tags = merge(
+#     local.common_tags,
+#     {
+#       Name = "${local.project_name}-${local.environment}-nat-eip"
+#       Type = "NAT Gateway EIP"
+#     }
+#   )
+# }
 
-# NAT 게이트웨이 생성 (단일 NAT - 비용 절약)
-resource "aws_nat_gateway" "main" {
-  allocation_id = aws_eip.nat.id
-  subnet_id     = aws_subnet.public[0].id
-  depends_on    = [aws_internet_gateway.main]
-
-  tags = merge(
-    local.common_tags,
-    {
-      Name = "${local.project_name}-${local.environment}-nat-gw"
-      Type = "NAT Gateway"
-    }
-  )
-}
+# NAT 게이트웨이 생성 (단일 NAT - 비용 절약) - 비활성화
+# resource "aws_nat_gateway" "main" {
+#   allocation_id = aws_eip.nat.id
+#   subnet_id     = aws_subnet.public[0].id
+#   depends_on    = [aws_internet_gateway.main]
+# 
+#   tags = merge(
+#     local.common_tags,
+#     {
+#       Name = "${local.project_name}-${local.environment}-nat-gw"
+#       Type = "NAT Gateway"
+#     }
+#   )
+# }
 
 # 퍼블릭 라우팅 테이블
 resource "aws_route_table" "public" {
@@ -137,14 +141,14 @@ resource "aws_route_table" "public" {
   )
 }
 
-# 프라이빗 라우팅 테이블 (단일 NAT 사용)
+# 프라이빗 라우팅 테이블 (NAT 인스턴스 사용)
 resource "aws_route_table" "private" {
   vpc_id = aws_vpc.main.id
 
-  route {
-    cidr_block     = "0.0.0.0/0"
-    nat_gateway_id = aws_nat_gateway.main.id
-  }
+  # route {
+  #   cidr_block     = "0.0.0.0/0"
+  #   nat_gateway_id = aws_nat_gateway.main.id
+  # }
 
   tags = merge(
     local.common_tags,
@@ -159,11 +163,11 @@ resource "aws_route_table" "private" {
 resource "aws_route_table" "db" {
   vpc_id = aws_vpc.main.id
 
-  # NAT Gateway를 통한 인터넷 접근 경로 추가
-  route {
-    cidr_block     = "0.0.0.0/0"
-    nat_gateway_id = aws_nat_gateway.main.id
-  }
+  # # NAT Gateway를 통한 인터넷 접근 경로 추가
+  # route {
+  #   cidr_block     = "0.0.0.0/0"
+  #   nat_gateway_id = aws_nat_gateway.main.id
+  # }
 
   tags = merge(
     local.common_tags,
@@ -236,3 +240,209 @@ resource "aws_vpc_endpoint" "s3" {
 # - ECR API, ECR DKR, EKS, Secrets Manager, CloudWatch Logs
 # - SSM, SSM Messages, EC2 Messages
 # → NAT Gateway를 통해 인터넷으로 접근하므로 문제없음!
+
+#-------------------------------
+# NAT 인스턴스 (비용 절약용)
+#-------------------------------
+
+# NAT 인스턴스용 보안 그룹
+resource "aws_security_group" "nat_instance" {
+  name_prefix = "${local.project_name}-${local.environment}-nat-instance-"
+  vpc_id      = aws_vpc.main.id
+
+  # HTTP 트래픽 허용 (프라이빗 서브넷에서)
+  ingress {
+    description = "HTTP from Private Subnets"
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["10.10.11.0/24", "10.10.12.0/24", "10.10.21.0/24", "10.10.22.0/24"]
+  }
+
+  # HTTPS 트래픽 허용 (프라이빗 서브넷에서)
+  ingress {
+    description = "HTTPS from Private Subnets"
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = ["10.10.11.0/24", "10.10.12.0/24", "10.10.21.0/24", "10.10.22.0/24"]
+  }
+
+  # SSH 접근 허용 (관리용)
+  ingress {
+    description = "SSH for management"
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = ["10.10.0.0/16"] # VPC 내부에서만 SSH 허용
+  }
+
+  # 모든 아웃바운드 트래픽 허용
+  egress {
+    description = "All outbound traffic"
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = merge(
+    local.common_tags,
+    {
+      Name = "${local.project_name}-${local.environment}-nat-instance-sg"
+      Type = "Security Group"
+      Purpose = "NAT Instance"
+    }
+  )
+
+  lifecycle {
+    create_before_destroy = true
+  }
+}
+
+# NAT 인스턴스용 최신 Amazon Linux 2 AMI 조회
+data "aws_ami" "amazon_linux_nat" {
+  most_recent = true
+  owners      = ["amazon"]
+
+  filter {
+    name   = "name"
+    values = ["amzn-ami-vpc-nat-*"]
+  }
+
+  filter {
+    name   = "virtualization-type"
+    values = ["hvm"]
+  }
+}
+
+# NAT 인스턴스용 IAM 역할 (CloudWatch 로그 전송 등을 위해)
+resource "aws_iam_role" "nat_instance" {
+  name = "${local.project_name}-${local.environment}-nat-instance-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = "sts:AssumeRole"
+        Effect = "Allow"
+        Principal = {
+          Service = "ec2.amazonaws.com"
+        }
+      }
+    ]
+  })
+
+  tags = merge(
+    local.common_tags,
+    {
+      Name = "${local.project_name}-${local.environment}-nat-instance-role"
+      Type = "IAM Role"
+    }
+  )
+}
+
+# NAT 인스턴스용 IAM 정책 연결 (기본 EC2 권한)
+resource "aws_iam_role_policy_attachment" "nat_instance_ssm" {
+  role       = aws_iam_role.nat_instance.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
+}
+
+# NAT 인스턴스용 인스턴스 프로파일
+resource "aws_iam_instance_profile" "nat_instance" {
+  name = "${local.project_name}-${local.environment}-nat-instance-profile"
+  role = aws_iam_role.nat_instance.name
+
+  tags = merge(
+    local.common_tags,
+    {
+      Name = "${local.project_name}-${local.environment}-nat-instance-profile"
+      Type = "Instance Profile"
+    }
+  )
+}
+
+# NAT 인스턴스 생성
+resource "aws_instance" "nat_instance" {
+  ami                    = data.aws_ami.amazon_linux_nat.id
+  instance_type          = "t2.micro"
+  key_name               = "pumati-full-master" # 키페어가 있다고 가정
+  subnet_id              = aws_subnet.public[0].id # 첫 번째 퍼블릭 서브넷에 배치
+  vpc_security_group_ids = [aws_security_group.nat_instance.id]
+  iam_instance_profile   = aws_iam_instance_profile.nat_instance.name
+
+  # Source/Destination 체크 비활성화 (NAT 기능을 위해 필수!)
+  source_dest_check = false
+
+  # 인스턴스 모니터링 활성화
+  monitoring = true
+
+  # 사용자 데이터 스크립트 (NAT 기능 설정)
+  user_data = base64encode(<<-EOF
+    #!/bin/bash
+    yum update -y
+    
+    # IP 포워딩 활성화
+    echo 'net.ipv4.ip_forward = 1' >> /etc/sysctl.conf
+    sysctl -p
+    
+    # iptables NAT 규칙 설정
+    iptables -t nat -A POSTROUTING -o eth0 -s 10.10.0.0/16 -j MASQUERADE
+    
+    # iptables 규칙 영구 저장
+    service iptables save
+    
+    # CloudWatch 에이전트 설치 (모니터링용)
+    yum install -y amazon-cloudwatch-agent
+    
+    # 로그 설정
+    echo "NAT Instance started at $(date)" >> /var/log/nat-instance.log
+  EOF
+  )
+
+  tags = merge(
+    local.common_tags,
+    {
+      Name = "${local.project_name}-${local.environment}-nat-instance"
+      Type = "NAT Instance"
+      Purpose = "Cost-effective NAT solution"
+      InstanceType = "t2.micro"
+    }
+  )
+
+  # 생명주기 설정 - 인스턴스 교체 시 새 인스턴스 먼저 생성
+  lifecycle {
+    create_before_destroy = true
+  }
+}
+
+# NAT 인스턴스용 Elastic IP 할당
+resource "aws_eip" "nat_instance" {
+  instance = aws_instance.nat_instance.id
+  domain   = "vpc"
+
+  tags = merge(
+    local.common_tags,
+    {
+      Name = "${local.project_name}-${local.environment}-nat-instance-eip"
+      Type = "Elastic IP"
+      Purpose = "NAT Instance"
+    }
+  )
+
+  # 인터넷 게이트웨이 의존성
+  depends_on = [aws_internet_gateway.main]
+}
+
+# NAT 인스턴스로의 라우트 (별도 리소스)
+resource "aws_route" "private_nat" {
+  route_table_id         = aws_route_table.private.id
+  destination_cidr_block = "0.0.0.0/0"
+  network_interface_id   = aws_instance.nat_instance.primary_network_interface_id
+}
+
+resource "aws_route" "db_nat" {
+  route_table_id         = aws_route_table.db.id
+  destination_cidr_block = "0.0.0.0/0"
+  network_interface_id   = aws_instance.nat_instance.primary_network_interface_id
+}
