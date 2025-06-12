@@ -35,7 +35,7 @@ resource "aws_subnet" "public" {
   vpc_id                  = aws_vpc.main.id
   cidr_block              = "10.9.1.0/24"
   availability_zone       = "ap-northeast-2a"
-  map_public_ip_on_launch = false
+  map_public_ip_on_launch = true 
 
   tags = merge(local.common_tags, {
     Name = "${local.project_name}-${local.environment}-public-ap-northeast-2a"

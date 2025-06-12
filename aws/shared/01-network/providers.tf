@@ -13,7 +13,7 @@ data "terraform_remote_state" "common" {
 
   config = {
     bucket = "s3-pumati-tfstate"
-    key    = "terraform/shared/common/terraform.tfstate"
+    key    = "aws/shared/common/terraform.tfstate"
     region = "ap-northeast-2"
   }
 }

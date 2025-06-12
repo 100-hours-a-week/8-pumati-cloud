@@ -8,7 +8,7 @@ common_tags  = {
   "ManagedBy"  = "Terraform"
   "Project"    = "pumati"
   "Environment" = "shared"
-  "Owner"       = "jacky" # 생성자에 맞게 변경 필요
+  "Owner"       = "rowan" # 생성자에 맞게 변경 필요
 }
 
 # 상태 저장 관련 설정
