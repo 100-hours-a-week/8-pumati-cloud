@@ -1,0 +1,62 @@
+{{- if .Values.autoscaling.enabled }}
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "pumati-backend.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "pumati-backend.labels" . | nindent 4 }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "pumati-backend.fullname" . }}
+  
+  # 🔧 레플리카 수 설정
+  minReplicas: {{ .Values.autoscaling.minReplicas }}
+  maxReplicas: {{ .Values.autoscaling.maxReplicas }}
+  
+  # 📊 메트릭 기반 스케일링 설정
+  metrics:
+  {{- if .Values.autoscaling.targetCPUUtilizationPercentage }}
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: {{ .Values.autoscaling.targetCPUUtilizationPercentage }}
+  {{- end }}
+  {{- if .Values.autoscaling.targetMemoryUtilizationPercentage }}
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: {{ .Values.autoscaling.targetMemoryUtilizationPercentage }}
+  {{- end }}
+  
+  # 🔄 스케일링 동작 설정 (안정성 향상)
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 60  # 1분간 안정화
+      policies:
+      - type: Percent
+        value: 100  # 최대 100% 증가 (2배)
+        periodSeconds: 60
+      - type: Pods
+        value: 2    # 최대 2개 Pod씩 증가
+        periodSeconds: 60
+      selectPolicy: Min  # 더 보수적인 정책 선택
+    
+    scaleDown:
+      stabilizationWindowSeconds: 300  # 5분간 안정화 (더 신중하게)
+      policies:
+      - type: Percent
+        value: 50   # 최대 50% 감소
+        periodSeconds: 60
+      - type: Pods
+        value: 1    # 최대 1개 Pod씩 감소
+        periodSeconds: 60
+      selectPolicy: Min  # 더 보수적인 정책 선택
+
+{{- end }}

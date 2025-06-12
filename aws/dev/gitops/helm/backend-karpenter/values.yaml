@@ -1,0 +1,153 @@
+# 🚀 Pumati 백엔드 - t3.small 최적화 설정
+
+# 📦 기본 설정
+nameOverride: ""
+fullnameOverride: ""
+
+# 📦 컨테이너 이미지 설정
+image:
+  repository: 236450698266.dkr.ecr.ap-northeast-2.amazonaws.com/pumati-dev-backend-ecr
+  pullPolicy: Always
+  tag: jacky-34
+
+# 📊 기본 배포 설정 (OAuth 세션 안정성을 위해 1개 고정)
+replicaCount: 1  # OAuth 문제 해결까지 고정
+
+# 🌐 서비스 설정
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 8080
+  # 🔐 Session Affinity - OAuth 세션 유지를 위해 활성화
+  # ⚠️  주의: 카카오 로그인 시 authorization_request_not_found 에러 방지
+  # 동일한 클라이언트 IP의 요청을 같은 Pod로 라우팅하여 세션 유지
+  sessionAffinity:
+    enabled: true  # OAuth 플로우를 위해 필수 활성화
+    timeoutSeconds: 900   # 15분 (OAuth 플로우 완료에 충분한 시간)
+
+# 💪 t3.small 최적화 리소스
+resources:
+  limits:
+    cpu: 1500m
+    memory: 1536Mi
+  requests:
+    cpu: 300m
+    memory: 768Mi
+
+# 🌍 환경 변수 (JVM + 로깅 + OAuth 세션 최적화)
+env:
+  - name: LOGGING_LEVEL_ROOT
+    value: "ERROR"
+  - name: LOGGING_LEVEL_ORG_SPRINGFRAMEWORK
+    value: "ERROR"
+  # 🔍 OAuth 디버깅을 위한 로깅 활성화
+  - name: LOGGING_LEVEL_ORG_SPRINGFRAMEWORK_SECURITY_OAUTH2
+    value: "DEBUG"
+  - name: LOGGING_LEVEL_ORG_SPRINGFRAMEWORK_WEB_CLIENT
+    value: "DEBUG"
+  - name: LOGGING_LEVEL_COM_ZAXXER_HIKARI
+    value: "ERROR"
+  - name: JAVA_OPTS
+    value: "-Xms512m -Xmx1g -XX:+UseG1GC -XX:MaxGCPauseMillis=200 -XX:CompileThreshold=15000 -XX:TieredStopAtLevel=1"
+  - name: SERVER_TOMCAT_THREADS_MAX
+    value: "20"
+  - name: SERVER_TOMCAT_MAX_CONNECTIONS
+    value: "50"
+  # 🔐 OAuth 세션 설정 - 카카오 로그인 안정성 향상
+  - name: SERVER_SERVLET_SESSION_TIMEOUT
+    value: "PT3H"  # 3시간 세션 유지
+  - name: SERVER_SERVLET_SESSION_COOKIE_SECURE
+    value: "true"  # HTTPS 전용 쿠키
+  - name: SERVER_SERVLET_SESSION_COOKIE_HTTP_ONLY
+    value: "true"  # XSS 방지
+  # 🎯 OAuth 특화 설정 - ALB 프록시 대응
+  - name: SERVER_USE_FORWARD_HEADERS
+    value: "true"  # X-Forwarded-* 헤더 사용
+  - name: SERVER_FORWARD_HEADERS_STRATEGY
+    value: "FRAMEWORK"  # Spring Framework 헤더 처리 (ALB 호환성 향상)
+  - name: SPRING_SECURITY_OAUTH2_CLIENT_PROVIDER_KAKAO_AUTHORIZATION_URI
+    value: "https://kauth.kakao.com/oauth/authorize"
+  - name: SPRING_SECURITY_OAUTH2_CLIENT_PROVIDER_KAKAO_TOKEN_URI
+    value: "https://kauth.kakao.com/oauth/token"
+  # 🔧 세션 저장소 설정 (향후 Redis 연동을 위한 준비)
+  - name: SPRING_SESSION_STORE_TYPE
+    value: "none"  # 현재는 기본 메모리 세션, 추후 redis로 변경 예정
+  - name: SERVER_SERVLET_SESSION_COOKIE_NAME
+    value: "PUMATI_SESSION"  # 세션 쿠키 이름 명시
+
+# 🎯 노드 선택 설정 ( 노드에만 배포)
+nodeSelector:
+  node-type: application  #  노드에만 배포
+
+# 📈 HPA 설정 (OAuth 세션 안정성을 위해 임시 비활성화)
+autoscaling:
+  enabled: false  # OAuth 문제 해결까지 임시 비활성화
+  minReplicas: 1
+  maxReplicas: 3
+  targetCPUUtilizationPercentage: 75
+  targetMemoryUtilizationPercentage: 80
+
+# 🚪 Ingress 설정
+ingress:
+  enabled: true
+  host: dev.tebutebu.com
+
+# 🛡️ PodDisruptionBudget 비활성화
+podDisruptionBudget:
+  enabled: false
+
+# 📋 ConfigMap 비활성화 (도커에 이미 설정 포함)
+configMap:
+  enabled: false
+
+# 🔐 시크릿 환경 변수 없음
+secretEnv: []
+
+# 📁 볼륨 없음
+volumes: []
+volumeMounts: []
+
+# 🏷️ System 노드의 taint 허용을 위한 toleration 설정
+tolerations:
+  - key: node-type
+    operator: Equal
+    value: system
+    effect: NoSchedule
+
+# 📁 어피니티 설정 (시스템 노드 선호)
+affinity:
+  nodeAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: node-type
+              operator: In
+              values: ["system"]
+
+# 🔐 보안 컨텍스트 기본값
+podSecurityContext: {}
+securityContext: {}
+
+# 👤 서비스 계정 기본값
+serviceAccount:
+  create: false
+  annotations: {}
+  name: ""
+
+# 🔄 업데이트 전략 기본값
+strategy:
+  type: RollingUpdate
+  rollingUpdate:
+    maxUnavailable: 1
+    maxSurge: 1
+
+# 🔧 헬스체크 비활성화 (개발 환경)
+# livenessProbe와 readinessProbe를 주석 처리하여 비활성화
+# Production 환경에서는 다시 활성화할 것을 권장
+
+# # 🔧 헬스체크 활성화 (HPA 안정성을 위해)
+livenessProbe:
+  enabled: false
+
+readinessProbe:
+  enabled: false 

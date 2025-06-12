@@ -1,0 +1,25 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: app-of-apps-dev  # 개발 환경용 App of Apps 애플리케이션 이름
+  namespace: argocd      # ArgoCD가 설치된 네임스페이스
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io  # 리소스 정리를 위한 finalizer
+spec:
+  project: default  # ArgoCD 프로젝트 이름
+  source:
+    repoURL: https://github.com/100-hours-a-week/8-pumati-cloud.git  # 실제 Git 저장소 URL
+    targetRevision: jacky  # 현재 작업 브랜치
+    path: aws/dev/gitops/applications  # 하위 애플리케이션 정의 파일들이 위치한 경로
+  destination:
+    server: https://kubernetes.default.svc  # 쿠버네티스 클러스터 서버
+    namespace: argocd  # 대상 네임스페이스
+  syncPolicy:
+    automated:  # 자동 동기화 설정
+      prune: true      # 더 이상 필요없는 리소스 자동 삭제
+      selfHeal: true   # 설정 드리프트 자동 복구
+    syncOptions:
+      - CreateNamespace=true  # 네임스페이스 자동 생성
+      - PrunePropagationPolicy=foreground  # 리소스 삭제 정책
+      - PruneLast=true  # 마지막에 정리
+      - ApplyOutOfSyncOnly=true  # 변경된 것만 적용 

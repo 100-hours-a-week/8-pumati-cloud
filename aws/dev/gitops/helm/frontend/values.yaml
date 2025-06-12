@@ -1,0 +1,68 @@
+# 개발 환경 프론트엔드 설정
+
+# 🏷️ 이름 설정 (백엔드와 통일된 네이밍)
+nameOverride: "pumati-frontend"
+fullnameOverride: "pumati-frontend"
+
+# 애플리케이션 이미지 설정
+image:
+  repository: 236450698266.dkr.ecr.ap-northeast-2.amazonaws.com/pumati-dev-frontend-ecr  # 컨테이너 이미지 저장소
+  tag: "dev-2"
+  pullPolicy: Always  # 개발 환경에서는 항상 최신 이미지 가져오기
+
+# 복제본 수 설정
+replicaCount: 1  # 개발 환경에서는 1개만 실행
+
+# 서비스 설정
+service:
+  type: ClusterIP  # 서비스 타입
+  port: 80  # 서비스 포트
+  targetPort: 3000  # 컨테이너 포트
+
+# 인그레스 설정 (백엔드 인그레스에서 통합 관리)
+ingress:
+  enabled: false  # 백엔드 인그레스에서 경로 기반 라우팅으로 통합 관리
+  className: "alb"  # AWS Load Balancer Controller 사용
+  annotations:
+    # AWS ALB 설정
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS": 443}]'
+    alb.ingress.kubernetes.io/certificate-arn: "arn:aws:acm:ap-northeast-2:236450698266:certificate/63c6ca35-1946-4bd0-8057-b5fe5c656dd5"
+    alb.ingress.kubernetes.io/ssl-redirect: '443'  # HTTP → HTTPS 리다이렉트
+    alb.ingress.kubernetes.io/backend-protocol: HTTP
+    alb.ingress.kubernetes.io/healthcheck-protocol: HTTP
+  hosts:
+    - host: frontend.dev.tebutebu.com  # 프론트엔드 전용 서브도메인
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []  # ACM을 사용하므로 TLS 시크릿 불필요
+
+# 리소스 제한 설정 (개발 환경용 - 여유로운 리소스)
+resources:
+  limits:
+    cpu: 500m     # CPU 최대 사용량 (충분한 여유)
+    memory: 512Mi # 메모리 최대 사용량 (충분한 여유)
+  requests:
+    cpu: 100m     # 최소 CPU 요청량
+    memory: 128Mi # 최소 메모리 요청량
+
+# Health Check 설정 (개발 환경용 - 비활성화)
+healthCheck:
+  enabled: false  # 헬스체크 비활성화 (일시적으로 문제 해결)
+  path: /  # 루트 경로로 헬스체크 (React 앱의 기본 경로)
+  initialDelaySeconds: 30  # React 앱 시작에 충분한 시간
+  periodSeconds: 10        # 적절한 체크 주기
+
+# 환경 변수 설정 (런타임 전용 - .env 파일과 중복 제거)
+env:
+  - name: NODE_ENV
+    value: "production"  # 컨테이너 런타임에서는 production 모드
+  # - name: API_BASE_URL
+  #   value: "http://pumati-backend.pumati.svc.cluster.local"  # 서버 사이드용 (Kubernetes 내부 통신)
+
+# 보안 컨텍스트
+securityContext:
+  runAsNonRoot: true  # 루트가 아닌 사용자로 실행
+  runAsUser: 1000     # 사용자 ID 
