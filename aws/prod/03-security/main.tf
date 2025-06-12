@@ -7,8 +7,8 @@ module "frontend_sg" {
   # 공통 입력값
   project_name  = local.project_name
   environment   = local.environment
-  service_name  = "frontend"
   tags          = local.common_tags
+  service_name  = "frontend"
 
   # 리소스 고유값
   name          = "${local.project_name}-${local.environment}-frontend-sg"
@@ -47,8 +47,8 @@ module "backend_sg" {
   # 공통 값
   project_name  = local.project_name
   environment   = local.environment
-  service_name  = "backend"
   tags          = local.common_tags
+  service_name  = "backend"
 
   # 리소스 고유값
   name          = "${local.project_name}-${local.environment}-backend-sg"
@@ -81,8 +81,8 @@ module "management_sg" {
   # 공통 값
   project_name  = local.project_name
   environment   = local.environment
-  service_name  = "management"
   tags          = local.common_tags
+  service_name  = "management"
 
   # 리소스 고유값
   name          = "${local.project_name}-${local.environment}-management-sg"
@@ -141,6 +141,24 @@ module "frontend_iam" {
           "arn:aws:s3:::s3-pumati-common-storage",       
           "arn:aws:s3:::s3-pumati-common-storage/*"     
         ]
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "ecr:GetAuthorizationToken",
+          "ecr:BatchCheckLayerAvailability",
+          "ecr:GetDownloadUrlForLayer",
+          "ecr:BatchGetImage"
+        ],
+        Resource = "*"
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "ecr:ListImages",
+          "ecr:DescribeRepositories"
+        ],
+        Resource = "arn:aws:ecr:ap-northeast-2:236450698266:repository/pumati-prod-frontend-ecr"
       }
     ]
   })
@@ -168,6 +186,16 @@ module "backend_iam" {
           "arn:aws:s3:::s3-pumati-common-storage",
           "arn:aws:s3:::s3-pumati-common-storage/*"
         ]
+      },
+      {
+      Effect = "Allow"
+      Action = [
+        "ecr:GetAuthorizationToken",
+        "ecr:BatchCheckLayerAvailability",
+        "ecr:GetDownloadUrlForLayer",
+        "ecr:BatchGetImage"
+      ],
+      Resource = "*"
       }
     ]
   })
@@ -207,6 +235,18 @@ module "management_iam" {
         "arn:aws:secretsmanager:ap-northeast-2:236450698266:secret:pumati-dev-backend-.env*",
         "arn:aws:secretsmanager:ap-northeast-2:236450698266:secret:pumati-prod-backend-.env*"
       ]
+      },
+      {
+      Effect = "Allow"
+      Action = [
+        "ecr:GetAuthorizationToken",
+        "ecr:BatchCheckLayerAvailability",
+        "ecr:PutImage",
+        "ecr:InitiateLayerUpload",
+        "ecr:UploadLayerPart",
+        "ecr:CompleteLayerUpload"
+      ]
+      Resource = "*"
       }
     ]
   })
@@ -214,17 +254,6 @@ module "management_iam" {
 #---------------------------------------------------------------------------------------------------------------------
 # Secrets Manager
 #---------------------------------------------------------------------------------------------------------------------
-module "frontend_env_secret_dev" {
-  source = "../../common/module/secretsmanager"
-
-  project_name  = local.project_name
-  environment   = "dev"
-  service_name  = "frontend"
-  tags          = local.common_tags
-  env_file_path = "../../common/envs/frontend/dev/.env"
-  kms_key_id    = "arn:aws:kms:ap-northeast-2:236450698266:key/93a8affe-a6f3-4f22-bdcc-dfafac23e42d"
-}
-
 module "frontend_env_secret_prod" {
   source = "../../common/module/secretsmanager"
 
@@ -235,18 +264,6 @@ module "frontend_env_secret_prod" {
   env_file_path = "../../common/envs/frontend/prod/.env"
   kms_key_id    = "arn:aws:kms:ap-northeast-2:236450698266:key/93a8affe-a6f3-4f22-bdcc-dfafac23e42d"
 }
-
-module "backend_env_secret_dev" {
-  source = "../../common/module/secretsmanager"
-
-  project_name  = local.project_name
-  environment   = "dev"
-  service_name  = "backend"
-  tags          = local.common_tags
-  env_file_path = "../../common/envs/backend/dev/.env"
-  kms_key_id    = "arn:aws:kms:ap-northeast-2:236450698266:key/93a8affe-a6f3-4f22-bdcc-dfafac23e42d"
-}
-
 module "backend_env_secret_prod" {
   source = "../../common/module/secretsmanager"
 

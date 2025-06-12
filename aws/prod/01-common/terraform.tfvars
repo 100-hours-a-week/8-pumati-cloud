@@ -1,13 +1,13 @@
 # 프로젝트 및 환경 설정
 project_name = "pumati"
-environment  = "staging"
+environment  = "prod"
 region       = "ap-northeast-2"
 
 # 공통 태그 설정
 common_tags = {
   "ManagedBy"   = "Terraform"
   "Project"     = "pumati"
-  "Environment" = "staging"
+  "Environment" = "prod"
   "Owner"       = "rowan"
 }
 

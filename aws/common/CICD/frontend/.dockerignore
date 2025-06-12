@@ -1,0 +1,52 @@
+# Git
+.git
+.gitignore
+
+# Node
+node_modules
+npm-debug.log
+yarn-debug.log
+yarn-error.log
+.pnpm-debug.log
+
+# Next.js
+.next
+out
+
+# IDE
+.idea
+.vscode
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build
+dist
+build
+coverage
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Test
+__tests__
+*.test.*
+*.spec.*
+
+# Cache
+.cache
+.npm
+.eslintcache
+.stylelintcache
+
+# Misc
+README.md
+CHANGELOG.md
+LICENSE
+*.md
+*.log 
