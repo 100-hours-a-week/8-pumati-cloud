@@ -254,17 +254,6 @@ module "management_iam" {
 #---------------------------------------------------------------------------------------------------------------------
 # Secrets Manager
 #---------------------------------------------------------------------------------------------------------------------
-module "frontend_env_secret_dev" {
-  source = "../../common/module/secretsmanager"
-
-  project_name  = local.project_name
-  environment   = "dev"
-  service_name  = "frontend"
-  tags          = local.common_tags
-  env_file_path = "../../common/envs/frontend/dev/.env"
-  kms_key_id    = "arn:aws:kms:ap-northeast-2:236450698266:key/93a8affe-a6f3-4f22-bdcc-dfafac23e42d"
-}
-
 module "frontend_env_secret_prod" {
   source = "../../common/module/secretsmanager"
 
@@ -275,18 +264,6 @@ module "frontend_env_secret_prod" {
   env_file_path = "../../common/envs/frontend/prod/.env"
   kms_key_id    = "arn:aws:kms:ap-northeast-2:236450698266:key/93a8affe-a6f3-4f22-bdcc-dfafac23e42d"
 }
-
-module "backend_env_secret_dev" {
-  source = "../../common/module/secretsmanager"
-
-  project_name  = local.project_name
-  environment   = "dev"
-  service_name  = "backend"
-  tags          = local.common_tags
-  env_file_path = "../../common/envs/backend/dev/.env"
-  kms_key_id    = "arn:aws:kms:ap-northeast-2:236450698266:key/93a8affe-a6f3-4f22-bdcc-dfafac23e42d"
-}
-
 module "backend_env_secret_prod" {
   source = "../../common/module/secretsmanager"
 
