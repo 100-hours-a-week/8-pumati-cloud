@@ -10,8 +10,11 @@ module "vpc" {
   service_subnet_cidr   = "10.3.1.0/24"
   db_subnet_cidr        = "10.3.2.0/24"
   az                    = "ap-northeast-2a"
-  map_public_ip_on_launch = true
 
-  enable_service_subnet = false
-  enable_db_subnet      = false
+  enable_service_subnet = true
+  enable_db_subnet      = true
+
+  public_subnet_map_public_ip  = true
+  service_subnet_map_public_ip = false
+  db_subnet_map_public_ip      = false
 }

@@ -1,5 +1,5 @@
 module "frontend_ecr" {
-  source        = "../../common/module/ECR"
+  source        = "../../common/module/ecr"
   project_name  = local.project_name      # 예: "pumati"
   environment   = local.environment       # 예: "prod"
   service_name  = "frontend"
@@ -7,7 +7,7 @@ module "frontend_ecr" {
 }
 
 module "backend_ecr" {
-  source        = "../../common/module/ECR"
+  source        = "../../common/module/ecr"
   project_name  = local.project_name
   environment   = local.environment
   service_name  = "backend"

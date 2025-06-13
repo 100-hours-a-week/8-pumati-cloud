@@ -246,7 +246,7 @@ ssh -o StrictHostKeyChecking=no -i \$KEY_FILE \$SSH_USER@${env.FE_PRIVATE_IP} <<
   docker pull ${ECR_LATEST_IMAGE}
 
   echo "새 컨테이너 실행"
-  docker run -d --name ${env.SERVICE_NAME} -p ${env.HOST_PORT}:${env.CONTAINER_PORT} ${ECR_LATEST_IMAGE}
+  docker run -d --name ${env.CONTAINER_NAME} -p ${env.HOST_PORT}:${env.CONTAINER_PORT} ${ECR_LATEST_IMAGE}
 
   echo "사용하지 않는 이미지 정리"
   docker image prune -a -f

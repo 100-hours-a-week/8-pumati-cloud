@@ -1,4 +1,5 @@
 # modules/vpc/main.tf
+
 resource "aws_vpc" "this" {
   cidr_block           = var.vpc_cidr
   enable_dns_support   = true
@@ -17,11 +18,32 @@ resource "aws_internet_gateway" "this" {
   })
 }
 
+# NAT Gateway
+resource "aws_nat_gateway" "this" {
+  allocation_id = aws_eip.nat.id
+  subnet_id     = aws_subnet.public.id
+
+  tags = merge(var.tags, {
+    Name = "${var.project_name}-${var.environment}-nat"
+  })
+
+  depends_on = [aws_internet_gateway.this]
+}
+
+resource "aws_eip" "nat" {
+  domain = "vpc"
+
+  tags = merge(var.tags, {
+    Name = "${var.project_name}-${var.environment}-nat-eip"
+  })
+}
+
+# 퍼블릭 서브넷
 resource "aws_subnet" "public" {
   vpc_id                  = aws_vpc.this.id
   cidr_block              = var.public_subnet_cidr
   availability_zone       = var.az
-  map_public_ip_on_launch = var.map_public_ip_on_launch
+  map_public_ip_on_launch = var.public_subnet_map_public_ip
 
   tags = merge(var.tags, {
     Name = "${var.project_name}-${var.environment}-public-subnet"
@@ -46,24 +68,68 @@ resource "aws_route_table_association" "public" {
   route_table_id = aws_route_table.public.id
 }
 
+# 서비스 서브넷
 resource "aws_subnet" "service" {
-  count             = var.enable_service_subnet ? 1 : 0
-  vpc_id            = aws_vpc.this.id
-  cidr_block        = var.service_subnet_cidr
-  availability_zone = var.az
+  count                   = var.enable_service_subnet ? 1 : 0
+  vpc_id                  = aws_vpc.this.id
+  cidr_block              = var.service_subnet_cidr
+  availability_zone       = var.az
+  map_public_ip_on_launch = var.service_subnet_map_public_ip
 
   tags = merge(var.tags, {
     Name = "${var.project_name}-${var.environment}-service-subnet"
   })
 }
 
-resource "aws_subnet" "db" {
-  count             = var.enable_db_subnet ? 1 : 0
-  vpc_id            = aws_vpc.this.id
-  cidr_block        = var.db_subnet_cidr
-  availability_zone = var.az
+resource "aws_route_table" "service" {
+  count  = var.enable_service_subnet ? 1 : 0
+  vpc_id = aws_vpc.this.id
+
+  route {
+    cidr_block     = "0.0.0.0/0"
+    nat_gateway_id = aws_nat_gateway.this.id
+  }
 
   tags = merge(var.tags, {
-    Name = "${var.project_name}-${var.environment}-db-subnet-v2"
+    Name = "${var.project_name}-${var.environment}-service-rt"
   })
+}
+
+resource "aws_route_table_association" "service" {
+  count          = var.enable_service_subnet ? 1 : 0
+  subnet_id      = aws_subnet.service[0].id
+  route_table_id = aws_route_table.service[0].id
+}
+
+# 데이터베이스 서브넷
+resource "aws_subnet" "db" {
+  count                   = var.enable_db_subnet ? 1 : 0
+  vpc_id                  = aws_vpc.this.id
+  cidr_block              = var.db_subnet_cidr
+  availability_zone       = var.az
+  map_public_ip_on_launch = var.db_subnet_map_public_ip
+
+  tags = merge(var.tags, {
+    Name = "${var.project_name}-${var.environment}-db-subnet"
+  })
+}
+
+resource "aws_route_table" "db" {
+  count  = var.enable_db_subnet ? 1 : 0
+  vpc_id = aws_vpc.this.id
+
+  route {
+    cidr_block     = "0.0.0.0/0"
+    nat_gateway_id = aws_nat_gateway.this.id
+  }
+
+  tags = merge(var.tags, {
+    Name = "${var.project_name}-${var.environment}-db-rt"
+  })
+}
+
+resource "aws_route_table_association" "db" {
+  count          = var.enable_db_subnet ? 1 : 0
+  subnet_id      = aws_subnet.db[0].id
+  route_table_id = aws_route_table.db[0].id
 }

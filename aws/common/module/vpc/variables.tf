@@ -45,10 +45,29 @@ variable "enable_db_subnet" {
   type        = bool
   default     = false
 }
+
 variable "map_public_ip_on_launch" {
-  description = "퍼블릭 서브넷에 퍼블릭 IP 할당 여부"
+  description = "서브넷에 퍼블릭 IP 할당 여부"
   type        = bool
   default     = true
+}
+
+variable "public_subnet_map_public_ip" {
+  description = "퍼블릭 서브넷의 퍼블릭 IP 자동 할당 여부"
+  type        = bool
+  default     = true
+}
+
+variable "service_subnet_map_public_ip" {
+  description = "서비스 서브넷의 퍼블릭 IP 자동 할당 여부"
+  type        = bool
+  default     = false
+}
+
+variable "db_subnet_map_public_ip" {
+  description = "DB 서브넷의 퍼블릭 IP 자동 할당 여부"
+  type        = bool
+  default     = false
 }
 
 variable "tags" {

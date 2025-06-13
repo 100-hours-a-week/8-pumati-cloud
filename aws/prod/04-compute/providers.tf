@@ -53,12 +53,15 @@ locals {
   # network 모듈 : vpc_id, public_subnet_id
   vpc_id       = data.terraform_remote_state.network.outputs.vpc_id
   public_subnet_id = data.terraform_remote_state.network.outputs.public_subnet_id
+  service_subnet_id = data.terraform_remote_state.network.outputs.service_subnet_id
+  db_subnet_id = data.terraform_remote_state.network.outputs.db_subnet_id
 
   # security 모듈 : 보안 그룹 ID
   frontend_sg_id = data.terraform_remote_state.security.outputs.frontend_sg_id
   backend_sg_id  = data.terraform_remote_state.security.outputs.backend_sg_id
   management_sg_id  = data.terraform_remote_state.security.outputs.management_sg_id
-
+  openvpn_sg_id  = data.terraform_remote_state.security.outputs.openvpn_sg_id
+  
   # security 모듈 : IAM 인스턴스 프로파일 이름
   frontend_instance_profile_name = data.terraform_remote_state.security.outputs.frontend_instance_profile_name
   backend_instance_profile_name = data.terraform_remote_state.security.outputs.backend_instance_profile_name

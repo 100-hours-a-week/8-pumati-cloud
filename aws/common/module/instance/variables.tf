@@ -41,6 +41,7 @@ variable "security_group_ids" {
 variable "iam_instance_profile" {
   description = "IAM 인스턴스 프로파일 이름"
   type        = string
+  default     = ""
 }
 
 variable "root_volume_size" {
@@ -68,24 +69,19 @@ variable "tags" {
 variable "enable_monitoring" {
   description = "CloudWatch 상세 모니터링 활성화 여부"
   type        = bool
-  default     = false
 }
 
 variable "disable_api_termination" {
   description = "인스턴스 종료 보호 설정"
   type        = bool
-  default     = false
 }
 
 variable "shutdown_behavior" {
   description = "인스턴스 내부 종료 시 동작 (stop 또는 terminate)"
   type        = string
-  default     = "stop"
 }
 
 variable "enable_eip" {
   description = "EIP를 할당할지 여부"
   type        = bool
-  default     = false
 }
-
