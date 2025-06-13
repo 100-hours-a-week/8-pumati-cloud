@@ -12,17 +12,17 @@ data "terraform_remote_state" "common" {
   backend = "s3"
 
   config = {
-    bucket = "pumati-s3-jacky"
-    key    = "terraform/dev/common/terraform.tfstate"
+    bucket = "s3-pumati-tfstate"
+    key    = "aws/shared/common/terraform.tfstate"
     region = "ap-northeast-2"
   }
 }
 
 locals {
   project_name = data.terraform_remote_state.common.outputs.project_name
-  domain_name = data.terraform_remote_state.common.outputs.domain_name
   region = data.terraform_remote_state.common.outputs.region
   environment = data.terraform_remote_state.common.outputs.environment
+  
   common_tags  = data.terraform_remote_state.common.outputs.common_tags
 }
 

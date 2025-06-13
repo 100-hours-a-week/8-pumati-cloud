@@ -24,11 +24,6 @@ variable "common_tags" {
   type        = map(string)
 }
 
-variable "domain_name" {
-  description = "서비스 도메인 이름"
-  type        = string
-}
-
 variable "tfstate_bucket" {
   description = "테라폼 상태를 저장할 S3 버킷 이름"
   type        = string
