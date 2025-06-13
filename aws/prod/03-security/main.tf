@@ -21,21 +21,21 @@ module "frontend_sg" {
       to_port     = 22
       protocol    = "tcp"
       # ssh는 cidr 내ip로 수정할 것
-      cidr_blocks = ["0.0.0.0/0"]
+      cidr_blocks = ["0.0.0.0/0", "10.0.0.0/16"]  # Shared VPC CIDR 추가
       description = "SSH"
     },
     {
       from_port   = 80
       to_port     = 80
       protocol    = "tcp"
-      cidr_blocks = ["0.0.0.0/0"]
+      cidr_blocks = ["0.0.0.0/0", "10.0.0.0/16"]  # Shared VPC CIDR 추가
       description = "HTTP"
     },
     {
       from_port   = 443
       to_port     = 443
       protocol    = "tcp"
-      cidr_blocks = ["0.0.0.0/0"]
+      cidr_blocks = ["0.0.0.0/0", "10.0.0.0/16"]  # Shared VPC CIDR 추가
       description = "HTTPS"
     }
   ]
@@ -62,15 +62,15 @@ module "backend_sg" {
       from_port   = 22
       to_port     = 22
       protocol    = "tcp"
-      cidr_blocks = ["0.0.0.0/0"]
+      cidr_blocks = ["0.0.0.0/0", "10.0.0.0/16"]  # Shared VPC CIDR 추가
       description = "SSH"
     },
     {
-      from_port       = 8080
-      to_port         = 8080
-      protocol        = "tcp"
-      security_groups = [module.frontend_sg.security_group_id]
-      description     = "Frontend to Backend"
+      from_port   = 8080
+      to_port     = 8080
+      protocol    = "tcp"
+      cidr_blocks = ["10.3.0.228/32", "10.0.0.0/16"]  # 프론트엔드 IP와 Shared VPC만 허용
+      description = "Backend API from Frontend IP and Shared VPC"
     }
   ]
 }
@@ -96,79 +96,26 @@ module "management_sg" {
       from_port   = 22
       to_port     = 22
       protocol    = "tcp"
-      cidr_blocks = ["0.0.0.0/0"]
+      cidr_blocks = ["0.0.0.0/0", "10.0.0.0/16"]  # Shared VPC CIDR 추가
       description = "SSH"
     },
     {
       from_port   = 8080
       to_port     = 8080
       protocol    = "tcp"
-      cidr_blocks = ["0.0.0.0/0"]
+      cidr_blocks = ["0.0.0.0/0", "10.0.0.0/16"]  # Shared VPC CIDR 추가
       description = "Management UI"
     },
     {
       from_port   = 50000
       to_port     = 50000
       protocol    = "tcp"
-      cidr_blocks = ["0.0.0.0/0"]
+      cidr_blocks = ["0.0.0.0/0", "10.0.0.0/16"]  # Shared VPC CIDR 추가
       description = "Management Agent (optional)"
     }
   ]
 }
 
-module "openvpn_sg" {
-  source        = "../../common/module/sg"
-
-  # 공통 값
-  project_name  = local.project_name
-  environment   = local.environment
-  tags          = local.common_tags
-  service_name  = "openvpn"
-
-  # 리소스 고유값
-  name          = "${local.project_name}-${local.environment}-openvpn-sg"
-  description   = "OpenVPN 서비스용 보안 그룹"
-  vpc_id        = local.vpc_id
-
-  # 인바운드 규칙
-  ingress_rules = [
-    {
-      from_port   = 22
-      to_port     = 22
-      protocol    = "tcp"
-      cidr_blocks = ["211.244.225.211/32"]
-      description = "SSH"
-    },
-    {
-      from_port   = 443
-      to_port     = 443
-      protocol    = "tcp"
-      cidr_blocks = ["211.244.225.211/32"]
-      description = "HTTPS"
-    },
-    {
-      from_port   = 943
-      to_port     = 943
-      protocol    = "tcp"
-      cidr_blocks = ["211.244.225.211/32"]
-      description = "OpenVPN Admin Web Interface"
-    },
-    {
-      from_port   = 945
-      to_port     = 945
-      protocol    = "tcp"
-      cidr_blocks = ["211.244.225.211/32"]
-      description = "OpenVPN Admin Web Interface (Alternative)"
-    },
-    {
-      from_port   = 1194
-      to_port     = 1194
-      protocol    = "udp"
-      cidr_blocks = ["211.244.225.211/32"]
-      description = "OpenVPN"
-    }
-  ]
-}
 # ---------------------------------------------------------------------------------------------------------------------
 # IAM 규칙
 # ---------------------------------------------------------------------------------------------------------------------

@@ -22,16 +22,19 @@ variable "az" {
 variable "public_subnet_cidr" {
   description = "퍼블릭 서브넷 CIDR"
   type        = string
+  default     = ""
 }
 
 variable "service_subnet_cidr" {
   description = "서비스 서브넷 CIDR"
   type        = string
+  default     = ""
 }
 
 variable "db_subnet_cidr" {
   description = "DB 서브넷 CIDR"
   type        = string
+  default     = ""
 }
 
 variable "enable_service_subnet" {
