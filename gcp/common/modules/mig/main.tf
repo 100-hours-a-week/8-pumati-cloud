@@ -96,6 +96,11 @@ resource "google_compute_health_check" "this" {
   tcp_health_check {
     port = var.health_check_port # 일반적으로 SSH 포트(22)
   }
+
+  # 안전한 삭제를 위한 lifecycle 설정
+  lifecycle {
+    create_before_destroy = true
+  }
 }
 
 # 영역(Zonal) 관리형 인스턴스 그룹으로 변경
@@ -105,6 +110,11 @@ resource "google_compute_instance_group_manager" "this" {
   zone               = var.zone
   base_instance_name = var.instance_name
 
+  # 명시적 의존성 추가 - destroy 순서 보장
+  depends_on = [
+    google_compute_instance_template.this,
+    google_compute_health_check.this
+  ]
 
   # 인스턴스 버전 설정
   # 사용할 템플릿 지정
@@ -148,14 +158,15 @@ resource "google_compute_instance_group_manager" "this" {
     initial_delay_sec = var.initial_delay_sec # 초기 대기 시간 (VM 부팅 완료 대기)
   }
 
-  # 변경 무시 설정
-  # 외부 스크립트가 target_size를 동적으로 조절할 때 Terraform이 덮어쓰지 않도록 함
+  # 변경 무시 설정 및 삭제 순서 제어
   lifecycle {
     ignore_changes = [
       # 외부에서 set-instance-template 으로 바꾸는 필드
       version[0].instance_template,
       target_size,
     ]
+    # MIG를 먼저 삭제하도록 보장
+    create_before_destroy = false
   }
 
   dynamic "named_port" {
