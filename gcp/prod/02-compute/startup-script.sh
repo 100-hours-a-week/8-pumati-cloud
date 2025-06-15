@@ -836,11 +836,94 @@ fi
 log_message "✅ AI 서비스 설정 완료"
 
 ###################################
+# 9-1. 크롤링 서비스 cron 작업 설정 (수정됨)
+###################################
+log_message "▶ 크롤링 서비스 cron 작업 설정 시작"
+
+# 크롤링 서비스 이미지 pull
+CRAWLING_IMAGE="asia-east1-docker.pkg.dev/ktb8team-458916/ktb8team/prod/crawling"
+
+log_message "▶ 크롤링 서비스 이미지 다운로드 중..."
+if docker pull "$CRAWLING_IMAGE:latest"; then
+  log_message "✅ 크롤링 이미지 다운로드 성공: $CRAWLING_IMAGE:latest"
+else
+  log_message "❌ 크롤링 이미지 다운로드 실패"
+  curl -H "Content-Type: application/json" \
+       -X POST \
+       -d "{\"content\": \"🚨 크롤링 이미지 다운로드 실패: 호스트 $(hostname)에서 $CRAWLING_IMAGE:latest를 가져올 수 없습니다.\"}" \
+       "${WEBHOOK_URL}"
+  # 크롤링 서비스 실패는 전체 스크립트를 중단시키지 않음 (AI 서비스는 이미 실행 중)
+fi
+
+# 크롤링 실행 스크립트 생성
+log_message "▶ 크롤링 실행 스크립트 생성 중..."
+mkdir -p /opt/crawling
+cat <<EOF > /opt/crawling/run-crawling.sh
+#!/bin/bash
+
+# 로그 설정
+CRAWLING_LOG="/var/log/crawling-cron.log"
+log_crawling() {
+  local message="\$1"
+  local timestamp=\$(TZ='Asia/Seoul' date '+%Y-%m-%d %H:%M:%S')
+  echo "[\$timestamp] \$message" | tee -a \$CRAWLING_LOG
+}
+
+log_crawling "📊 크롤링 작업 시작"
+
+# 기존 크롤링 컨테이너 정리 (만약 있다면)
+docker stop crawling >/dev/null 2>&1 || true
+docker rm crawling >/dev/null 2>&1 || true
+
+# 크롤링 컨테이너 실행 (한 번만 실행 후 종료)
+# --rm 제거: 로그 보존을 위해 컨테이너를 남겨두고 다음 실행 시 정리
+# --restart 옵션 제거: 계속 실행하지 않음
+log_crawling "▶ 크롤링 컨테이너 실행 중..."
+if docker run --name crawling --network host \
+  -e DISABLE_HTTP_SERVER=true \
+  "$CRAWLING_IMAGE:latest"; then
+  
+  log_crawling "✅ 크롤링 작업 완료"
+  
+  # 성공 알림 전송
+  curl -H "Content-Type: application/json" \
+       -X POST \
+       -d "{\"content\": \"✅ 크롤링 작업이 완료되었습니다. 호스트: \$(hostname), 시간: \$(TZ='Asia/Seoul' date '+%Y-%m-%d %H:%M:%S')\"}" \
+       "${WEBHOOK_URL}"
+else
+  log_crawling "❌ 크롤링 작업 실패"
+  
+  # 실패 알림 전송
+  curl -H "Content-Type: application/json" \
+       -X POST \
+       -d "{\"content\": \"🚨 크롤링 작업이 실패했습니다. 호스트: \$(hostname), 시간: \$(TZ='Asia/Seoul' date '+%Y-%m-%d %H:%M:%S')\"}" \
+       "${WEBHOOK_URL}"
+fi
+
+log_crawling "🏁 크롤링 작업 종료"
+EOF
+
+# 스크립트 실행 권한 부여
+chmod +x /opt/crawling/run-crawling.sh
+
+# cron 작업 설정 (매일 오전 10시에 실행)
+log_message "▶ 크롤링 cron 작업 설정 중 (매일 오전 10시)..."
+(crontab -l 2>/dev/null || echo "") | grep -v "run-crawling" | { cat; echo "0 10 * * * /opt/crawling/run-crawling.sh"; } | crontab -
+
+# 크롤링 로그 파일 생성
+touch /var/log/crawling-cron.log
+chmod 666 /var/log/crawling-cron.log
+
+log_message "✅ 크롤링 cron 작업 설정 완료 (매일 오전 10시 실행)"
+log_message "   • 로그 파일: /var/log/crawling-cron.log"
+log_message "   • 수동 실행: /opt/crawling/run-crawling.sh"
+
+###################################
 # 10. Watchtower 자동 업데이트 설정
 ###################################
 log_message "▶ Watchtower 자동 업데이트 설정 시작"
 
-# AI 서비스 컨테이너 이름 (기존 스크립트에서 사용된 이름)
+# 감시할 컨테이너 이름들 (AI 서비스만 - 크롤링은 cron으로 실행)
 AI_CONTAINER_NAME="ai"
 # Artifact Registry 인증을 위한 Docker 설정 파일 경로
 # 이 파일은 스크립트의 섹션 9에서 'gcloud auth configure-docker' 명령어를 통해 생성/업데이트되었음.
@@ -873,7 +956,7 @@ log_message "▶ Watchtower 컨테이너 실행 중 (감시 대상: $AI_CONTAINE
 # -e WATCHTOWER_NOTIFICATIONS=shoutrrr: Watchtower에게 알림을 전송하는 방식을 'shoutrrr'로 설정합니다.
 # -e WATCHTOWER_NOTIFICATION_URL="discord://...": 알림을 전송할 Discord 채널의 URL을 지정합니다.
 # -e TZ=Asia/Seoul: 컨테이너 내의 시간대를 'Asia/Seoul'로 설정합니다. 이는 로그 메시지의 타임스탬프 등에 영향을 줍니다.
-# "$AI_CONTAINER_NAME": Watchtower가 감시할 특정 컨테이너의 이름을 지정합니다. 여기서는 'ai' 컨테이너를 직접 지정하여 해당 컨테이너만 감시합니다.
+# "$AI_CONTAINER_NAME" "$CRAWLING_CONTAINER_NAME": Watchtower가 감시할 특정 컨테이너들의 이름을 지정합니다. 여기서는 'ai'와 'crawling' 컨테이너를 모두 감시합니다.
 
 # 서비스 계정 키 파일 경로 설정. 위쪽에서 설정했음.
 
