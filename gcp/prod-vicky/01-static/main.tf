@@ -166,7 +166,7 @@ module "persistent_disk" {
   disk_name   = "spot-persistent-disk"
   description = "Spot 인스턴스용 영구 디스크"
   disk_type   = "pd-balanced" # 비용 효율적인 디스크 타입
-  disk_size   = 400          # 200GB (LLM 빌드에 충분한 공간)
+  disk_size   = 200           # 200GB (LLM 빌드에 충분한 공간)
 
   # common 라벨 사용하고 purpose만 추가
   labels = merge(local.common_labels, {

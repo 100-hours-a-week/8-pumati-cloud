@@ -28,131 +28,216 @@
 #   source_ranges = ["0.0.0.0/0"]
 # }
 
-module "l4_mig" {
-  # 모듈 소스 경로 - 공통 MIG(관리형 인스턴스 그룹) 모듈 사용
-  source = "../../common/modules/mig"
+# 여러 머신 타입을 자동으로 시도하는 Instance Templates 생성
+# GCP MIG가 자동으로 가용한 머신 타입을 선택합니다
 
-  # GCP 프로젝트 ID - local 변수에서 참조
-  project_id = local.project_id
-
-  # 리전 설정 - 대만(타이완) 리전 사용 (모듈 내부에서 일부 네이밍 등에 활용될 수 있음)
-  region = "asia-east1"
-
-
-  # 가용 영역 설정 - Zonal MIG는 단일 zone을 사용합니다.
-  # 영구 디스크(PD)와 동일한 영역이어야 합니다.
-  # local.zone 변수가 있다면 해당 변수를 사용하는 것이 좋습니다. (예: local.zone)
-  # 여기서는 예시로 "asia-east1-a"를 직접 지정합니다.
-  zone = "asia-east1-a" # [변경] zones -> zone 으로 변경하고 단일 값 지정
-
-  # 인스턴스 이름 - "l4-spot"으로 L4 GPU 스팟 인스턴스임을 표시
-  instance_name = "l4-spot"
-
-  # 머신 타입 - g2-standard-4 (vCPU 4개, 메모리 16GB의 G2 시리즈)
+# 기본 머신 타입용 인스턴스 템플릿 (g2-standard-4)
+resource "google_compute_instance_template" "g2_standard_4" {
+  name_prefix  = "l4-spot-g2std4-"
+  project      = local.project_id
   machine_type = "g2-standard-4"
 
-  # 스팟 인스턴스 사용 여부 - true로 설정하여 비용 절감 (단, 리소스 회수 가능성 있음)
-  spot = true
-
-  # 소스 이미지 - 커스텀 이미지가 있으면 사용, 없으면 기본 이미지 사용
-  source_image         = "" # 필요시 커스텀 이미지 경로 지정
-  source_image_family  = "pytorch-latest-cu121-ubuntu-2204-py310"
-  source_image_project = "deeplearning-platform-release"
-
-  # 부팅 디스크 크기 (GPU 인스턴스에는 100GB 미만이면 생성이안됨
-  disk_size_gb = 100
-
-  # 부팅 디스크 타입 (성능을 위해 'pd-balanced' 또는 'pd-ssd' 권장)
-  disk_type = "pd-balanced"
-
-  # GPU 타입 - NVIDIA L4
-  gpu_type = "nvidia-l4"
-
-  # GPU 개수 - 인스턴스당 1개의 L4 GPU 할당
-  gpu_count = 1
-
-  # 추가 메타데이터 설정
-  additional_metadata = {
-    # 모듈에서 "install-gpu-driver" = "true"로 하드코딩 되어 있으므로,
-    # 여기서 "install-nvidia-driver"는 덮어쓰지 않거나, 모듈과 키를 통일해야 합니다.
-    # 여기서는 모듈의 설정을 따르도록 비워두거나 "install-gpu-driver" 키를 사용합니다.
-    "install-gpu-driver" = "True"
-    "custom-image-used"  = "false" # 사용자 정의 메타데이터
+  # 스팟 인스턴스 설정
+  scheduling {
+    preemptible        = true
+    automatic_restart  = false
+    provisioning_model = "SPOT"
   }
 
-  # 네트워크 설정 - 기본 네트워크 사용
-  network = "default"
+  # 부팅 디스크 설정
+  disk {
+    source_image = "projects/deeplearning-platform-release/global/images/family/pytorch-latest-cu121-ubuntu-2204-py310"
+    auto_delete  = true
+    boot         = true
+    disk_size_gb = 100
+    disk_type    = "pd-balanced"
+  }
 
-  # 서브네트워크 설정 - 빈 문자열로 기본 서브네트워크 사용
-  subnetwork = "" # 필요시 특정 서브넷 지정
+  # GPU 설정
+  guest_accelerator {
+    type  = "nvidia-l4"
+    count = 1
+  }
 
-  # 고정 IP 주소 (필요한 경우 주석 해제 후 사용)
-  # static_ip = google_compute_address.l4_static_ip.address
-  # [추가] 모듈 변수에서 default가 제거되었으므로 명시적으로 값 전달
-  static_ip = null # 고정 IP를 사용하지 않는 경우 null
+  # 메타데이터
+  metadata = {
+    "install-gpu-driver" = "true"
+    "enable-osconfig"    = "true"
+    "machine-type"       = "g2-standard-4"
+  }
 
-  # 서비스 계정 이메일 - null 설정으로 프로젝트의 기본 컴퓨트 서비스 계정 사용ㅅ
-  # 모듈 변수에 default = null 이 설정되어 있다면 이 줄은 생략 가능
-  service_account_email = "terraform@ambient-topic-459110-e6.iam.gserviceaccount.com"
+  metadata_startup_script = local.final_startup_script
 
-  # 서비스 계정 접근 범위 - 클라우드 플랫폼 전체 접근 권한 부여
-  service_account_scopes = [
-    "https://www.googleapis.com/auth/cloud-platform"
-  ]
+  # 네트워크 설정
+  network_interface {
+    network = "default"
+    access_config {}
+  }
 
-  # 시작 스크립트 - 인스턴스 생성 시 실행할 스크립트 (local 변수에서 내용 참조)
-  startup_script = local.final_startup_script
+  # 서비스 계정
+  service_account {
+    email  = "terraform@ambient-topic-459110-e6.iam.gserviceaccount.com"
+    scopes = ["https://www.googleapis.com/auth/cloud-platform"]
+  }
 
-  # 네트워크 태그
-  tags = ["l4-spot"]
+  tags   = ["l4-spot", "g2-standard-4"]
+  labels = merge(local.common_labels, { machine-type = "g2_standard_4" })
 
-  # 라벨
-  labels = local.common_labels
+  lifecycle {
+    create_before_destroy = true
+  }
+}
 
-  # 로드 밸런서 및 헬스 체크 설정
-  http_port           = 80
-  https_port          = 443
-  health_check_port   = 22  # SSH 포트로 상태 점검
-  initial_delay_sec   = 300 # 부팅 및 스크립트 실행 시간 고려
+# 대체 머신 타입용 인스턴스 템플릿 (g2-standard-8)
+resource "google_compute_instance_template" "g2_standard_8" {
+  name_prefix  = "l4-spot-g2std8-"
+  project      = local.project_id
+  machine_type = "g2-standard-8"
+
+  # 스팟 인스턴스 설정
+  scheduling {
+    preemptible        = true
+    automatic_restart  = false
+    provisioning_model = "SPOT"
+  }
+
+  # 부팅 디스크 설정
+  disk {
+    source_image = "projects/deeplearning-platform-release/global/images/family/pytorch-latest-cu121-ubuntu-2204-py310"
+    auto_delete  = true
+    boot         = true
+    disk_size_gb = 100
+    disk_type    = "pd-balanced"
+  }
+
+  # GPU 설정
+  guest_accelerator {
+    type  = "nvidia-l4"
+    count = 1
+  }
+
+  # 메타데이터
+  metadata = {
+    "install-gpu-driver" = "true"
+    "enable-osconfig"    = "true"
+    "machine-type"       = "g2-standard-8"
+  }
+
+  metadata_startup_script = local.final_startup_script
+
+  # 네트워크 설정
+  network_interface {
+    network = "default"
+    access_config {}
+  }
+
+  # 서비스 계정
+  service_account {
+    email  = "terraform@ambient-topic-459110-e6.iam.gserviceaccount.com"
+    scopes = ["https://www.googleapis.com/auth/cloud-platform"]
+  }
+
+  tags   = ["l4-spot", "g2-standard-8"]
+  labels = merge(local.common_labels, { machine-type = "g2_standard_8" })
+
+  lifecycle {
+    create_before_destroy = true
+  }
+}
+
+# 헬스 체크
+resource "google_compute_health_check" "l4_spot" {
+  name                = "l4-spot-hc"
+  project             = local.project_id
   check_interval_sec  = 10
   timeout_sec         = 5
   healthy_threshold   = 2
   unhealthy_threshold = 3
 
-  # MIG(관리형 인스턴스 그룹) 및 업데이트 정책 설정
-  target_size        = 1    # 1개의 인스턴스 유지
-  wait_for_instances = true # 인스턴스 생성 완료 대기
+  tcp_health_check {
+    port = 22
+  }
 
-  update_type                  = "PROACTIVE" # 변경사항 자동 업데이트
-  instance_redistribution_type = "NONE"      # [추가] Zonal MIG의 경우 "NONE"으로 설정
+  lifecycle {
+    create_before_destroy = true
+  }
+}
 
-  minimal_action                 = "REPLACE" # 변경 시 인스턴스 교체
-  most_disruptive_allowed_action = "REPLACE" # 최대 허용 작업도 교체
-  max_surge_fixed                = 0         # 업데이트 시 추가 인스턴스 없음
+# Zonal MIG - 영구 디스크와 같은 존에 생성
+resource "google_compute_instance_group_manager" "l4_spot_zonal" {
+  name               = "l4-spot-zonal-mig"
+  project            = local.project_id
+  zone               = local.pd_zone  # 영구 디스크와 같은 존에 생성
+  base_instance_name = "l4-spot"
 
-  # max_unavailable_fixed_zonal 은 모듈의 기본값(1)을 사용하도록 생략합니다.
-  # 필요시 명시적으로 max_unavailable_fixed_zonal = 1 설정 가능
-  # [추가] 모듈 변수에서 default가 제거되었으므로 명시적으로 값 전달
-  max_unavailable_fixed_zonal = 1 # 단일 인스턴스 Zonal MIG의 경우 1
-
-  # 추가 포트 설정 (예: 애플리케이션 서비스 포트)
-  additional_named_ports = [
-    {
-      name = "port-8000"
-      port = 8000
-    },
-    {
-      name = "port-8080"
-      port = 8080
-    }
+  # 명시적 의존성 - 간단하게 필요한 것만
+  depends_on = [
+    google_compute_instance_template.g2_standard_4,
+    google_compute_instance_template.g2_standard_8,
+    google_compute_health_check.l4_spot
   ]
-  # [추가] 연결할 영구 디스크(PD)의 이름
-  # 이 디스크는 01-static 등에서 미리 생성되어 있어야 하며,
-  # 위에서 설정한 'zone'과 동일한 영역에 있어야 합니다.
-  # persistent_disk_name   = local.pd_name # 실제 영구 디스크 이름
-  # persistent_disk_source = local.spot_pd_self_link
 
-  # [제거] 아래 변수들은 새 모듈 구조에서 사용되지 않음
-  # add_stateful_disk = true
-  # stateful_disks = [ ... ]
+  # 여러 버전 설정 - GCP가 자동으로 가용한 것을 선택
+  # Zonal MIG는 최대 2개 버전만 지원
+  # 우선순위: g2-standard-4 → g2-standard-8
+  version {
+    instance_template = google_compute_instance_template.g2_standard_4.id
+    # target_size를 설정하지 않음 (기본 버전)
+  }
+
+  version {
+    instance_template = google_compute_instance_template.g2_standard_8.id
+    target_size {
+      fixed = 0  # 대체 버전, 필요시 자동 활성화
+    }
+  }
+
+  target_size        = 1
+  wait_for_instances = true
+
+  # 업데이트 정책 - Zonal MIG용
+  update_policy {
+    type                           = "PROACTIVE"
+    minimal_action                 = "REPLACE"
+    most_disruptive_allowed_action = "REPLACE"
+    max_surge_fixed                = 0  # RECREATE 방식에서는 0
+    max_unavailable_fixed          = 1  # Zonal MIG이므로 1
+    replacement_method             = "RECREATE"
+  }
+
+  # 포트 설정
+  named_port {
+    name = "http"
+    port = 80
+  }
+
+  named_port {
+    name = "https"
+    port = 443
+  }
+
+  named_port {
+    name = "port-8000"
+    port = 8000
+  }
+
+  named_port {
+    name = "port-8080"
+    port = 8080
+  }
+
+  # 자동 복구
+  auto_healing_policies {
+    health_check      = google_compute_health_check.l4_spot.id
+    initial_delay_sec = 300
+  }
+
+  lifecycle {
+    ignore_changes = [
+      version[0].instance_template,
+      version[1].instance_template,
+      target_size,
+    ]
+    create_before_destroy = false
+  }
 }
