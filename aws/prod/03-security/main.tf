@@ -28,14 +28,14 @@ module "frontend_sg" {
       from_port   = 80
       to_port     = 80
       protocol    = "tcp"
-      cidr_blocks = ["0.0.0.0/0", "10.0.0.0/16"]  # Shared VPC CIDR 추가
+      cidr_blocks = ["0.0.0.0/0"] 
       description = "HTTP"
     },
     {
       from_port   = 443
       to_port     = 443
       protocol    = "tcp"
-      cidr_blocks = ["0.0.0.0/0", "10.0.0.0/16"]  # Shared VPC CIDR 추가
+      cidr_blocks = ["0.0.0.0/0"]
       description = "HTTPS"
     }
   ]
@@ -58,18 +58,17 @@ module "backend_sg" {
   # 인바운드 규칙
   ingress_rules = [
     {
-      # ssh는 cidr 내ip로 수정할 것
       from_port   = 22
       to_port     = 22
       protocol    = "tcp"
-      cidr_blocks = ["0.0.0.0/0", "10.0.0.0/16"]  # Shared VPC CIDR 추가
+      cidr_blocks = ["0.0.0.0/0", "10.0.0.0/16"]
       description = "SSH"
     },
     {
       from_port   = 8080
       to_port     = 8080
       protocol    = "tcp"
-      cidr_blocks = ["10.3.0.228/32", "10.0.0.0/16"]  # 프론트엔드 IP와 Shared VPC만 허용
+      cidr_blocks = ["10.3.0.228/32"]
       description = "Backend API from Frontend IP and Shared VPC"
     }
   ]
@@ -103,14 +102,14 @@ module "management_sg" {
       from_port   = 8080
       to_port     = 8080
       protocol    = "tcp"
-      cidr_blocks = ["0.0.0.0/0", "10.0.0.0/16"]  # Shared VPC CIDR 추가
+      cidr_blocks = ["0.0.0.0/0"]
       description = "Management UI"
     },
     {
       from_port   = 50000
       to_port     = 50000
       protocol    = "tcp"
-      cidr_blocks = ["0.0.0.0/0", "10.0.0.0/16"]  # Shared VPC CIDR 추가
+      cidr_blocks = ["0.0.0.0/0"]
       description = "Management Agent (optional)"
     }
   ]

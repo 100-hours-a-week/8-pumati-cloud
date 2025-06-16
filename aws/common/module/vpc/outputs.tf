@@ -1,5 +1,4 @@
 # modules/vpc/outputs.tf
-
 output "vpc_id" {
   description = "VPC ID"
   value       = aws_vpc.this.id
@@ -14,6 +13,7 @@ output "internet_gateway_id" {
   description = "인터넷 게이트웨이 ID"
   value       = aws_internet_gateway.this.id
 }
+
 # ----------------------------------------------------------------------------------------------------------------------
 output "public_subnet_id" {
   description = "퍼블릭 서브넷 ID"

@@ -1,4 +1,3 @@
-# modules/vpc/variables.tf
 variable "project_name" {
   description = "프로젝트 이름"
   type        = string
@@ -19,6 +18,9 @@ variable "az" {
   type        = string
 }
 
+# ----------------------------------------------------------------------------------------------------------------------
+# 서브넷
+# ----------------------------------------------------------------------------------------------------------------------
 variable "public_subnet_cidr" {
   description = "퍼블릭 서브넷 CIDR"
   type        = string
@@ -47,12 +49,6 @@ variable "enable_db_subnet" {
   description = "DB 서브넷 생성 여부"
   type        = bool
   default     = false
-}
-
-variable "map_public_ip_on_launch" {
-  description = "서브넷에 퍼블릭 IP 할당 여부"
-  type        = bool
-  default     = true
 }
 
 variable "public_subnet_map_public_ip" {

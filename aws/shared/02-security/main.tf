@@ -18,7 +18,7 @@ module "openvpn_sg" {
       from_port   = 22
       to_port     = 22
       protocol    = "tcp"
-      cidr_blocks = ["211.244.225.211/32"]
+      cidr_blocks = ["211.244.225.211/32", "10.3.0.0/16"]
       description = "SSH"
     },
     {

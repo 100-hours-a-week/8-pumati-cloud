@@ -12,3 +12,8 @@ output "private_ip" {
   description = "프라이빗 IP 주소"
   value       = aws_instance.this.private_ip
 }
+
+output "primary_network_interface_id" {
+  description = "인스턴스의 기본 네트워크 인터페이스 ID"
+  value       = aws_instance.this.primary_network_interface_id
+}

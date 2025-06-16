@@ -38,6 +38,11 @@ variable "security_group_ids" {
   type        = list(string)
 }
 
+variable "source_dest_check" {
+  description = "소스/대상 체크 설정 (NAT 인스턴스의 경우 false로 설정)"
+  type        = bool
+  default     = true
+}
 variable "iam_instance_profile" {
   description = "IAM 인스턴스 프로파일 이름"
   type        = string
@@ -85,3 +90,4 @@ variable "enable_eip" {
   description = "EIP를 할당할지 여부"
   type        = bool
 }
+
