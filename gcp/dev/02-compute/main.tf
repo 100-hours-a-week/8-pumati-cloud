@@ -35,7 +35,7 @@
 resource "google_compute_instance_template" "g2_standard_4" {
   name_prefix  = "l4-spot-g2std4-"
   project      = local.project_id
-  machine_type = "g2-standard-4"
+  machine_type = "g2-standard-8"
 
   # 스팟 인스턴스 설정
   scheduling {
@@ -92,7 +92,7 @@ resource "google_compute_instance_template" "g2_standard_4" {
 resource "google_compute_instance_template" "g2_standard_8" {
   name_prefix  = "l4-spot-g2std8-"
   project      = local.project_id
-  machine_type = "g2-standard-8"
+  machine_type = "g2-standard-12"
 
   # 스팟 인스턴스 설정
   scheduling {
@@ -163,45 +163,42 @@ resource "google_compute_health_check" "l4_spot" {
   }
 }
 
-# Zonal MIG - 영구 디스크와 같은 존에 생성
+# Zonal MIG - 올바른 다중 버전 설정
 resource "google_compute_instance_group_manager" "l4_spot_zonal" {
   name               = "l4-spot-zonal-mig"
   project            = local.project_id
-  zone               = local.pd_zone  # 영구 디스크와 같은 존에 생성
+  zone               = local.pd_zone
   base_instance_name = "l4-spot"
 
-  # 명시적 의존성 - 간단하게 필요한 것만
   depends_on = [
     google_compute_instance_template.g2_standard_4,
     google_compute_instance_template.g2_standard_8,
     google_compute_health_check.l4_spot
   ]
 
-  # 여러 버전 설정 - GCP가 자동으로 가용한 것을 선택
-  # Zonal MIG는 최대 2개 버전만 지원
-  # 우선순위: g2-standard-4 → g2-standard-8
+  # 올바른 버전 설정
   version {
     instance_template = google_compute_instance_template.g2_standard_4.id
-    # target_size를 설정하지 않음 (기본 버전)
+    # target_size 없음 = 기본 버전 (우선 시도)
   }
 
   version {
     instance_template = google_compute_instance_template.g2_standard_8.id
     target_size {
-      fixed = 0  # 대체 버전, 필요시 자동 활성화
+      percent = 0  # 0%로 설정 = 대체 버전으로만 사용
     }
   }
 
   target_size        = 1
   wait_for_instances = true
 
-  # 업데이트 정책 - Zonal MIG용
+  # 업데이트 정책 - 자동 전환 최적화
   update_policy {
     type                           = "PROACTIVE"
     minimal_action                 = "REPLACE"
     most_disruptive_allowed_action = "REPLACE"
-    max_surge_fixed                = 0  # RECREATE 방식에서는 0
-    max_unavailable_fixed          = 1  # Zonal MIG이므로 1
+    max_surge_fixed                = 0
+    max_unavailable_fixed          = 1
     replacement_method             = "RECREATE"
   }
 
