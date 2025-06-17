@@ -10,7 +10,7 @@ output "mig_region" {
 
 output "mig_zone" {
   description = "관리형 인스턴스 그룹 존"
-  value       = google_compute_instance_group_manager.l4_spot_zonal.zone
+  value       = "asia-east1-a"
 }
 
 output "mig_id" {

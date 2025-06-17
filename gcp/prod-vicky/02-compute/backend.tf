@@ -1,7 +1,7 @@
 terraform {
   backend "s3" {
     bucket       = "s3-terraform-ktb8team"
-    key          = "gcp/prod-vicky/compute/terraform.tfstate"
+    key          = "gcp/dev-vicky/compute/terraform.tfstate"
     region       = "ap-northeast-2"
     encrypt      = true
     use_lockfile = true

@@ -23,7 +23,7 @@ common_labels = {
 }
 
 # 도메인 관련 설정
-domain_name  = "dev-vicky.mydairy.my"  # 서비스 도메인
+domain_name  = "dev.vicky.mydairy.my"  # 서비스 도메인
 
 # 상태 저장 관련 설정
 tfstate_bucket = "ktb8team-terraform-state"  # 테라폼 상태 저장 버킷(s3)

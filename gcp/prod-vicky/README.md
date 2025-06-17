@@ -2,7 +2,7 @@
 
 - 프로바이더 설정(terraform-key.json 파일 생성)
 
-terraform@ktb8team-458916.iam.gserviceaccount.com  -> 프로젝트 소유자로 지정해주기.
+
 
 시작 전에 해야 할 일
 
@@ -12,7 +12,7 @@ gcloud auth login
 키생성( 이 폼은 전체 리드미에 있음)
 
 # 프로젝트 설정
-gcloud config set project loyal-parser-463101-n8
+gcloud config set project uplifted-might-460405-r3
 
 # 서비스 계정 생성 (Terraform 용)
 gcloud iam service-accounts create terraform \
@@ -20,22 +20,21 @@ gcloud iam service-accounts create terraform \
   --display-name="Terraform Service Account"
 
 # 서비스 계정에 소유자 역할 부여
-gcloud projects add-iam-policy-binding loyal-parser-463101-n8 \
-  --member="serviceAccount:terraform@loyal-parser-463101-n8.iam.gserviceaccount.com" \
+gcloud projects add-iam-policy-binding uplifted-might-460405-r3 \
+  --member="serviceAccount:terraform@uplifted-might-460405-r3.iam.gserviceaccount.com" \
   --role="roles/owner"
 
 # 서비스 계정 키 생성 및 저장
-gcloud iam service-accounts keys create ~/terraform-key-prod-vicky.json \
-  --iam-account="terraform@loyal-parser-463101-n8.iam.gserviceaccount.com"
+gcloud iam service-accounts keys create ~/terraform-key-dev-vicky.json \
+  --iam-account="terraform@uplifted-might-460405-r3.iam.gserviceaccount.com"
 
 # 클라우드플레어 설정
 
 먼저 로컬의 클라우드플레어에서 서브도메인 라우팅 등록(prod-ai-tunnel 터널이 이미 있는데, 여기 서브도메인 추가)
-cloudflared tunnel route dns prod-ai-tunnel prod-vicky.mydairy.my
+cloudflared tunnel route dns prod-ai-tunnel dev.vicky.mydairy.my
 
 하고나서 콘솔에서 잘 등록되었는지 확인
 
--> 바뀌어서 클라우드플레어 콘솔 가서 제로 트러스트 -> 터널 가서 추가.
 
 json과 pem 
 

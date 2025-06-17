@@ -1,9 +1,5 @@
 새 구글 계정 생성 시 할 일
 
-terraform@ktb8team-458916.iam.gserviceaccount.com  -> 프로젝트 소유자로 지정해주기.
-
-버킷 생성해서 키 파일 올리기(json, pem)
-
 # 새 계정으로 인증
 
 gcloud auth login

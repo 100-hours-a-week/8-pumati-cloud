@@ -15,7 +15,7 @@ data "terraform_remote_state" "common" {
   backend = "s3"
   config = {
     bucket       = "s3-terraform-ktb8team"
-    key          = "gcp/prod-vicky/common/terraform.tfstate"
+    key          = "gcp/dev-vicky/common/terraform.tfstate"
     region       = "ap-northeast-2"
   }
 }
@@ -36,5 +36,5 @@ locals {
 provider "google" {
   project     = local.project_id
   region      = local.region
-  credentials = file("${path.module}/../../common/terraform-keys/terraform-key-prod-vicky.json")
+  credentials = file("${path.module}/../../common/terraform-keys/terraform-key-dev-vicky.json")
 }

@@ -1,7 +1,7 @@
 # terraform.tfvars - 변수 값 설정 파일
 
 # 버킷 설정
-bucket_name = "ktb8team-static-storage-prod-vicky"
+bucket_name = "ktb8team-static-storage-dev-vicky"
 storage_class = "STANDARD"
 
 # 버전 관리 설정
