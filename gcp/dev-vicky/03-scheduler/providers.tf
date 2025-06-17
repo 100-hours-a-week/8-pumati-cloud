@@ -15,7 +15,7 @@ data "terraform_remote_state" "common" {
   backend = "s3"
   config = {
     bucket       = "s3-terraform-ktb8team"
-    key          = "gcp/dev/common/terraform.tfstate"
+    key          = "gcp/dev-vicky/common/terraform.tfstate"
     region       = "ap-northeast-2"
   }
 }
@@ -35,7 +35,7 @@ data "terraform_remote_state" "static" {
   backend = "s3"
   config = {
     bucket = "s3-terraform-ktb8team"
-    key = "gcp/dev/static/terraform.tfstate"
+    key = "gcp/dev-vicky/static/terraform.tfstate"
     region = "ap-northeast-2"
   }
 }
@@ -52,13 +52,13 @@ data "terraform_remote_state" "compute" {
   backend = "s3"
   config = {
     bucket = "s3-terraform-ktb8team"
-    key = "gcp/dev/compute/terraform.tfstate"
+    key = "gcp/dev-vicky/compute/terraform.tfstate"
     region = "ap-northeast-2"
   }
 }
 locals {
   mig_name    = data.terraform_remote_state.compute.outputs.mig_name
-  mig_region  = data.terraform_remote_state.compute.outputs.mig_region
+  # mig_region  = data.terraform_remote_state.compute.outputs.mig_region
   mig_zone    = data.terraform_remote_state.compute.outputs.mig_zone
 }
 
@@ -67,5 +67,5 @@ locals {
 provider "google" {
   project     = local.project_id
   region      = local.region
-  credentials = file("${path.module}/../../common/terraform-keys/terraform-key-dev.json")
+  credentials = file("${path.module}/../../common/terraform-keys/terraform-key-dev-vicky.json")
 }

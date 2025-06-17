@@ -46,7 +46,7 @@ resource "google_compute_instance_template" "g2_standard_4" {
 
   # 부팅 디스크 설정
   disk {
-    source_image = "projects/deeplearning-platform-release/global/images/family/pytorch-latest-cu121-ubuntu-2204-py310"
+    source_image = "projects/deeplearning-platform-release/global/images/family/pytorch-latest-gpu"
     auto_delete  = true
     boot         = true
     disk_size_gb = 100
@@ -103,7 +103,7 @@ resource "google_compute_instance_template" "g2_standard_8" {
 
   # 부팅 디스크 설정
   disk {
-    source_image = "projects/deeplearning-platform-release/global/images/family/pytorch-latest-cu121-ubuntu-2204-py310"
+    source_image = "projects/deeplearning-platform-release/global/images/family/pytorch-latest-gpu"
     auto_delete  = true
     boot         = true
     disk_size_gb = 100

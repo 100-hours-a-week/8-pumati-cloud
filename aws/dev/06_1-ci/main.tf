@@ -263,6 +263,36 @@ resource "aws_iam_role_policy_attachment" "jenkins_ecr_policy_attachment" {
 }
 
 #==============================================================================
+# Kaniko ECR 인증을 위한 Secret
+#==============================================================================
+# Kaniko가 ECR에 이미지를 푸시하기 위한 인증 설정
+resource "kubernetes_secret" "kaniko_ecr_config" {
+  metadata {
+    name      = "kaniko-ecr-config"
+    namespace = kubernetes_namespace.jenkins.metadata[0].name
+
+    labels = {
+      "app.kubernetes.io/name"      = "jenkins"
+      "app.kubernetes.io/component" = "kaniko-auth"
+    }
+  }
+
+  # ECR credential helper 설정
+  data = {
+    "config.json" = jsonencode({
+      credHelpers = {
+        # AWS 계정의 ECR 레지스트리 URL 패턴
+        "${data.aws_caller_identity.current.account_id}.dkr.ecr.ap-northeast-2.amazonaws.com" = "ecr-login"
+      }
+    })
+  }
+
+  type = "Opaque"
+
+  depends_on = [kubernetes_namespace.jenkins]
+}
+
+#==============================================================================
 # Jenkins Helm 차트 설치
 #==============================================================================
 # 공식 Jenkins Helm 차트를 사용하여 간결하고 표준적인 구성
@@ -280,105 +310,57 @@ resource "helm_release" "jenkins" {
 
   values = [
     yamlencode({
-      # 컨트롤러 설정 (Jenkins 마스터)
+      # 🔧 Jenkins 마스터 설정 (관리 전용 - 빌드 안함)
       controller = {
-        # 🔧 1. Java 21 이미지로 업그레이드
+        # 🔧 Jenkins 이미지 설정
         image = {
           repository = "jenkins/jenkins"
-          tag        = "2.492.2-jdk21" # Java 17 → Java 21
+          tag        = "2.492.2-jdk21"
           pullPolicy = "IfNotPresent"
         }
 
-        # 🔧 2. 관리자 계정 설정 (보안 문제 해결)
+        # 🔧 관리자 계정 설정
         admin = {
           username = "admin"
-          password = "admin123!" # 첫 로그인 후 반드시 변경
+          password = "admin123!"
         }
 
-        # 리소스 설정 - t3.medium에 최적화
+        # 🔧 리소스 설정 (기존의 2배로 증가)
         resources = {
           requests = {
-            cpu    = "1000m" # 1 vCPU 요청
-            memory = "2Gi"   # 2GB 메모리 요청
+            cpu    = "400m"    # 200m → 400m (2배)
+            memory = "1Gi"     # 512Mi → 1Gi (2배)
           }
           limits = {
-            cpu    = "1800m"  # 1.8 vCPU 제한 (90%)
-            memory = "3500Mi" # 3.5GB 메모리 제한 (노드 여유 공간 확보)
+            cpu    = "1000m"   # 500m → 1000m (2배)
+            memory = "2Gi"     # 1Gi → 2Gi (2배)
           }
         }
 
-        # 🔧 Jenkins URL 설정 강화
+        # Jenkins URL 설정
         jenkinsUrl       = "http://jenkins.jenkins.svc.cluster.local:8080"
         jenkinsUriPrefix = "/"
 
-        # 🔧 마스터에서 빌드 실행 비활성화 (중요!)
-        numExecutors = 0 # 마스터에서 빌드 작업 실행 금지
+        # 🚫 마스터에서 빌드 안함 (에이전트에서만 빌드)
+        numExecutors = 0
 
-        # 🔧 플러그인 설치 - 최소한만 추가 (Kubernetes 플러그인만)
-        installPlugins = [
-          # "kubernetes:4246.v5a_12b_1fe120e"  # Kubernetes 플러그인만 추가 (에이전트 동적 생성용)
+        # 🔧 환경 변수 (관리 전용)
+        containerEnv = [
+          {
+            name  = "JENKINS_URL"
+            value = "https://jenkins.${local.domain_name}/"
+          },
+          {
+            name  = "JENKINS_ROOT_URL"
+            value = "https://jenkins.${local.domain_name}/"
+          }
         ]
 
-        # 추가 플러그인 비활성화
-        additionalPlugins = []
-
-        # 플러그인 설치 관련 설정
-        initContainerEnv = []
-
-        # 🔧 JCasC 설정 - Kubernetes 클라우드 기본 설정만 (Pod 템플릿 제외)
-        JCasC = {
-          defaultConfig = false
-          configScripts = {
-            jenkins-config = yamlencode({
-              jenkins = {
-                # 🔥 보안 설정
-                securityRealm = {
-                  local = {
-                    allowsSignup = false
-                    users = [
-                      {
-                        id       = "admin"
-                        password = "admin123!"
-                      }
-                    ]
-                  }
-                }
-                authorizationStrategy = {
-                  loggedInUsersCanDoAnything = {
-                    allowAnonymousRead = false
-                  }
-                }
-                
-                # 🔥 기본 Kubernetes 클라우드만 설정 (Pod 템플릿은 Jenkinsfile에서 정의)
-                clouds = [
-                  {
-                    kubernetes = {
-                      name          = "kubernetes"
-                      serverUrl     = "https://kubernetes.default.svc"
-                      namespace     = "jenkins"
-                      # ⭐️ WebSocket 방식: 외부 도메인 URL 사용 (에이전트가 ALB를 통해 연결)
-                      jenkinsUrl    = "https://jenkins.${local.domain_name}"
-                      # ⭐️ WebSocket 사용 시 jenkinsTunnel은 비워둠 (설정하면 TCP 모드로 강제됨)
-                      # jenkinsTunnel = ""  # 명시적으로 비워둠
-                      # ⭐️ WebSocket 활성화 - ALB가 HTTP(S) 업그레이드 자동 지원
-                      webSocket     = true
-                      containerCap  = 20
-                      maxRequestsPerHost = 32
-                      skipTlsVerify = true
-                      # Pod 템플릿은 Jenkinsfile에서 inline으로 정의
-                    }
-                  }
-                ]
-              }
-            })
-          }
-        }
-
-        # 🔥 JVM 옵션 - t3.medium에 맞춘 넉넉한 설정
+        # 🔧 JVM 옵션 (기존의 2배로 적절히 증가)
         javaOpts = join(" ", [
-          "-Xms1536m",                 # 초기 힙: 1.5GB
-          "-Xmx2560m",                 # 최대 힙: 2.5GB
-          "-XX:MaxMetaspaceSize=512m", # 메타스페이스: 512MB
+          "-Xms512m",           # 최소 힙 크기 (256m → 512m)
+          "-Xmx1g",             # 최대 힙 크기 (512m → 1g)
+          "-XX:MaxMetaspaceSize=256m",  # 메타스페이스 (128m → 256m)
           "-XX:+UseG1GC",
           "-XX:+UseStringDeduplication",
           "-XX:+UseContainerSupport",
@@ -392,19 +374,7 @@ resource "helm_release" "jenkins" {
           "-Duser.timezone=Asia/Seoul"
         ])
 
-        # 🔥 Jenkins 환경 변수로도 강제 설정
-        containerEnv = [
-          {
-            name  = "JENKINS_URL"
-            value = "https://jenkins.${local.domain_name}/"
-          },
-          {
-            name  = "JENKINS_ROOT_URL"
-            value = "https://jenkins.${local.domain_name}/"
-          }
-        ]
-
-        # 서비스 계정 설정
+        # 🔧 서비스 계정 설정
         serviceAccount = {
           create = true
           name   = "jenkins"
@@ -413,14 +383,7 @@ resource "helm_release" "jenkins" {
           }
         }
 
-        # 보안 컨텍스트
-        securityContext = {
-          runAsUser  = 1000
-          runAsGroup = 1000
-          fsGroup    = 1000
-        }
-
-        # 영구 볼륨 설정
+        # 🔧 영구 볼륨 설정 (크기 축소)
         persistence = {
           enabled       = true
           existingClaim = "jenkins-master-pvc"
@@ -435,7 +398,7 @@ resource "helm_release" "jenkins" {
           port = 8080
         }
 
-        # Ingress 설정에서 모든 하위 경로 허용 확인
+        # Ingress 설정
         ingress = {
           enabled = true
           annotations = {
@@ -454,12 +417,12 @@ resource "helm_release" "jenkins" {
               "routing.http.xff_header_processing.mode=append"
             ])
             
-            # ⭐️ WebSocket 지원을 위한 타임아웃 설정 (긴 빌드 대응)
+            # WebSocket 지원
             "alb.ingress.kubernetes.io/backend-protocol-version" = "HTTP1"
           }
           hostName = "jenkins.${local.domain_name}"
           path     = "/*"
-          pathType = "Prefix" # 모든 하위 경로 포함 (/static/ 포함)
+          pathType = "Prefix"
 
           tls = [
             {
@@ -469,15 +432,7 @@ resource "helm_release" "jenkins" {
           ]
         }
 
-        # 💥 agentListenerService는 레거시 TCP 방식이므로 제거합니다.
-        # agentListenerService = {
-        #   enabled = true
-        #   type    = "ClusterIP"
-        #   port    = 50000
-        #   name    = "jenkins-agent"
-        # }
-
-        # 노드 선택 (시스템 노드에 배치) - 주석 해제
+        # 노드 선택 (시스템 노드에 배치)
         nodeSelector = {
           "node-type" = "system"
         }
@@ -492,12 +447,13 @@ resource "helm_release" "jenkins" {
           }
         ]
 
-        # 가용영역 제한 (EBS 볼륨과 같은 AZ)
+        # 가용영역 선호도
         affinity = {
           nodeAffinity = {
-            requiredDuringSchedulingIgnoredDuringExecution = {
-              nodeSelectorTerms = [
-                {
+            preferredDuringSchedulingIgnoredDuringExecution = [
+              {
+                weight = 100
+                preference = {
                   matchExpressions = [
                     {
                       key      = "topology.kubernetes.io/zone"
@@ -506,53 +462,24 @@ resource "helm_release" "jenkins" {
                     }
                   ]
                 }
-              ]
-            }
+              }
+            ]
           }
         }
 
-        # 헬스체크 설정
-        healthProbes = true
-        probes = {
-          startupProbe = {
-            httpGet = {
-              path = "/login"
-              port = "http"
-            }
-            initialDelaySeconds = 60
-            periodSeconds       = 10
-            timeoutSeconds      = 5
-            failureThreshold    = 12
-          }
-          livenessProbe = {
-            httpGet = {
-              path = "/login"
-              port = "http"
-            }
-            initialDelaySeconds = 90
-            periodSeconds       = 10
-            timeoutSeconds      = 5
-            failureThreshold    = 5
-          }
-          readinessProbe = {
-            httpGet = {
-              path = "/login"
-              port = "http"
-            }
-            initialDelaySeconds = 30
-            periodSeconds       = 10
-            timeoutSeconds      = 5
-            failureThreshold    = 3
-          }
-        }
+        # 헬스체크 비활성화 (기본값 사용)
+        healthProbes = false
+
+        # 🚫 추가 플러그인 설치 비활성화 (기본 플러그인만 사용)
+        installPlugins = false
       }
 
-      # ⭐️ 에이전트 WebSocket 설정 - 핵심 옵션!
-      agent = {
-        enabled   = false     # 정적 에이전트는 비활성화 (동적 에이전트만 사용)
-        websocket = true      # 🔥 핵심: WebSocket 방식 활성화
-        podName   = "jenkins-agent-{{.Build.Number}}-{{randAlphaNum 5}}"
-      }
+      # ⭐️ 에이전트 관련 설정 완전 제거
+      # agent = {
+      #   enabled   = false
+      #   websocket = true
+      #   podName   = "jenkins-agent-{{.Build.Number}}-{{randAlphaNum 5}}"
+      # }
 
       # 🔥 StatefulSet의 volumeClaimTemplates 비활성화
       persistence = {
@@ -568,7 +495,7 @@ resource "helm_release" "jenkins" {
   # Jenkins가 완전히 시작될 때까지 대기
   wait          = true
   wait_for_jobs = true
-  timeout       = 600 # 뜨는데 5~10분 사이로 걸리는 듯
+  timeout       = 300 # 뜨는데 5~10분 사이로 걸리는 듯
 
   # 🚨 중요: PVC 삭제 순서 문제 해결
   lifecycle {
@@ -609,5 +536,3 @@ resource "kubernetes_cluster_role_binding" "jenkins" {
 
   depends_on = [helm_release.jenkins]
 }
-
-

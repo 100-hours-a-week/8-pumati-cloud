@@ -18,9 +18,9 @@ spec:
     server: https://kubernetes.default.svc  # 대상 클러스터
     namespace: pumati  # 백엔드가 배포될 네임스페이스 (통합 네임스페이스)
   syncPolicy:
-    automated:  # 자동 동기화 활성화
-      prune: true      # 불필요한 리소스 자동 제거
-      selfHeal: true   # 설정 변경 자동 복구
+    # automated:  # 자동 동기화 활성화
+    #  prune: true      # 불필요한 리소스 자동 제거
+    #  selfHeal: true   # 설정 변경 자동 복구
     syncOptions:
       - CreateNamespace=true  # 네임스페이스 자동 생성
       - PrunePropagationPolicy=foreground  # 리소스 삭제 정책

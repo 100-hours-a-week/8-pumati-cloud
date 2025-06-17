@@ -9,7 +9,7 @@ environment  = "dev"  # dev, staging, prod 중 선택
 
 # 리전 관련 설정 - 스팟이 안정적이고 싼 타이완
 region       = "asia-east1"
-zone_suffix  = "b"  # a, b, c 등 존 접미사
+zone_suffix  = "c"  # a, b, c 등 존 접미사
 
 # 공통 태그 설정 (리스트로 변경) gcp 는 태그랑 라벨 다름. aws 의 태그가 라벨임  
 common_tags = ["terraform", "ktb8team", "dev", "jacky"]

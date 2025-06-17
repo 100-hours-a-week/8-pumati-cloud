@@ -154,9 +154,15 @@ else
   # 디스크 없음, Docker 경로는 기본값(/var/lib/docker) 유지됨
 fi
 
-# 시스템 패키지 업데이트 (원래 스크립트에서 이 부분이 앞에 있었음)
+# 시스템 패키지 업데이트 (비대화 모드로 실행하여 프롬프트 방지)
 log_message "▶ 시스템 패키지 업데이트 중..."
-if apt-get update && apt-get upgrade -y; then
+# DEBIAN_FRONTEND=noninteractive: 패키지 설치 시 사용자 입력 프롬프트 차단
+# -yq: -y(자동 yes 응답) + -q(quiet 모드, 진행률 출력 최소화)
+# dpkg 옵션들: 설정 파일 충돌 시 기본 동작 설정
+if DEBIAN_FRONTEND=noninteractive apt-get update -yq && \
+   DEBIAN_FRONTEND=noninteractive apt-get upgrade -yq \
+   -o Dpkg::Options::="--force-confdef" \
+   -o Dpkg::Options::="--force-confold"; then
   log_message "✅ 시스템 패키지 업데이트 완료"
 else
   log_message "⚠️ 시스템 패키지 업데이트 중 일부 오류 발생, 계속 진행합니다"

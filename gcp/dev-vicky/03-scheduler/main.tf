@@ -12,13 +12,13 @@
 resource "google_project_iam_member" "terraform_cloudbuild_admin" {
   project = local.project_id
   role    = "roles/cloudbuild.builds.editor"
-  member  = "serviceAccount:terraform@ambient-topic-459110-e6.iam.gserviceaccount.com"
+  member  = "serviceAccount:terraform@uplifted-might-460405-r3.iam.gserviceaccount.com"
 }
 
 resource "google_project_iam_member" "cloudbuild_compute_admin" {
   project = local.project_id
   role    = "roles/compute.admin"
-  member  = "serviceAccount:terraform@ambient-topic-459110-e6.iam.gserviceaccount.com"
+  member  = "serviceAccount:terraform@uplifted-might-460405-r3.iam.gserviceaccount.com"
 }
 
 # 크기를 0으로 조정하는 스케줄러
@@ -32,7 +32,7 @@ resource "google_cloud_scheduler_job" "resize_mig_off" {
     http_method = "POST"
     uri         = "https://cloudbuild.googleapis.com/v1/projects/${local.project_id}/builds"
     oauth_token {
-      service_account_email = "terraform@ambient-topic-459110-e6.iam.gserviceaccount.com"
+      service_account_email = "terraform@uplifted-might-460405-r3.iam.gserviceaccount.com"
     }
     body = base64encode(jsonencode({
       steps = [
@@ -72,7 +72,7 @@ resource "google_cloud_scheduler_job" "resize_mig_on" {
     http_method = "POST"
     uri         = "https://cloudbuild.googleapis.com/v1/projects/${local.project_id}/builds"
     oauth_token {
-      service_account_email = "terraform@ambient-topic-459110-e6.iam.gserviceaccount.com"
+      service_account_email = "terraform@uplifted-might-460405-r3.iam.gserviceaccount.com"
     }
     body = base64encode(jsonencode({
       steps = [
