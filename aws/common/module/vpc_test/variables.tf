@@ -13,27 +13,30 @@ variable "vpc_cidr" {
   type        = string
 }
 
-variable "az" {
-  description = "가용 영역 (예: 'ap-northeast-2a')"
-  type        = string
+variable "azs" {
+  description = "가용 영역 목록 (예: ['ap-northeast-2a', 'ap-northeast-2c'])"
+  type        = list(string)
 }
 
 # ----------------------------------------------------------------------------------------------------------------------
 # 서브넷
 # ----------------------------------------------------------------------------------------------------------------------
-variable "public_subnet_cidr" {
-  description = "퍼블릭 서브넷 CIDR"
-  type        = string
+variable "public_subnet_cidrs" {
+  description = "AZ별 퍼블릭 서브넷 CIDR"
+  type        = list(string)
+  default     = []
 }
 
-variable "service_subnet_cidr" {
-  description = "서비스 서브넷 CIDR"
-  type        = string
+variable "service_subnet_cidrs" {
+  description = "AZ별 서비스 서브넷 CIDR"
+  type        = list(string)
+  default     = []
 }
 
-variable "db_subnet_cidr" {
+variable "db_subnet_cidrs" {
   description = "DB 서브넷 CIDR"
-  type        = string
+  type        = list(string)
+  default     = []
 }
 
 variable "enable_service_subnet" {

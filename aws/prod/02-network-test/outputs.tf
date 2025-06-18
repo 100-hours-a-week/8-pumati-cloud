@@ -19,14 +19,14 @@ output "internet_gateway_id" {
 # ----------------------------------------------------------------------------------------------------------------------
 # 퍼블릭 서브넷 구성 요소
 # ----------------------------------------------------------------------------------------------------------------------
-output "public_subnet_id" {
-  description = "퍼블릭 서브넷 ID"
-  value       = module.vpc.public_subnet_id
+output "public_subnet_ids" {
+  description = "퍼블릭 서브넷 ID 리스트"
+  value       = module.vpc.public_subnet_ids
 }
 
-output "public_subnet_cidr" {
-  description = "퍼블릭 서브넷 CIDR 블록"
-  value       = module.vpc.public_subnet_cidr
+output "public_subnet_cidrs" {
+  description = "퍼블릭 서브넷 CIDR 블록 리스트"
+  value       = module.vpc.public_subnet_cidr_blocks
 }
 
 output "public_route_table_id" {
@@ -37,26 +37,35 @@ output "public_route_table_id" {
 # ----------------------------------------------------------------------------------------------------------------------
 # 서비스 및 DB 서브넷 (선택적 구성 요소)
 # ----------------------------------------------------------------------------------------------------------------------
-output "service_subnet_id" {
-  description = "서비스 서브넷 ID (사용되는 경우)"
-  value       = module.vpc.service_subnet_id
+output "service_subnet_ids" {
+  description = "서비스 서브넷 ID 리스트 (enable_service_subnet=true일 때만)"
+  value = module.vpc.service_subnet_ids
 }
 
-output "service_route_table_id" {
-  description = "서비스 서브넷 라우팅 테이블 ID (사용되는 경우)"
-  value       = module.vpc.service_route_table_id
+output "service_subnet_cidr_blocks" {
+  description = "서비스 서브넷 CIDR 블록 리스트(enable_service_subnet=true일 때만)"
+  value = module.vpc.service_subnet_cidr_blocks
 }
 
-output "db_subnet_id" {
-  description = "DB 서브넷 ID (사용되는 경우)"
-  value       = module.vpc.db_subnet_id
+output "service_route_table_ids" {
+  description = "서비스 라우팅 테이블 ID 리스트 (enable_service_subnet=true일 때만)"
+  value = module.vpc.service_route_table_ids
 }
 
-output "db_route_table_id" {
-  description = "DB 라우팅 테이블 ID (사용되는 경우)"
-  value       = module.vpc.db_route_table_id
+output "db_subnet_ids" {
+  description = "DB 서브넷 ID 리스트 (enable_db_subnet=true일 때만)"
+  value = module.vpc.db_subnet_ids
 }
 
+output "db_subnet_cidr_blocks" {
+  description = "DB 서브넷 CIDR 블록 리스트 (enable_db_subnet=true일 때만)"
+  value = module.vpc.db_subnet_cidr_blocks
+}
+
+output "db_route_table_ids" {
+  description = "DB 라우팅 테이블 ID 리스트 (enable_db_subnet=true일 때만)"
+  value = module.vpc.db_route_table_ids
+}
 # ----------------------------------------------------------------------------------------------------------------------
 # NAT 인스턴스 정보
 # ----------------------------------------------------------------------------------------------------------------------

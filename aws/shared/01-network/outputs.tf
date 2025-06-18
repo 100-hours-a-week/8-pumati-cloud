@@ -12,12 +12,12 @@ output "vpc_cidr" {
 # 퍼블릭 서브넷 구성 요소
 output "public_subnet_id" {
   description = "퍼블릭 서브넷 ID"
-  value       = module.vpc.public_subnet_id
+  value       = module.vpc.public_subnet_ids[0]
 }
 
 output "public_subnet_cidr" {
   description = "퍼블릭 서브넷 CIDR 블록"
-  value       = module.vpc.public_subnet_cidr_block
+  value       = module.vpc.public_subnet_cidr_blocks[0]
 }
 
 output "public_route_table_id" {

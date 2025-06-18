@@ -1,17 +1,15 @@
 # 1. shared vpc : 단일 가용 영역, 단일 퍼블릭 서브넷
 # 2. prod vpc와의 피어링 연결
 module "vpc" {
-  source = "../../common/module/vpc"
+  source = "../../common/module/vpc_test"
 
   project_name = local.project_name
   environment  = local.environment
   tags         = local.common_tags
 
   vpc_cidr              = "10.0.0.0/16"
-  public_subnet_cidr    = "10.0.0.0/24"
-  service_subnet_cidr   = "10.3.1.0/24"
-  db_subnet_cidr        = "10.3.2.0/24"
-  az                    = "ap-northeast-2a"
+  azs                   = ["ap-northeast-2a"]
+  public_subnet_cidrs   = ["10.0.0.0/24"]
 
   enable_service_subnet   = false
   enable_db_subnet        = false

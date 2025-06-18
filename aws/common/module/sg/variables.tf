@@ -13,16 +13,6 @@ variable "service_name" {
   type        = string
 }
 
-variable "name" {
-  description = "보안 그룹 이름"
-  type        = string
-}
-
-variable "description" {
-  description = "보안 그룹 설명"
-  type        = string
-}
-
 variable "vpc_id" {
   description = "VPC ID"
   type        = string

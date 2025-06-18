@@ -22,7 +22,7 @@ resource "aws_instance" "this" {
   instance_initiated_shutdown_behavior = var.shutdown_behavior
 
   tags = merge(var.tags, {
-    Name = "${var.project_name}-${var.environment}-${var.instance_name}"
+    Name = "${var.project_name}-${var.environment}-${var.service_name}"
   })
 }
 
@@ -33,6 +33,6 @@ resource "aws_eip" "this" {
   instance = aws_instance.this.id
 
   tags = merge(var.tags, {
-    Name = "${var.project_name}-${var.environment}-${var.instance_name}-eip"
+    Name = "${var.project_name}-${var.environment}-${var.service_name}-eip"
   })
 }

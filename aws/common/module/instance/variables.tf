@@ -8,9 +8,9 @@ variable "environment" {
   type        = string
 }
 
-variable "instance_name" {
-  description = "인스턴스 이름"
-  type        = string
+variable "service_name" {
+  description = "서비스 이름(예: frontend, service, db)"
+  type = string
 }
 
 variable "instance_ami" {
@@ -65,12 +65,6 @@ variable "user_data" {
   default     = ""
 }
 
-variable "tags" {
-  description = "공통 태그"
-  type        = map(string)
-  default     = {}
-}
-
 variable "enable_monitoring" {
   description = "CloudWatch 상세 모니터링 활성화 여부"
   type        = bool
@@ -91,3 +85,8 @@ variable "enable_eip" {
   type        = bool
 }
 
+variable "tags" {
+  description = "공통 태그"
+  type        = map(string)
+  default     = {}
+}

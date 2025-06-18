@@ -1,0 +1,68 @@
+terraform {
+  required_version = ">= 1.0.0"
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 5.0"
+    }
+  }
+}
+
+provider "aws" {
+  region = "ap-northeast-2"
+}
+
+# Common 모듈의 상태를 참조
+data "terraform_remote_state" "common" {
+  backend = "s3"
+  config = {
+    bucket = "s3-pumati-tfstate"
+    key    = "aws/prod/common/terraform.tfstate"
+    region = "ap-northeast-2"
+  }
+}
+
+# Network-test 모듈의 상태를 참조
+data "terraform_remote_state" "network_test" {
+  backend = "s3"
+  config = {
+    bucket = "s3-pumati-tfstate"
+    key    = "aws/prod/network-test/terraform.tfstate"
+    region = "ap-northeast-2"
+  }
+}
+
+# Security 모듈의 상태를 참조
+data "terraform_remote_state" "security_test" {
+  backend = "s3"
+  config = {
+    bucket = "s3-pumati-tfstate"
+    key    = "aws/prod/security-test/terraform.tfstate"
+    region = "ap-northeast-2"
+  }
+}
+
+# Common, Network, Security 모듈의 출력 값 사용
+locals {
+  # common 모듈 : 프로젝트 이름, 리전, 환경, 공통 태그
+  project_name = data.terraform_remote_state.common.outputs.project_name
+  region       = data.terraform_remote_state.common.outputs.region
+  environment  = data.terraform_remote_state.common.outputs.environment
+  common_tags  = data.terraform_remote_state.common.outputs.common_tags
+
+  # network-test 모듈 : vpc_id, public_subnet_id
+  vpc_id_test       = data.terraform_remote_state.network_test.outputs.vpc_id
+  public_subnet_ids_test = data.terraform_remote_state.network_test.outputs.public_subnet_ids[0]
+  service_subnet_ids_test = data.terraform_remote_state.network_test.outputs.service_subnet_ids[0]
+  db_subnet_ids_test = data.terraform_remote_state.network_test.outputs.db_subnet_ids[0]
+
+  # security-test 모듈 : 보안 그룹 ID
+  frontend_sg_id = data.terraform_remote_state.security_test.outputs.frontend_sg_id
+  backend_sg_id  = data.terraform_remote_state.security_test.outputs.backend_sg_id
+  management_sg_id  = data.terraform_remote_state.security_test.outputs.management_sg_id
+  
+  # security-test 모듈 : IAM 인스턴스 프로파일 이름
+  frontend_instance_profile_name = data.terraform_remote_state.security_test.outputs.frontend_instance_profile_name
+  backend_instance_profile_name = data.terraform_remote_state.security_test.outputs.backend_instance_profile_name
+  management_instance_profile_name = data.terraform_remote_state.security_test.outputs.management_instance_profile_name
+} 

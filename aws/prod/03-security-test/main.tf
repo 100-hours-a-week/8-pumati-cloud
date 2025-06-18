@@ -8,11 +8,9 @@ module "frontend_sg" {
   project_name  = local.project_name
   environment   = local.environment
   tags          = local.common_tags
-  service_name  = "frontend"
+  service_name  = "frontend-test"
 
   # 리소스 고유값
-  name          = "${local.project_name}-${local.environment}-frontend-sg"
-  description   = "프론트엔드 서비스용 보안 그룹"
   vpc_id        = local.vpc_id
 
   ingress_rules = [
@@ -20,8 +18,7 @@ module "frontend_sg" {
       from_port   = 22
       to_port     = 22
       protocol    = "tcp"
-      # ssh는 cidr 내ip로 수정할 것
-      cidr_blocks = ["0.0.0.0/0", "10.0.0.0/16"]  # Shared VPC CIDR 추가
+      cidr_blocks = ["211.244.225.211/32", "10.0.0.0/16"]  # Shared VPC CIDR 추가
       description = "SSH"
     },
     {
@@ -55,11 +52,9 @@ module "backend_sg" {
   project_name  = local.project_name
   environment   = local.environment
   tags          = local.common_tags
-  service_name  = "backend"
+  service_name  = "backend-test"
 
   # 리소스 고유값
-  name          = "${local.project_name}-${local.environment}-backend-sg"
-  description   = "백엔드 서비스용 보안 그룹"
   vpc_id        = local.vpc_id
 
   # 인바운드 규칙
@@ -95,11 +90,9 @@ module "management_sg" {
   project_name  = local.project_name
   environment   = local.environment
   tags          = local.common_tags
-  service_name  = "management"
+  service_name  = "management-test"
 
   # 리소스 고유값
-  name          = "${local.project_name}-${local.environment}-management-sg"
-  description   = "Management 서비스용 보안 그룹"
   vpc_id        = local.vpc_id
 
   # 인바운드 규칙
@@ -136,11 +129,9 @@ module "alb_sg" {
   project_name  = local.project_name
   environment   = local.environment
   tags          = local.common_tags
-  service_name  = "alb"
+  service_name  = "alb-test"
 
   # 리소스 고유값
-  name          = "${local.project_name}-${local.environment}-alb-sg"
-  description   = "ALB 서비스용 보안 그룹"
   vpc_id        = local.vpc_id
   
   ingress_rules = [
@@ -167,7 +158,7 @@ module "frontend_iam" {
   source        = "../../common/module/iam_role"
   project_name  = local.project_name
   environment   = local.environment
-  service_name  = "frontend"
+  service_name  = "frontend-test"
   tags          = local.common_tags
 
   # 인라인 정책 정의
@@ -212,7 +203,7 @@ module "backend_iam" {
   source        = "../../common/module/iam_role"
   project_name  = local.project_name
   environment   = local.environment
-  service_name  = "backend"
+  service_name  = "backend-test"
   tags          = local.common_tags
 
   # 인라인 정책 정의
@@ -249,7 +240,7 @@ module "management_iam" {
   source        = "../../common/module/iam_role"
   project_name  = local.project_name
   environment   = local.environment
-  service_name  = "management"
+  service_name  = "management-test"
   tags          = local.common_tags
 
   # 인라인 정책 정의
@@ -303,7 +294,7 @@ module "frontend_env_secret_prod" {
 
   project_name  = local.project_name
   environment   = "prod"
-  service_name  = "frontend"
+  service_name  = "frontend-test"
   tags          = local.common_tags
   env_file_path = "../../common/envs/frontend/prod/.env"
   kms_key_id    = "arn:aws:kms:ap-northeast-2:236450698266:key/93a8affe-a6f3-4f22-bdcc-dfafac23e42d"
@@ -313,7 +304,7 @@ module "backend_env_secret_prod" {
 
   project_name  = local.project_name
   environment   = "prod"
-  service_name  = "backend"
+  service_name  = "backend-test"
   tags          = local.common_tags
   env_file_path = "../../common/envs/backend/prod/.env"
   kms_key_id    = "arn:aws:kms:ap-northeast-2:236450698266:key/93a8affe-a6f3-4f22-bdcc-dfafac23e42d"
