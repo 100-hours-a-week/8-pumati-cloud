@@ -985,24 +985,60 @@ log_crawling() {
 
 log_crawling "📊 크롤링 작업 시작"
 
+# 크롤링 서비스 이미지 정보
+CRAWLING_IMAGE="asia-east1-docker.pkg.dev/ktb8team-458916/ktb8team/dev/crawling"
+KEY_FILE="/etc/sa/ktb8team-reader.json"
+
+# Docker 인증 (서비스 계정 키 사용)
+log_crawling "▶ Docker Artifact Registry 인증 중..."
+if [ -f "\$KEY_FILE" ]; then
+  if cat "\$KEY_FILE" | docker login -u _json_key --password-stdin https://asia-east1-docker.pkg.dev; then
+    log_crawling "✅ Docker 인증 성공"
+  else
+    log_crawling "❌ Docker 인증 실패"
+    # 인증 실패 알림
+    curl -H "Content-Type: application/json" \
+         -X POST \
+         -d "{\"content\": \"🚨 크롤링 Docker 인증 실패: 호스트 \$(hostname)\"}" \
+         "${WEBHOOK_URL}"
+    exit 1
+  fi
+else
+  log_crawling "❌ 서비스 계정 키 파일을 찾을 수 없음: \$KEY_FILE"
+  exit 1
+fi
+
+# 최신 이미지 다운로드
+log_crawling "▶ 최신 크롤링 이미지 다운로드 중..."
+if docker pull "\$CRAWLING_IMAGE:latest"; then
+  log_crawling "✅ 최신 크롤링 이미지 다운로드 성공"
+else
+  log_crawling "❌ 최신 크롤링 이미지 다운로드 실패"
+  # 다운로드 실패 알림
+  curl -H "Content-Type: application/json" \
+       -X POST \
+       -d "{\"content\": \"🚨 크롤링 이미지 다운로드 실패: 호스트 \$(hostname)에서 최신 이미지를 받을 수 없습니다.\"}" \
+       "${WEBHOOK_URL}"
+  exit 1
+fi
+
 # 기존 크롤링 컨테이너 정리 (만약 있다면)
+log_crawling "▶ 기존 크롤링 컨테이너 정리 중..."
 docker stop crawling >/dev/null 2>&1 || true
 docker rm crawling >/dev/null 2>&1 || true
 
 # 크롤링 컨테이너 실행 (한 번만 실행 후 종료)
-# --rm 제거: 로그 보존을 위해 컨테이너를 남겨두고 다음 실행 시 정리
-# --restart 옵션 제거: 계속 실행하지 않음
-log_crawling "▶ 크롤링 컨테이너 실행 중..."
+log_crawling "▶ 크롤링 컨테이너 실행 중 (최신 이미지 사용)..."
 if docker run --name crawling --network host \
   -e DISABLE_HTTP_SERVER=true \
-  "$CRAWLING_IMAGE:latest"; then
+  "\$CRAWLING_IMAGE:latest"; then
   
   log_crawling "✅ 크롤링 작업 완료"
   
   # 성공 알림 전송
   curl -H "Content-Type: application/json" \
        -X POST \
-       -d "{\"content\": \"✅ 크롤링 작업이 완료되었습니다. 호스트: \$(hostname), 시간: \$(TZ='Asia/Seoul' date '+%Y-%m-%d %H:%M:%S')\"}" \
+       -d "{\"content\": \"✅ 크롤링 작업이 완료되었습니다 (최신 이미지 사용). 호스트: \$(hostname), 시간: \$(TZ='Asia/Seoul' date '+%Y-%m-%d %H:%M:%S')\"}" \
        "${WEBHOOK_URL}"
 else
   log_crawling "❌ 크롤링 작업 실패"
@@ -1013,6 +1049,10 @@ else
        -d "{\"content\": \"🚨 크롤링 작업이 실패했습니다. 호스트: \$(hostname), 시간: \$(TZ='Asia/Seoul' date '+%Y-%m-%d %H:%M:%S')\"}" \
        "${WEBHOOK_URL}"
 fi
+
+# 사용하지 않는 이미지 정리 (선택사항 - 디스크 공간 절약)
+log_crawling "▶ 사용하지 않는 Docker 이미지 정리 중..."
+docker image prune -f >/dev/null 2>&1 || true
 
 log_crawling "🏁 크롤링 작업 종료"
 EOF

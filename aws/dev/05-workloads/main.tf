@@ -778,7 +778,7 @@ EOT
 }
 
 #------------------------------------------------------------------------------
-# 10. NodePool 정의 (v1.5.0 호환 버전)
+# 10. NodePool 정의 (v1.5.0 호환 버전) - 인스턴스 타입 확장
 #------------------------------------------------------------------------------
 resource "kubectl_manifest" "karpenter_nodepool" {
   yaml_body = <<-EOT
@@ -793,7 +793,7 @@ spec:
       labels:
         node-type: application
         capacity-type: spot
-        instance-size: small
+        instance-size: small-to-large  # 🔧 범위 확장
         cost-optimized: "true"
       annotations:
         karpenter.sh/do-not-evict: "false"
@@ -805,7 +805,7 @@ spec:
         kind: EC2NodeClass
         name: ${local.project_name}-${local.environment}-default
       
-      # 인스턴스 요구사항 (스팟 + t3.small/t3a.small만)
+      # 🔧 인스턴스 요구사항 확장 (medium ~ large 범위)
       requirements:
         - key: "kubernetes.io/arch"
           operator: In
@@ -815,7 +815,7 @@ spec:
           values: ["spot"]  # 스팟 인스턴스만!
         - key: "node.kubernetes.io/instance-type"
           operator: In
-          values: ["t3.medium", "t3a.medium"]  # 비용 최적화
+          values: ["t3.medium", "t3a.medium", "t3.large", "t3a.large", "t3.xlarge", "t3a.xlarge"]  # 🔧 인스턴스 타입 확장
       
       # ✅ 노드 수명 관리 (올바른 위치)
       expireAfter: 1h  # 1시간 미사용시 제거
@@ -827,16 +827,15 @@ spec:
       #     value: "true"
       #     effect: NoSchedule
   
-  # 리소스 제한 (30개 t3.small 기준: 60 vCPU, 60GB RAM)
+  # 🔧 리소스 제한 확장 (xlarge 인스턴스 고려)
   limits:
-    cpu: "60"
-    memory: "60Gi"
+    cpu: "100"     # 확장된 CPU 제한
+    memory: "200Gi" # 확장된 메모리 제한
   
   # ✅ 노드 교체 정책 (v1.5.0 호환)
   disruption:
     consolidationPolicy: WhenEmpty  # 빈 노드만 제거
     consolidateAfter: 10s  # 빠른 통합
-    # expireAfter는 여기서 제거! (template.spec으로 이동됨)
     budgets:
       - nodes: "10%"  # 동시에 교체할 노드 비율
 EOT
