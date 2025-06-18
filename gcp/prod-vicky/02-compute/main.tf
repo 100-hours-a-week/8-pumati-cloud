@@ -35,7 +35,13 @@
 resource "google_compute_instance_template" "g2_standard_4" {
   name_prefix  = "l4-spot-g2std4-"
   project      = local.project_id
-  machine_type = "g2-standard-4"
+  machine_type = "n1-standard-4"
+
+ # GPU 설정
+  guest_accelerator {
+    type  = "nvidia-tesla-t4"
+    count = 1
+  }
 
   # 스팟 인스턴스 설정
   scheduling {
@@ -46,17 +52,11 @@ resource "google_compute_instance_template" "g2_standard_4" {
 
   # 부팅 디스크 설정
   disk {
-    source_image = "projects/deeplearning-platform-release/global/images/family/pytorch-latest-cu121-ubuntu-2204-py310"
+    source_image = "projects/deeplearning-platform-release/global/images/family/pytorch-latest-gpu"
     auto_delete  = true
     boot         = true
     disk_size_gb = 100
     disk_type    = "pd-balanced"
-  }
-
-  # GPU 설정
-  guest_accelerator {
-    type  = "nvidia-l4"
-    count = 1
   }
 
   # 메타데이터
@@ -76,7 +76,7 @@ resource "google_compute_instance_template" "g2_standard_4" {
 
   # 서비스 계정
   service_account {
-    email  = "terraform@uplifted-might-460405-r3.iam.gserviceaccount.com"
+    email  = "terraform@loyal-parser-463101-n8.iam.gserviceaccount.com"
     scopes = ["https://www.googleapis.com/auth/cloud-platform"]
   }
 
@@ -85,6 +85,8 @@ resource "google_compute_instance_template" "g2_standard_4" {
 
   lifecycle {
     create_before_destroy = true
+    # MIG에서 사용 중일 때 실수로 삭제되는 것을 방지
+    prevent_destroy = false
   }
 }
 
@@ -103,7 +105,7 @@ resource "google_compute_instance_template" "g2_standard_8" {
 
   # 부팅 디스크 설정
   disk {
-    source_image = "projects/deeplearning-platform-release/global/images/family/pytorch-latest-cu121-ubuntu-2204-py310"
+    source_image = "projects/deeplearning-platform-release/global/images/family/pytorch-latest-gpu"
     auto_delete  = true
     boot         = true
     disk_size_gb = 100
@@ -115,6 +117,7 @@ resource "google_compute_instance_template" "g2_standard_8" {
     type  = "nvidia-l4"
     count = 1
   }
+
 
   # 메타데이터
   metadata = {
@@ -133,7 +136,7 @@ resource "google_compute_instance_template" "g2_standard_8" {
 
   # 서비스 계정
   service_account {
-    email  = "terraform@uplifted-might-460405-r3.iam.gserviceaccount.com"
+    email  = "terraform@loyal-parser-463101-n8.iam.gserviceaccount.com"
     scopes = ["https://www.googleapis.com/auth/cloud-platform"]
   }
 
@@ -142,6 +145,8 @@ resource "google_compute_instance_template" "g2_standard_8" {
 
   lifecycle {
     create_before_destroy = true
+    # MIG에서 사용 중일 때 실수로 삭제되는 것을 방지
+    prevent_destroy = false
   }
 }
 
@@ -162,6 +167,8 @@ resource "google_compute_health_check" "l4_spot" {
 
   lifecycle {
     create_before_destroy = true
+    # MIG에서 사용 중일 때 실수로 삭제되는 것을 방지
+    prevent_destroy = false
   }
 }
 
@@ -241,5 +248,20 @@ resource "google_compute_instance_group_manager" "l4_spot_zonal" {
       target_size,
     ]
     create_before_destroy = false
+    # MIG가 다른 리소스보다 먼저 삭제되어야 함
+    prevent_destroy = false
+  }
+}
+
+# Terraform destroy 시 순서를 보장하기 위한 null resource
+resource "null_resource" "mig_dependency" {
+  # MIG가 삭제된 후에 이 리소스가 삭제됨
+  depends_on = [
+    google_compute_instance_group_manager.l4_spot_zonal
+  ]
+  
+  # Instance Template과 Health Check가 이 리소스에 의존하도록 함
+  triggers = {
+    mig_id = google_compute_instance_group_manager.l4_spot_zonal.id
   }
 }

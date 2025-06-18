@@ -36,3 +36,18 @@ gcloud auth list
 이사 절차
 prod 
 일단 파일 다 복사.
+
+
+# 클라우드플레어 절차
+
+로컬에서 터널 생성
+
+cloudflared tunnel create [터널명]
+
+ID 나오고 .cloudflared 에 json 자격 증명 파일 생김.
+아이디 나오면 이걸로 secret 고치기
+
+DNS 연결(연결 후 대시보드 가서 확인해보셈)
+
+cloudflared tunnel route dns [터널명] [서브도메인명 혹은 도메인명]
+cloudflared tunnel route dns ai-tunnel-prod-vicky prod-vicky.mydairy.my

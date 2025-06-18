@@ -84,7 +84,7 @@ module "docker_registry" {
   # 기본 설정
   project_id    = local.project_id
   location      = local.region
-  repository_id = "ktb8team-docker-repo-dev"
+  repository_id = "ktb8team-docker-repo-prod"
   description   = "Docker 이미지 저장소 - ktb8team"
   format        = "DOCKER"
 

@@ -151,9 +151,15 @@ else
   # 디스크 없음, Docker 경로는 기본값(/var/lib/docker) 유지됨
 fi
 
-# 시스템 패키지 업데이트 (원래 스크립트에서 이 부분이 앞에 있었음)
+# 시스템 패키지 업데이트 (비대화 모드로 실행하여 프롬프트 방지)
 log_message "▶ 시스템 패키지 업데이트 중..."
-if apt-get update && apt-get upgrade -y; then
+# DEBIAN_FRONTEND=noninteractive: 패키지 설치 시 사용자 입력 프롬프트 차단
+# -yq: -y(자동 yes 응답) + -q(quiet 모드, 진행률 출력 최소화)
+# dpkg 옵션들: 설정 파일 충돌 시 기본 동작 설정
+if DEBIAN_FRONTEND=noninteractive apt-get update -yq && \
+   DEBIAN_FRONTEND=noninteractive apt-get upgrade -yq \
+   -o Dpkg::Options::="--force-confdef" \
+   -o Dpkg::Options::="--force-confold"; then
   log_message "✅ 시스템 패키지 업데이트 완료"
 else
   log_message "⚠️ 시스템 패키지 업데이트 중 일부 오류 발생, 계속 진행합니다"
@@ -871,24 +877,60 @@ log_crawling() {
 
 log_crawling "📊 크롤링 작업 시작"
 
+# 크롤링 서비스 이미지 정보
+CRAWLING_IMAGE="asia-east1-docker.pkg.dev/ktb8team-458916/ktb8team/prod/crawling"
+KEY_FILE="/etc/sa/ktb8team-reader.json"
+
+# Docker 인증 (서비스 계정 키 사용)
+log_crawling "▶ Docker Artifact Registry 인증 중..."
+if [ -f "\$KEY_FILE" ]; then
+  if cat "\$KEY_FILE" | docker login -u _json_key --password-stdin https://asia-east1-docker.pkg.dev; then
+    log_crawling "✅ Docker 인증 성공"
+  else
+    log_crawling "❌ Docker 인증 실패"
+    # 인증 실패 알림
+    curl -H "Content-Type: application/json" \
+         -X POST \
+         -d "{\"content\": \"🚨 크롤링 Docker 인증 실패: 호스트 \$(hostname)\"}" \
+         "${WEBHOOK_URL}"
+    exit 1
+  fi
+else
+  log_crawling "❌ 서비스 계정 키 파일을 찾을 수 없음: \$KEY_FILE"
+  exit 1
+fi
+
+# 최신 이미지 다운로드
+log_crawling "▶ 최신 크롤링 이미지 다운로드 중..."
+if docker pull "\$CRAWLING_IMAGE:latest"; then
+  log_crawling "✅ 최신 크롤링 이미지 다운로드 성공"
+else
+  log_crawling "❌ 최신 크롤링 이미지 다운로드 실패"
+  # 다운로드 실패 알림
+  curl -H "Content-Type: application/json" \
+       -X POST \
+       -d "{\"content\": \"🚨 크롤링 이미지 다운로드 실패: 호스트 \$(hostname)에서 최신 이미지를 받을 수 없습니다.\"}" \
+       "${WEBHOOK_URL}"
+  exit 1
+fi
+
 # 기존 크롤링 컨테이너 정리 (만약 있다면)
+log_crawling "▶ 기존 크롤링 컨테이너 정리 중..."
 docker stop crawling >/dev/null 2>&1 || true
 docker rm crawling >/dev/null 2>&1 || true
 
 # 크롤링 컨테이너 실행 (한 번만 실행 후 종료)
-# --rm 제거: 로그 보존을 위해 컨테이너를 남겨두고 다음 실행 시 정리
-# --restart 옵션 제거: 계속 실행하지 않음
-log_crawling "▶ 크롤링 컨테이너 실행 중..."
+log_crawling "▶ 크롤링 컨테이너 실행 중 (최신 이미지 사용)..."
 if docker run --name crawling --network host \
   -e DISABLE_HTTP_SERVER=true \
-  "$CRAWLING_IMAGE:latest"; then
+  "\$CRAWLING_IMAGE:latest"; then
   
   log_crawling "✅ 크롤링 작업 완료"
   
   # 성공 알림 전송
   curl -H "Content-Type: application/json" \
        -X POST \
-       -d "{\"content\": \"✅ 크롤링 작업이 완료되었습니다. 호스트: \$(hostname), 시간: \$(TZ='Asia/Seoul' date '+%Y-%m-%d %H:%M:%S')\"}" \
+       -d "{\"content\": \"✅ 크롤링 작업이 완료되었습니다 (최신 이미지 사용). 호스트: \$(hostname), 시간: \$(TZ='Asia/Seoul' date '+%Y-%m-%d %H:%M:%S')\"}" \
        "${WEBHOOK_URL}"
 else
   log_crawling "❌ 크롤링 작업 실패"

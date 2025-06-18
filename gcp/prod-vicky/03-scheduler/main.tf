@@ -12,19 +12,19 @@
 resource "google_project_iam_member" "terraform_cloudbuild_admin" {
   project = local.project_id
   role    = "roles/cloudbuild.builds.editor"
-  member  = "serviceAccount:terraform@ambient-topic-459110-e6.iam.gserviceaccount.com"
+  member  = "serviceAccount:terraform@loyal-parser-463101-n8.iam.gserviceaccount.com"
 }
 
 resource "google_project_iam_member" "cloudbuild_compute_admin" {
   project = local.project_id
   role    = "roles/compute.admin"
-  member  = "serviceAccount:terraform@ambient-topic-459110-e6.iam.gserviceaccount.com"
+  member  = "serviceAccount:terraform@loyal-parser-463101-n8.iam.gserviceaccount.com"
 }
 
 # 크기를 0으로 조정하는 스케줄러
 resource "google_cloud_scheduler_job" "resize_mig_off" {
   name        = "resize-gpu-mig-to-0"
-  description = "dev GPU MIG 크기를 0으로 조정"
+  description = "prod GPU MIG 크기를 0으로 조정"
   schedule    = "0 22 * * *"
   time_zone   = "Asia/Seoul"
 
@@ -32,7 +32,7 @@ resource "google_cloud_scheduler_job" "resize_mig_off" {
     http_method = "POST"
     uri         = "https://cloudbuild.googleapis.com/v1/projects/${local.project_id}/builds"
     oauth_token {
-      service_account_email = "terraform@ambient-topic-459110-e6.iam.gserviceaccount.com"
+      service_account_email = "terraform@loyal-parser-463101-n8.iam.gserviceaccount.com"
     }
     body = base64encode(jsonencode({
       steps = [
@@ -48,7 +48,7 @@ resource "google_cloud_scheduler_job" "resize_mig_off" {
             "-c", <<-EOT
             curl -H "Content-Type: application/json" \
                  -X POST \
-                 -d '{"embeds": [{"title": "🔴 dev GPU 종료", "description": "dev GPU 인스턴스와 AI빌드 자동화 기능이 종료됩니다.", "color": 16711680}]}' \
+                 -d '{"embeds": [{"title": "🔴 prod GPU 종료", "description": "prod GPU 인스턴스와 AI빌드 자동화 기능이 종료됩니다.", "color": 16711680}]}' \
                  ${local.discord_webhook_url_all}
             EOT
           ]
@@ -64,7 +64,7 @@ resource "google_cloud_scheduler_job" "resize_mig_off" {
 # MIG 크기를 1로 조정하는 스케줄러
 resource "google_cloud_scheduler_job" "resize_mig_on" {
   name        = "resize-gpu-mig-to-1"
-  description = "dev GPU MIG 크기를 1로 조정"
+  description = "prod GPU MIG 크기를 1로 조정"
   schedule    = "0 8 * * *"
   time_zone   = "Asia/Seoul"
 
@@ -72,7 +72,7 @@ resource "google_cloud_scheduler_job" "resize_mig_on" {
     http_method = "POST"
     uri         = "https://cloudbuild.googleapis.com/v1/projects/${local.project_id}/builds"
     oauth_token {
-      service_account_email = "terraform@ambient-topic-459110-e6.iam.gserviceaccount.com"
+      service_account_email = "terraform@loyal-parser-463101-n8.iam.gserviceaccount.com"
     }
     body = base64encode(jsonencode({
       steps = [
@@ -88,7 +88,7 @@ resource "google_cloud_scheduler_job" "resize_mig_on" {
             "-c", <<-EOT
             curl -H "Content-Type: application/json" \
                  -X POST \
-                 -d '{"embeds": [{"title": "🟢 dev GPU 시작", "description": "dev GPU 인스턴스와 AI빌드 자동화 기능이 시작됩니다.", "color": 65280}]}' \
+                 -d '{"embeds": [{"title": "🟢 prod GPU 시작", "description": "prod GPU 인스턴스와 AI빌드 자동화 기능이 시작됩니다.", "color": 65280}]}' \
                  ${local.discord_webhook_url_all}
             EOT
           ]
