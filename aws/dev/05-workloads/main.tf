@@ -342,16 +342,16 @@ resource "helm_release" "cluster_autoscaler" {
 # 다양한 워크로드: CPU/메모리/GPU 등 다양한 요구사항에 맞는 노드 제공
 
 #------------------------------------------------------------------------------
-# 4. Karpenter용 서브넷 및 보안 그룹 태그 추가
+# 4. Karpenter용 서브넷 및 보안 그룹 태그 추가 (제거 대상)
 #------------------------------------------------------------------------------
 
-# 프라이빗 서브넷에 Karpenter 디스커버리 태그 추가
-resource "aws_ec2_tag" "private_subnet_karpenter_discovery" {
-  count       = length(local.private_subnet_ids)
-  resource_id = local.private_subnet_ids[count.index]
-  key         = "karpenter.sh/discovery"
-  value       = local.cluster_name
-}
+# ❌ 아래 리소스는 02-network에서 직접 태그를 추가하므로 제거합니다.
+# resource "aws_ec2_tag" "private_subnet_karpenter_discovery" {
+#   count       = length(local.private_subnet_ids)
+#   resource_id = local.private_subnet_ids[count.index]
+#   key         = "karpenter.sh/discovery"
+#   value       = local.cluster_name
+# }
 
 # EKS 노드 보안 그룹에 Karpenter 디스커버리 태그 추가  
 resource "aws_ec2_tag" "eks_node_sg_karpenter_discovery" {
@@ -359,7 +359,6 @@ resource "aws_ec2_tag" "eks_node_sg_karpenter_discovery" {
   key         = "karpenter.sh/discovery"
   value       = local.cluster_name
 }
-
 
 #------------------------------------------------------------------------------
 # 1. Karpenter Controller를 위한 IAM 역할 (IRSA 방식)

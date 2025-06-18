@@ -69,6 +69,9 @@ resource "aws_subnet" "private" {
     # 🔧 EKS 내부 ALB Controller용 태그 추가
     "kubernetes.io/role/internal-elb" = "1"
     "kubernetes.io/cluster/${local.project_name}-${local.environment}-eks-cluster" = "shared"
+    
+    # ✅ Karpenter 디스커버리 태그 추가
+    "karpenter.sh/discovery" = "${local.project_name}-${local.environment}-eks-cluster"
   })
 }
 
