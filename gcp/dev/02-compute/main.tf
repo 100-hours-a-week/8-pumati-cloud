@@ -35,7 +35,13 @@
 resource "google_compute_instance_template" "g2_standard_4" {
   name_prefix  = "l4-spot-g2std4-"
   project      = local.project_id
-  machine_type = "g2-standard-8"
+  machine_type = "n1-standard-4"
+
+  # GPU 설정
+  guest_accelerator {
+    type  = "nvidia-tesla-t4"
+    count = 1
+  }
 
   # 스팟 인스턴스 설정
   scheduling {
@@ -51,12 +57,6 @@ resource "google_compute_instance_template" "g2_standard_4" {
     boot         = true
     disk_size_gb = 100
     disk_type    = "pd-balanced"
-  }
-
-  # GPU 설정
-  guest_accelerator {
-    type  = "nvidia-l4"
-    count = 1
   }
 
   # 메타데이터
@@ -185,7 +185,7 @@ resource "google_compute_instance_group_manager" "l4_spot_zonal" {
   version {
     instance_template = google_compute_instance_template.g2_standard_8.id
     target_size {
-      percent = 0  # 0%로 설정 = 대체 버전으로만 사용
+      percent = 0 # 0%로 설정 = 대체 버전으로만 사용
     }
   }
 

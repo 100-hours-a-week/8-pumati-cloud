@@ -284,7 +284,7 @@ tunnel: ${TUNNEL_UUID}
 credentials-file: /etc/cloudflared/llm-tunnel.json
 
 ingress:
-  - hostname: dev.vicky.mydairy.my
+  - hostname: dev-vicky.mydairy.my
     service: http://localhost:8080
   - service: http_status:404
 EOF
