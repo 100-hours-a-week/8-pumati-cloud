@@ -7,7 +7,7 @@ fullnameOverride: "pumati-frontend"
 # 애플리케이션 이미지 설정
 image:
   repository: 236450698266.dkr.ecr.ap-northeast-2.amazonaws.com/pumati-dev-frontend-ecr  # 컨테이너 이미지 저장소
-  tag: "dev-1"
+  tag: "dev-2"
   pullPolicy: Always  # 개발 환경에서는 항상 최신 이미지 가져오기
 
 # 복제본 수 설정
