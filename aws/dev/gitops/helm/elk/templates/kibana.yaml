@@ -1,11 +1,11 @@
 # ==============================================================================
-# Kibana 기본 배포 (학습용)
+# Kibana 간단 배포 (학습용 - 기본 보안 연동)
 # ==============================================================================
-# 🎯 목적: Kibana 웹 대시보드를 Deployment로 배포
-# 📚 학습 포인트: Deployment, Service, Elasticsearch 연결
+# 🎯 목적: Elasticsearch와 기본 인증으로 연결된 Kibana 웹 대시보드 배포
+# 📚 학습 포인트: Deployment, Service, Elasticsearch 인증 연결
 
 ---
-# Kibana 서비스 (웹 대시보드 접근용)
+# Kibana 서비스
 apiVersion: v1
 kind: Service
 metadata:
@@ -16,14 +16,14 @@ metadata:
 spec:
   type: ClusterIP
   ports:
-    - port: 5601        # Kibana 웹 포트
+    - port: 5601
       targetPort: 5601
       name: http
   selector:
     app: kibana
 
 ---
-# Kibana Deployment (상태 없는 애플리케이션)
+# Kibana Deployment
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -32,7 +32,7 @@ metadata:
   labels:
     app: kibana
 spec:
-  replicas: {{ .Values.kibana.replicas }}  # 복제본 개수 (values.yaml에서 1로 설정)
+  replicas: {{ .Values.kibana.replicas }}
   selector:
     matchLabels:
       app: kibana
@@ -45,16 +45,18 @@ spec:
       - name: kibana
         image: {{ .Values.kibana.image }}
         
-        # 환경 변수 (Kibana 설정)
+        # 🌍 간단한 환경 변수 (기본 인증 설정)
         env:
         - name: ELASTICSEARCH_HOSTS
           value: "http://elasticsearch:9200"  # Elasticsearch 서비스 연결
-        - name: XPACK_SECURITY_ENABLED
-          value: "true"                       # 보안 기능 활성화 (Elasticsearch와 맞춤)
         - name: ELASTICSEARCH_USERNAME
           value: "elastic"                    # Elasticsearch 기본 사용자
         - name: ELASTICSEARCH_PASSWORD
-          value: "pumati-dev-password"        # Elasticsearch와 동일한 비밀번호
+          value: "pumati123"                  # Elasticsearch와 동일한 패스워드
+        - name: XPACK_SECURITY_ENABLED
+          value: "true"                       # 보안 기능 활성화 (Elasticsearch와 맞춤)
+        - name: XPACK_ENCRYPTEDSAVEDOBJECTS_ENCRYPTIONKEY
+          value: "pumati-kibana-encryption-key-32chars"  # 32자 암호화 키 (필수)
         
         # 포트 설정
         ports:
@@ -65,10 +67,12 @@ spec:
         resources:
           {{- toYaml .Values.kibana.resources | nindent 10 }}
         
-        # 헬스체크 (Kibana가 정상 동작하는지 확인)
+        # 간단한 헬스체크
         readinessProbe:
           httpGet:
             path: /api/status
             port: 5601
-          initialDelaySeconds: 30  # 30초 후 체크 시작 (Elasticsearch 연결 대기)
-          periodSeconds: 10        # 10초마다 체크 
+          initialDelaySeconds: 90  # 1분 30초 후 체크 시작 (Elasticsearch 연결 + 초기화 대기)
+          periodSeconds: 10        # 10초마다 체크
+          timeoutSeconds: 5        # 5초 타임아웃
+          failureThreshold: 5      # 5번 실패하면 재시작 (초기화 시간 고려) 

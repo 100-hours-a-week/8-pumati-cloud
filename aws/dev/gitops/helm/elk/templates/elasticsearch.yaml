@@ -1,11 +1,11 @@
 # ==============================================================================
-# Elasticsearch 기본 배포 (학습용)
+# Elasticsearch 간단 배포 (학습용 - 기본 보안 활성화)
 # ==============================================================================
-# 🎯 목적: Elasticsearch 단일 노드를 StatefulSet으로 배포
-# 📚 학습 포인트: StatefulSet, volumeClaimTemplate, Service 기본 개념
+# 🎯 목적: 최소한의 보안으로 Elasticsearch 안정적 구동
+# 📚 학습 포인트: StatefulSet 기본 구조, 기본 인증 설정
 
 ---
-# Elasticsearch 서비스 (다른 Pod들이 접근하는 방법)
+# Elasticsearch 서비스
 apiVersion: v1
 kind: Service
 metadata:
@@ -14,17 +14,16 @@ metadata:
   labels:
     app: elasticsearch
 spec:
-  # ClusterIP: 클러스터 내부에서만 접근 가능
   type: ClusterIP
   ports:
-    - port: 9200        # Elasticsearch REST API 포트
+    - port: 9200
       targetPort: 9200
       name: http
   selector:
-    app: elasticsearch  # elasticsearch 라벨을 가진 Pod들과 연결
+    app: elasticsearch
 
 ---
-# Elasticsearch StatefulSet (상태를 가진 애플리케이션)
+# Elasticsearch StatefulSet (간소화 + 기본 보안)
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
@@ -33,8 +32,8 @@ metadata:
   labels:
     app: elasticsearch
 spec:
-  serviceName: elasticsearch  # 위에서 만든 Service와 연결
-  replicas: {{ .Values.elasticsearch.replicas }}  # 복제본 개수 (values.yaml에서 1로 설정)
+  serviceName: elasticsearch
+  replicas: {{ .Values.elasticsearch.replicas }}
   
   selector:
     matchLabels:
@@ -45,81 +44,28 @@ spec:
       labels:
         app: elasticsearch
     spec:
-      # 보안 컨텍스트 설정 (Elasticsearch 사용자로 실행)
-      securityContext:
-        fsGroup: 1000      # elasticsearch 그룹 ID
-        runAsUser: 1000    # elasticsearch 사용자 ID
-        runAsNonRoot: true
-        fsGroupChangePolicy: "OnRootMismatch"  # 루트 소유권 문제 시 변경
-      
-      # 초기화 컨테이너들 (데이터 디렉토리 권한 설정)
-      initContainers:
-      # 1. 볼륨 권한 수정
-      - name: fix-permissions
-        image: busybox:1.35
-        command: ['sh', '-c']
-        args:
-        - |
-          echo "Fixing permissions for elasticsearch data directory..."
-          chown -R 1000:1000 /usr/share/elasticsearch/data
-          chmod -R 755 /usr/share/elasticsearch/data
-          ls -la /usr/share/elasticsearch/data
-          echo "Permissions fixed successfully"
-        securityContext:
-          runAsUser: 0  # root로 실행하여 권한 변경
-          privileged: true  # 강력한 권한 부여
-        volumeMounts:
-        - name: data
-          mountPath: /usr/share/elasticsearch/data
-      
-      # 2. 시스템 설정 (vm.max_map_count 등)
-      - name: increase-vm-max-map
-        image: busybox:1.35
-        command: ['sysctl', '-w', 'vm.max_map_count=262144']
-        securityContext:
-          privileged: true
-      
-      # 3. 파일 디스크립터 한도 증가
-      - name: increase-fd-ulimit
-        image: busybox:1.35
-        command: ['sh', '-c']
-        args:
-        - |
-          ulimit -n 65536
-          echo "File descriptor limit increased"
-        securityContext:
-          privileged: true
-      
       containers:
       - name: elasticsearch
         image: {{ .Values.elasticsearch.image }}
         
-        # 컨테이너 보안 컨텍스트
-        securityContext:
-          runAsUser: 1000
-          runAsNonRoot: true
-          allowPrivilegeEscalation: false
-          capabilities:
-            add:
-            - IPC_LOCK  # 메모리 잠금을 위해 필요
-            - SYS_RESOURCE  # 리소스 제한 변경을 위해 필요
-            drop:
-            - ALL
-        
-        # 환경 변수 (Elasticsearch 설정)
+        # 🌍 간단한 환경 변수 설정 (기본 보안 활성화)
         env:
         - name: discovery.type
           value: "single-node"  # 단일 노드 모드
         - name: xpack.security.enabled
-          value: "true"         # 보안 기능 활성화 (권장)
+          value: "true"         # 보안 기능 활성화 (Kibana 연결을 위해 필수)
         - name: xpack.security.enrollment.enabled
-          value: "false"        # 자동 등록 비활성화 (수동 설정)
+          value: "false"        # 자동 등록 비활성화
+        - name: xpack.security.http.ssl.enabled
+          value: "false"        # HTTP SSL 비활성화 (학습용 간소화)
+        - name: xpack.security.transport.ssl.enabled
+          value: "false"        # Transport SSL 비활성화 (단일노드이므로)
         - name: ELASTIC_PASSWORD
-          value: "pumati-dev-password"  # 개발용 비밀번호 (실제로는 Secret 사용 권장)
+          value: "pumati123"    # 간단한 개발용 패스워드
         - name: ES_JAVA_OPTS
-          value: "-Xms1g -Xmx1g"  # JVM 메모리 설정 (최소/최대 힙 크기)
+          value: "-Xms512m -Xmx1g"  # JVM 메모리 설정
         - name: bootstrap.memory_lock
-          value: "true"  # 메모리 스와핑 방지
+          value: "false"        # 메모리 잠금 비활성화 (권한 문제 방지)
         
         # 포트 설정
         ports:
@@ -130,38 +76,37 @@ spec:
         resources:
           {{- toYaml .Values.elasticsearch.resources | nindent 10 }}
         
-        # 볼륨 마운트 (StatefulSet이 자동 생성하는 PVC 사용)
+        # 볼륨 마운트
         volumeMounts:
         - name: data
-          mountPath: /usr/share/elasticsearch/data  # Elasticsearch 데이터 저장 경로
+          mountPath: /usr/share/elasticsearch/data
         
-        # 헬스체크 (Pod가 정상 동작하는지 확인)
+        # 간단한 헬스체크 (인증 포함)
         readinessProbe:
           httpGet:
             path: /_cluster/health
             port: 9200
             httpHeaders:
             - name: Authorization
-              value: "Basic ZWxhc3RpYzpwdW1hdGktZGV2LXBhc3N3b3Jk"  # elastic:pumati-dev-password base64 인코딩
-          initialDelaySeconds: 90  # 90초 후 체크 시작 (초기화 시간 충분히 고려)
+              value: "Basic ZWxhc3RpYzpwdW1hdGkxMjM="  # elastic:pumati123 base64
+          initialDelaySeconds: 60  # 1분 후 체크 시작
           periodSeconds: 10        # 10초마다 체크
-          timeoutSeconds: 10       # 10초 타임아웃
-          failureThreshold: 5      # 5번 실패하면 재시작
+          timeoutSeconds: 5        # 5초 타임아웃
+          failureThreshold: 3      # 3번 실패하면 재시작
         
-        # 생존 확인 프로브 (더 관대한 설정)
         livenessProbe:
           httpGet:
             path: /_cluster/health
             port: 9200
             httpHeaders:
             - name: Authorization
-              value: "Basic ZWxhc3RpYzpwdW1hdGktZGV2LXBhc3N3b3Jk"
-          initialDelaySeconds: 120  # 2분 후 체크 시작
-          periodSeconds: 30         # 30초마다 체크
-          timeoutSeconds: 10        # 10초 타임아웃
-          failureThreshold: 3       # 3번 실패하면 재시작
+              value: "Basic ZWxhc3RpYzpwdW1hdGkxMjM="  # elastic:pumati123 base64
+          initialDelaySeconds: 90  # 90초 후 체크 시작 (여유롭게)
+          periodSeconds: 30        # 30초마다 체크
+          timeoutSeconds: 5        # 5초 타임아웃
+          failureThreshold: 5      # 5번 실패하면 재시작
       
-  # 볼륨 클레임 템플릿 (각 Pod마다 자동으로 PVC 생성)
+  # 볼륨 클레임 템플릿
   volumeClaimTemplates:
   - metadata:
       name: data
@@ -169,7 +114,7 @@ spec:
         app: elasticsearch
     spec:
       accessModes: ["ReadWriteOnce"]
-      storageClassName: "gp2"  # 기본 StorageClass 사용
+      storageClassName: "gp2"
       resources:
         requests:
-          storage: {{ .Values.elasticsearch.persistence.size }}  # values.yaml에서 크기 설정 
+          storage: {{ .Values.elasticsearch.persistence.size }} 
