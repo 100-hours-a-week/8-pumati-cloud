@@ -45,9 +45,38 @@ spec:
       labels:
         app: elasticsearch
     spec:
+      # 보안 컨텍스트 설정 (Elasticsearch 사용자로 실행)
+      securityContext:
+        fsGroup: 1000      # elasticsearch 그룹 ID
+        runAsUser: 1000    # elasticsearch 사용자 ID
+        runAsNonRoot: true
+      
+      # 초기화 컨테이너 (데이터 디렉토리 권한 설정)
+      initContainers:
+      - name: fix-permissions
+        image: busybox:1.35
+        command: ['sh', '-c']
+        args:
+        - |
+          chown -R 1000:1000 /usr/share/elasticsearch/data
+          chmod -R 755 /usr/share/elasticsearch/data
+        securityContext:
+          runAsUser: 0  # root로 실행하여 권한 변경
+        volumeMounts:
+        - name: data
+          mountPath: /usr/share/elasticsearch/data
+      
       containers:
       - name: elasticsearch
         image: {{ .Values.elasticsearch.image }}
+        
+        # 컨테이너 보안 컨텍스트
+        securityContext:
+          runAsUser: 1000
+          runAsNonRoot: true
+          capabilities:
+            drop:
+            - ALL
         
         # 환경 변수 (Elasticsearch 설정)
         env:
@@ -84,8 +113,10 @@ spec:
             httpHeaders:
             - name: Authorization
               value: "Basic ZWxhc3RpYzpwdW1hdGktZGV2LXBhc3N3b3Jk"  # elastic:pumati-dev-password base64 인코딩
-          initialDelaySeconds: 30  # 30초 후 체크 시작 (보안 활성화로 인한 추가 시간)
+          initialDelaySeconds: 60  # 60초 후 체크 시작 (초기화 시간 고려)
           periodSeconds: 10        # 10초마다 체크
+          timeoutSeconds: 5        # 5초 타임아웃
+          failureThreshold: 3      # 3번 실패하면 재시작
       
   # 볼륨 클레임 템플릿 (각 Pod마다 자동으로 PVC 생성)
   volumeClaimTemplates:
