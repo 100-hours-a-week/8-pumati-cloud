@@ -45,10 +45,6 @@ spec:
       labels:
         app: elasticsearch
     spec:
-      # Pod가 특정 AZ에 배치되도록 설정 (EBS 볼륨과 같은 AZ여야 함)
-      nodeSelector:
-        topology.kubernetes.io/zone: "ap-northeast-2a"
-      
       containers:
       - name: elasticsearch
         image: {{ .Values.elasticsearch.image }}
@@ -85,7 +81,10 @@ spec:
           httpGet:
             path: /_cluster/health
             port: 9200
-          initialDelaySeconds: 20  # 20초 후 체크 시작
+            httpHeaders:
+            - name: Authorization
+              value: "Basic ZWxhc3RpYzpwdW1hdGktZGV2LXBhc3N3b3Jk"  # elastic:pumati-dev-password base64 인코딩
+          initialDelaySeconds: 30  # 30초 후 체크 시작 (보안 활성화로 인한 추가 시간)
           periodSeconds: 10        # 10초마다 체크
       
   # 볼륨 클레임 템플릿 (각 Pod마다 자동으로 PVC 생성)
@@ -96,7 +95,7 @@ spec:
         app: elasticsearch
     spec:
       accessModes: ["ReadWriteOnce"]
-      storageClassName: "gp2"  # AWS EBS GP2 StorageClass 사용
+      storageClassName: "gp2"  # 기본 StorageClass 사용
       resources:
         requests:
           storage: {{ .Values.elasticsearch.persistence.size }}  # values.yaml에서 크기 설정 
