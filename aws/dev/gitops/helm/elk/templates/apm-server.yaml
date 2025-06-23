@@ -1,0 +1,98 @@
+# ==============================================================================
+# APM Server 배포 (백엔드 API 성능 측정용)
+# ==============================================================================
+# 🎯 목적: 백엔드 애플리케이션 성능 데이터 수집 및 Elasticsearch로 전송
+# 📚 학습 포인트: APM, 성능 모니터링, Elasticsearch 연동
+
+---
+# APM Server 서비스
+apiVersion: v1
+kind: Service
+metadata:
+  name: apm-server
+  namespace: {{ .Values.namespace }}
+  labels:
+    app: apm-server
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8200
+      targetPort: 8200
+      name: apm
+  selector:
+    app: apm-server
+
+---
+# APM Server Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: apm-server
+  namespace: {{ .Values.namespace }}
+  labels:
+    app: apm-server
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: apm-server
+  template:
+    metadata:
+      labels:
+        app: apm-server
+    spec:
+      containers:
+      - name: apm-server
+        image: docker.elastic.co/apm/apm-server:8.15.0
+        
+        # 🌍 환경 변수 (Elasticsearch 연결)
+        env:
+        - name: output.elasticsearch.hosts
+          value: "http://elasticsearch:9200"
+        - name: output.elasticsearch.username
+          value: "elastic"
+        - name: output.elasticsearch.password
+          value: "pumati123"
+        - name: apm-server.host
+          value: "0.0.0.0:8200"
+        - name: setup.kibana.host
+          value: "http://kibana:5601"
+        - name: setup.template.enabled
+          value: "true"
+        - name: setup.dashboards.enabled
+          value: "true"
+        - name: logging.level
+          value: "info"
+        
+        # 포트 설정
+        ports:
+        - containerPort: 8200
+          name: apm
+        
+        # 리소스 제한
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        
+        # 헬스체크
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 8200
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 8200
+          initialDelaySeconds: 60
+          periodSeconds: 30
+          timeoutSeconds: 5
+          failureThreshold: 3 
