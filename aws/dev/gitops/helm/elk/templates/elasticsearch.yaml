@@ -50,21 +50,45 @@ spec:
         fsGroup: 1000      # elasticsearch 그룹 ID
         runAsUser: 1000    # elasticsearch 사용자 ID
         runAsNonRoot: true
+        fsGroupChangePolicy: "OnRootMismatch"  # 루트 소유권 문제 시 변경
       
-      # 초기화 컨테이너 (데이터 디렉토리 권한 설정)
+      # 초기화 컨테이너들 (데이터 디렉토리 권한 설정)
       initContainers:
+      # 1. 볼륨 권한 수정
       - name: fix-permissions
         image: busybox:1.35
         command: ['sh', '-c']
         args:
         - |
+          echo "Fixing permissions for elasticsearch data directory..."
           chown -R 1000:1000 /usr/share/elasticsearch/data
           chmod -R 755 /usr/share/elasticsearch/data
+          ls -la /usr/share/elasticsearch/data
+          echo "Permissions fixed successfully"
         securityContext:
           runAsUser: 0  # root로 실행하여 권한 변경
+          privileged: true  # 강력한 권한 부여
         volumeMounts:
         - name: data
           mountPath: /usr/share/elasticsearch/data
+      
+      # 2. 시스템 설정 (vm.max_map_count 등)
+      - name: increase-vm-max-map
+        image: busybox:1.35
+        command: ['sysctl', '-w', 'vm.max_map_count=262144']
+        securityContext:
+          privileged: true
+      
+      # 3. 파일 디스크립터 한도 증가
+      - name: increase-fd-ulimit
+        image: busybox:1.35
+        command: ['sh', '-c']
+        args:
+        - |
+          ulimit -n 65536
+          echo "File descriptor limit increased"
+        securityContext:
+          privileged: true
       
       containers:
       - name: elasticsearch
@@ -74,7 +98,11 @@ spec:
         securityContext:
           runAsUser: 1000
           runAsNonRoot: true
+          allowPrivilegeEscalation: false
           capabilities:
+            add:
+            - IPC_LOCK  # 메모리 잠금을 위해 필요
+            - SYS_RESOURCE  # 리소스 제한 변경을 위해 필요
             drop:
             - ALL
         
@@ -90,6 +118,8 @@ spec:
           value: "pumati-dev-password"  # 개발용 비밀번호 (실제로는 Secret 사용 권장)
         - name: ES_JAVA_OPTS
           value: "-Xms1g -Xmx1g"  # JVM 메모리 설정 (최소/최대 힙 크기)
+        - name: bootstrap.memory_lock
+          value: "true"  # 메모리 스와핑 방지
         
         # 포트 설정
         ports:
@@ -113,10 +143,23 @@ spec:
             httpHeaders:
             - name: Authorization
               value: "Basic ZWxhc3RpYzpwdW1hdGktZGV2LXBhc3N3b3Jk"  # elastic:pumati-dev-password base64 인코딩
-          initialDelaySeconds: 60  # 60초 후 체크 시작 (초기화 시간 고려)
+          initialDelaySeconds: 90  # 90초 후 체크 시작 (초기화 시간 충분히 고려)
           periodSeconds: 10        # 10초마다 체크
-          timeoutSeconds: 5        # 5초 타임아웃
-          failureThreshold: 3      # 3번 실패하면 재시작
+          timeoutSeconds: 10       # 10초 타임아웃
+          failureThreshold: 5      # 5번 실패하면 재시작
+        
+        # 생존 확인 프로브 (더 관대한 설정)
+        livenessProbe:
+          httpGet:
+            path: /_cluster/health
+            port: 9200
+            httpHeaders:
+            - name: Authorization
+              value: "Basic ZWxhc3RpYzpwdW1hdGktZGV2LXBhc3N3b3Jk"
+          initialDelaySeconds: 120  # 2분 후 체크 시작
+          periodSeconds: 30         # 30초마다 체크
+          timeoutSeconds: 10        # 10초 타임아웃
+          failureThreshold: 3       # 3번 실패하면 재시작
       
   # 볼륨 클레임 템플릿 (각 Pod마다 자동으로 PVC 생성)
   volumeClaimTemplates:
