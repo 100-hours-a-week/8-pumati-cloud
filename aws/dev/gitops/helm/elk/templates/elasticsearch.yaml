@@ -1,0 +1,102 @@
+# ==============================================================================
+# Elasticsearch 기본 배포 (학습용)
+# ==============================================================================
+# 🎯 목적: Elasticsearch 단일 노드를 StatefulSet으로 배포
+# 📚 학습 포인트: StatefulSet, volumeClaimTemplate, Service 기본 개념
+
+---
+# Elasticsearch 서비스 (다른 Pod들이 접근하는 방법)
+apiVersion: v1
+kind: Service
+metadata:
+  name: elasticsearch
+  namespace: {{ .Values.namespace }}
+  labels:
+    app: elasticsearch
+spec:
+  # ClusterIP: 클러스터 내부에서만 접근 가능
+  type: ClusterIP
+  ports:
+    - port: 9200        # Elasticsearch REST API 포트
+      targetPort: 9200
+      name: http
+  selector:
+    app: elasticsearch  # elasticsearch 라벨을 가진 Pod들과 연결
+
+---
+# Elasticsearch StatefulSet (상태를 가진 애플리케이션)
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: elasticsearch
+  namespace: {{ .Values.namespace }}
+  labels:
+    app: elasticsearch
+spec:
+  serviceName: elasticsearch  # 위에서 만든 Service와 연결
+  replicas: {{ .Values.elasticsearch.replicas }}  # 복제본 개수 (values.yaml에서 1로 설정)
+  
+  selector:
+    matchLabels:
+      app: elasticsearch
+  
+  template:
+    metadata:
+      labels:
+        app: elasticsearch
+    spec:
+      # Pod가 특정 AZ에 배치되도록 설정 (EBS 볼륨과 같은 AZ여야 함)
+      nodeSelector:
+        topology.kubernetes.io/zone: "ap-northeast-2a"
+      
+      containers:
+      - name: elasticsearch
+        image: {{ .Values.elasticsearch.image }}
+        
+        # 환경 변수 (Elasticsearch 설정)
+        env:
+        - name: discovery.type
+          value: "single-node"  # 단일 노드 모드
+        - name: xpack.security.enabled
+          value: "true"         # 보안 기능 활성화 (권장)
+        - name: xpack.security.enrollment.enabled
+          value: "false"        # 자동 등록 비활성화 (수동 설정)
+        - name: ELASTIC_PASSWORD
+          value: "pumati-dev-password"  # 개발용 비밀번호 (실제로는 Secret 사용 권장)
+        - name: ES_JAVA_OPTS
+          value: "-Xms1g -Xmx1g"  # JVM 메모리 설정 (최소/최대 힙 크기)
+        
+        # 포트 설정
+        ports:
+        - containerPort: 9200
+          name: http
+        
+        # 리소스 제한
+        resources:
+          {{- toYaml .Values.elasticsearch.resources | nindent 10 }}
+        
+        # 볼륨 마운트 (StatefulSet이 자동 생성하는 PVC 사용)
+        volumeMounts:
+        - name: data
+          mountPath: /usr/share/elasticsearch/data  # Elasticsearch 데이터 저장 경로
+        
+        # 헬스체크 (Pod가 정상 동작하는지 확인)
+        readinessProbe:
+          httpGet:
+            path: /_cluster/health
+            port: 9200
+          initialDelaySeconds: 20  # 20초 후 체크 시작
+          periodSeconds: 10        # 10초마다 체크
+      
+  # 볼륨 클레임 템플릿 (각 Pod마다 자동으로 PVC 생성)
+  volumeClaimTemplates:
+  - metadata:
+      name: data
+      labels:
+        app: elasticsearch
+    spec:
+      accessModes: ["ReadWriteOnce"]
+      storageClassName: "gp2"  # AWS EBS GP2 StorageClass 사용
+      resources:
+        requests:
+          storage: {{ .Values.elasticsearch.persistence.size }}  # values.yaml에서 크기 설정 

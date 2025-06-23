@@ -1,0 +1,48 @@
+# ==============================================================================
+# ELK ArgoCD 애플리케이션 (학습용)
+# ==============================================================================
+# 🎯 목적: ArgoCD가 ELK Helm 차트를 자동으로 배포하도록 설정
+# 📚 학습 포인트: GitOps, ArgoCD Application, Helm 차트 배포
+
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: elk-dev
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: elk-stack
+    environment: dev
+spec:
+  # ArgoCD 프로젝트 (기본값 사용)
+  project: default
+  
+  # 소스 설정 (Helm 차트 위치)
+  source:
+    # Git 저장소 URL (현재 저장소)
+    repoURL: https://github.com/kakaotech-bootcamp-11/8-pumati-cloud.git
+    targetRevision: HEAD  # 최신 커밋 사용
+    
+    # Helm 차트 경로
+    path: aws/dev/gitops/helm/elk
+    
+    # Helm 설정
+    helm:
+      # values.yaml 파일 사용
+      valueFiles:
+        - values.yaml
+
+  # 배포 대상 (EKS 클러스터)
+  destination:
+    server: https://kubernetes.default.svc  # 현재 클러스터
+    namespace: elk-system                   # Terraform에서 생성한 네임스페이스
+
+  # 동기화 정책
+  syncPolicy:
+    # 자동 동기화 활성화
+    automated:
+      prune: true    # 불필요한 리소스 자동 삭제
+      selfHeal: true # 변경사항 자동 복구
+    
+    # 동기화 옵션
+    syncOptions:
+      - CreateNamespace=false  # 네임스페이스는 Terraform에서 생성했으므로 생성하지 않음 

@@ -27,6 +27,8 @@ data "terraform_remote_state" "common" {
   }
 }
 
+
+
 # ArgoCD 상태 참조 (ArgoCD 서버 정보)
 data "terraform_remote_state" "argocd" {
   backend = "s3"
@@ -50,12 +52,19 @@ data "terraform_remote_state" "eks" {
 }
 
 locals {
+  # 기본 정보
   project_name = data.terraform_remote_state.common.outputs.project_name
   domain_name  = data.terraform_remote_state.common.outputs.domain_name
   region       = data.terraform_remote_state.common.outputs.region
   environment  = data.terraform_remote_state.common.outputs.environment
   common_tags  = data.terraform_remote_state.common.outputs.common_tags
   cluster_name = data.terraform_remote_state.eks.outputs.cluster_name
+  
+  # ELK 태그
+  elk_tags = merge(local.common_tags, {
+    Component = "elk-stack"
+    Purpose   = "logging-monitoring"
+  })
 }
 
 # AWS Provider 설정
@@ -76,6 +85,8 @@ data "aws_eks_cluster" "main" {
 data "aws_eks_cluster_auth" "main" {
   name = local.cluster_name
 }
+
+
 
 # Kubernetes Provider 설정
 provider "kubernetes" {

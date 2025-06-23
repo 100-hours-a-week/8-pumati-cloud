@@ -1,0 +1,74 @@
+# ==============================================================================
+# Kibana 기본 배포 (학습용)
+# ==============================================================================
+# 🎯 목적: Kibana 웹 대시보드를 Deployment로 배포
+# 📚 학습 포인트: Deployment, Service, Elasticsearch 연결
+
+---
+# Kibana 서비스 (웹 대시보드 접근용)
+apiVersion: v1
+kind: Service
+metadata:
+  name: kibana
+  namespace: {{ .Values.namespace }}
+  labels:
+    app: kibana
+spec:
+  type: ClusterIP
+  ports:
+    - port: 5601        # Kibana 웹 포트
+      targetPort: 5601
+      name: http
+  selector:
+    app: kibana
+
+---
+# Kibana Deployment (상태 없는 애플리케이션)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kibana
+  namespace: {{ .Values.namespace }}
+  labels:
+    app: kibana
+spec:
+  replicas: {{ .Values.kibana.replicas }}  # 복제본 개수 (values.yaml에서 1로 설정)
+  selector:
+    matchLabels:
+      app: kibana
+  template:
+    metadata:
+      labels:
+        app: kibana
+    spec:
+      containers:
+      - name: kibana
+        image: {{ .Values.kibana.image }}
+        
+        # 환경 변수 (Kibana 설정)
+        env:
+        - name: ELASTICSEARCH_HOSTS
+          value: "http://elasticsearch:9200"  # Elasticsearch 서비스 연결
+        - name: XPACK_SECURITY_ENABLED
+          value: "true"                       # 보안 기능 활성화 (Elasticsearch와 맞춤)
+        - name: ELASTICSEARCH_USERNAME
+          value: "elastic"                    # Elasticsearch 기본 사용자
+        - name: ELASTICSEARCH_PASSWORD
+          value: "pumati-dev-password"        # Elasticsearch와 동일한 비밀번호
+        
+        # 포트 설정
+        ports:
+        - containerPort: 5601
+          name: http
+        
+        # 리소스 제한
+        resources:
+          {{- toYaml .Values.kibana.resources | nindent 10 }}
+        
+        # 헬스체크 (Kibana가 정상 동작하는지 확인)
+        readinessProbe:
+          httpGet:
+            path: /api/status
+            port: 5601
+          initialDelaySeconds: 30  # 30초 후 체크 시작 (Elasticsearch 연결 대기)
+          periodSeconds: 10        # 10초마다 체크 

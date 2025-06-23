@@ -1,0 +1,13 @@
+apiVersion: v2
+name: elk-stack
+description: Elasticsearch, Kibana, Logstash, Filebeat for logging
+type: application
+version: 0.1.0
+appVersion: "8.15.0"
+
+keywords:
+  - elasticsearch
+  - kibana  
+  - logstash
+  - filebeat
+  - logging

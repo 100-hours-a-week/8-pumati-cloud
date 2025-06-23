@@ -35,8 +35,13 @@
 resource "google_compute_instance_template" "g2_standard_4" {
   name_prefix  = "l4-spot-g2std4-"
   project      = local.project_id
-  machine_type = "g2-standard-4"
+  machine_type = "n1-standard-4"
 
+  # GPU 설정
+  guest_accelerator {
+    type  = "nvidia-tesla-t4"
+    count = 1
+  }
   # 스팟 인스턴스 설정
   scheduling {
     preemptible        = true
@@ -46,18 +51,13 @@ resource "google_compute_instance_template" "g2_standard_4" {
 
   # 부팅 디스크 설정
   disk {
-    source_image = "projects/deeplearning-platform-release/global/images/family/pytorch-latest-cu121-ubuntu-2204-py310"
+    source_image = "projects/deeplearning-platform-release/global/images/family/pytorch-latest-gpu"
     auto_delete  = true
     boot         = true
     disk_size_gb = 100
     disk_type    = "pd-balanced"
   }
 
-  # GPU 설정
-  guest_accelerator {
-    type  = "nvidia-l4"
-    count = 1
-  }
 
   # 메타데이터
   metadata = {
@@ -109,7 +109,7 @@ resource "google_compute_instance_template" "g2_standard_8" {
 
   # 부팅 디스크 설정
   disk {
-    source_image = "projects/deeplearning-platform-release/global/images/family/pytorch-latest-cu121-ubuntu-2204-py310"
+    source_image = "projects/deeplearning-platform-release/global/images/family/pytorch-latest-gpu"
     auto_delete  = true
     boot         = true
     disk_size_gb = 100
