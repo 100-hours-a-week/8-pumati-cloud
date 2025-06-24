@@ -55,5 +55,9 @@ locals {
 
   # security 모듈 : openvpn_sg_id
   openvpn_sg_id = data.terraform_remote_state.security.outputs.openvpn_sg_id
+  management_sg_id = data.terraform_remote_state.security.outputs.management_sg_id
+
+  # security 모듈 : IAM 인스턴스 프로파일 이름
+  management_instance_profile_name = data.terraform_remote_state.security.outputs.management_instance_profile_name
 }
 

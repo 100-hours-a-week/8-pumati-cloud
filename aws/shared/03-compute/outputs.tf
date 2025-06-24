@@ -8,3 +8,13 @@ output "openvpn_public_ip" {
   description = "OpenVPN 인스턴스의 퍼블릭 IP"
   value       = module.openvpn_instance.public_ip
 }
+
+output "management_instance_id" {
+  description = "Management 인스턴스 ID"
+  value       = module.management_instance.instance_id
+}
+
+output "management_public_ip" {
+  description = "Management 인스턴스의 퍼블릭 IP"
+  value       = module.management_instance.public_ip
+}

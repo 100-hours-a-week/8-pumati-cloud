@@ -14,9 +14,9 @@ output "backend_sg_id" {
   description = "백엔드 인스턴스 보안 그룹 ID"
 }
 
-output "management_sg_id" {
-  value       = module.management_sg.security_group_id
-  description = "Management 인스턴스 보안 그룹 ID"
+output "db_sg_id" {
+  value       = module.db_sg.security_group_id
+  description = "DB 인스턴스 보안 그룹 ID"
 }
 
 # iam
@@ -30,7 +30,7 @@ output "backend_instance_profile_name" {
   value       = module.backend_iam.instance_profile_name
 }
 
-output "management_instance_profile_name" {
-  description = "Management 인스턴스 IAM 프로파일 이름"
-  value       = module.management_iam.instance_profile_name
+output "db_instance_profile_name" {
+  description = "DB 인스턴스 IAM 프로파일 이름"
+  value       = module.db_iam.instance_profile_name
 }

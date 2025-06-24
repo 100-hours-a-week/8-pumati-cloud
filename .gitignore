@@ -27,3 +27,4 @@ terraform.rc
 *.env
 *.tar.gz
 .DS_Store
+scripts/

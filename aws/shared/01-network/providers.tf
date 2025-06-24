@@ -27,7 +27,7 @@ data "terraform_remote_state" "prod_network" {
 
   config = {
     bucket = "s3-pumati-tfstate"
-    key    = "aws/prod/network/terraform.tfstate"
+    key    = "aws/prod/network-test/terraform.tfstate"
     region = "ap-northeast-2"
   }
 }
@@ -41,6 +41,6 @@ locals {
 
   # prod 모듈 : route table 정보
   prod_network_public_route_table_id = data.terraform_remote_state.prod_network.outputs.public_route_table_id
-  prod_network_service_route_table_id = data.terraform_remote_state.prod_network.outputs.service_route_table_id
-  prod_network_db_route_table_id = data.terraform_remote_state.prod_network.outputs.db_route_table_id
+  prod_network_service_route_table_id = data.terraform_remote_state.prod_network.outputs.service_route_table_ids[0]
+  prod_network_db_route_table_id = data.terraform_remote_state.prod_network.outputs.db_route_table_ids[0]
 }

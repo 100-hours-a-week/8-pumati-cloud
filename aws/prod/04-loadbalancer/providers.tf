@@ -12,6 +12,13 @@ provider "aws" {
   region = "ap-northeast-2"
 }
 
+# ACM 인증서 참조
+data "aws_acm_certificate" "v2_tebutebu" {
+  domain      = "tebutebu.com"
+  statuses    = ["ISSUED"]
+  most_recent = true
+}
+
 # Common 모듈의 상태를 참조
 data "terraform_remote_state" "common" {
   backend = "s3"
@@ -22,7 +29,7 @@ data "terraform_remote_state" "common" {
   }
 }
 
-# Network-test 모듈의 상태를 참조
+# Network 모듈의 상태를 참조
 data "terraform_remote_state" "network_test" {
   backend = "s3"
   config = {
@@ -42,27 +49,21 @@ data "terraform_remote_state" "security_test" {
   }
 }
 
-# Common, Network, Security 모듈의 출력 값 사용
+# Common 모듈의 출력 값 사용
 locals {
+  # ACM 인증서 ARN (직접 입력)
+  certificate_arn = "arn:aws:acm:ap-northeast-2:236450698266:certificate/802235a6-034f-43e9-b30b-319566f94059"
+
   # common 모듈 : 프로젝트 이름, 리전, 환경, 공통 태그
   project_name = data.terraform_remote_state.common.outputs.project_name
   region       = data.terraform_remote_state.common.outputs.region
   environment  = data.terraform_remote_state.common.outputs.environment
   common_tags  = data.terraform_remote_state.common.outputs.common_tags
-
+      
   # network-test 모듈 : vpc_id, public_subnet_id
   vpc_id_test       = data.terraform_remote_state.network_test.outputs.vpc_id
-  public_subnet_ids_test = data.terraform_remote_state.network_test.outputs.public_subnet_ids[0]
-  service_subnet_ids_test = data.terraform_remote_state.network_test.outputs.service_subnet_ids[0]
-  db_subnet_ids_test = data.terraform_remote_state.network_test.outputs.db_subnet_ids[0]
+  public_subnet_ids_test = data.terraform_remote_state.network_test.outputs.public_subnet_ids
 
-  # security-test 모듈 : 보안 그룹 ID
-  frontend_sg_id = data.terraform_remote_state.security_test.outputs.frontend_sg_id
-  backend_sg_id  = data.terraform_remote_state.security_test.outputs.backend_sg_id
-  management_sg_id  = data.terraform_remote_state.security_test.outputs.management_sg_id
-  
-  # security-test 모듈 : IAM 인스턴스 프로파일 이름
-  frontend_instance_profile_name = data.terraform_remote_state.security_test.outputs.frontend_instance_profile_name
-  backend_instance_profile_name = data.terraform_remote_state.security_test.outputs.backend_instance_profile_name
-  management_instance_profile_name = data.terraform_remote_state.security_test.outputs.management_instance_profile_name
+  # security-test 모듈 : 보안 그룹 정보
+  alb_sg_id    = data.terraform_remote_state.security_test.outputs.alb_sg_id
 } 

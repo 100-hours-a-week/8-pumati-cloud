@@ -1,4 +1,3 @@
-# modules/route53/main.tf
 data "aws_route53_zone" "this" {
   name         = var.zone_name
   private_zone = false
@@ -7,7 +6,11 @@ data "aws_route53_zone" "this" {
 resource "aws_route53_record" "this" {
   zone_id = data.aws_route53_zone.this.zone_id
   name    = var.record_name
-  type    = var.record_type
-  ttl     = var.ttl
-  records = var.records
+  type    = "A"
+
+  alias {
+    name                   = var.alias_name     # ALB의 DNS name
+    zone_id                = var.alias_zone_id  # ALB의 zone ID
+    evaluate_target_health = true
+  }
 }

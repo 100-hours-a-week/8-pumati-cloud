@@ -1,4 +1,5 @@
 resource "aws_lb" "this" {
+  name               = "${var.project_name}-${var.environment}-alb"
   internal           = var.internal
   load_balancer_type = "application"
 
@@ -9,12 +10,13 @@ resource "aws_lb" "this" {
   idle_timeout               = var.idle_timeout
 
   tags = merge(var.tags, {
-    Name = "${var.project_name}-${var.environment}-${var.service_name}-alb"
+    Name = "${var.project_name}-${var.environment}-alb"
   })
 }
 
 # 프론트 Target Group
 resource "aws_lb_target_group" "frontend" {
+  name     = "${var.project_name}-${var.environment}-frontend-tg" 
   port        = var.frontend_port
   protocol    = "HTTP"
   target_type = "instance"
@@ -37,6 +39,7 @@ resource "aws_lb_target_group" "frontend" {
 
 # 백엔드 Target Group
 resource "aws_lb_target_group" "backend" {
+  name     = "${var.project_name}-${var.environment}-backend-tg" 
   port        = var.backend_port
   protocol    = "HTTP"
   target_type = "instance"

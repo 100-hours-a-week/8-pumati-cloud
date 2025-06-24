@@ -12,17 +12,18 @@ provider "aws" {
   region = "ap-northeast-2"
 }
 
-# compute 모듈의 상태를 참조
-data "terraform_remote_state" "compute" {
+# loadbalancer 모듈의 상태를 참조
+data "terraform_remote_state" "loadbalancer" {
   backend = "s3"
   config = {
     bucket = "s3-pumati-tfstate"
-    key    = "aws/prod/compute/terraform.tfstate"
+    key    = "aws/prod/loadbalancer/terraform.tfstate"
     region = "ap-northeast-2"
   }
 }
 
-# compute 모듈의 출력 값 사용
+# loadbalancer 모듈의 출력 값 사용
 locals {
-  frontend_public_ip = data.terraform_remote_state.compute.outputs.frontend_public_ip 
+  alb_dns_name = data.terraform_remote_state.loadbalancer.outputs.alb_dns_name
+  alb_zone_id  = data.terraform_remote_state.loadbalancer.outputs.alb_zone_id
 } 

@@ -26,7 +26,7 @@ module "alb" {
 
   # 백엔드 Target Group 설정
   backend_port                 = 8080
-  backend_health_check_path    = "/api/health"
+  backend_health_check_path    = "/api/actuator/health"
 }
 
 module "alb_listener" {
@@ -42,25 +42,12 @@ module "alb_listener" {
   default_target_group_arn   = module.alb.frontend_target_group_arn
   api_target_group_arn       = module.alb.backend_target_group_arn
 
+  backend_path_patterns = [
+    "/api/*",
+    "/oauth2/*",
+    "/api/*/chatbot*"
+  ]
+
   enable_https   = true
   enable_redirect = true
 }
-
-# ----------------------------------------------------------------------------------------------------------------------
-# Target Group Attachment - EC2 인스턴스를 타겟 그룹에 연결
-# ----------------------------------------------------------------------------------------------------------------------
-
-# 프론트엔드 인스턴스를 프론트엔드 타겟 그룹에 연결
-resource "aws_lb_target_group_attachment" "frontend" {
-  target_group_arn = module.alb.frontend_target_group_arn
-  target_id        = local.frontend_instance_id
-  port             = 3000
-}
-
-# 백엔드 인스턴스를 백엔드 타겟 그룹에 연결
-resource "aws_lb_target_group_attachment" "backend" {
-  target_group_arn = module.alb.backend_target_group_arn
-  target_id        = local.backend_instance_id
-  port             = 8080
-}
-

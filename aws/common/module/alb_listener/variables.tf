@@ -50,3 +50,7 @@ variable "enable_redirect" {
   default = true
 }
 
+variable "backend_path_patterns" {
+  description = "/api/*, /oauth2/* 등 백엔드로 포워딩할 경로 목록"
+  type        = list(string)
+}
