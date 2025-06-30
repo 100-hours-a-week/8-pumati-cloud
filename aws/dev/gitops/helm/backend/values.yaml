@@ -71,13 +71,13 @@ env:
   - name: SERVER_SERVLET_SESSION_COOKIE_NAME
     value: "PUMATI_SESSION"  # 세션 쿠키 이름 명시
 
-# 🎯 노드 선택 설정 (System 노드에만 배포)
+# 🎯 노드 선택 설정 (카펜터 애플리케이션 노드에만 배포)
 nodeSelector:
-  node-type: system  # 시스템 노드에만 배포
+  node-type: application  # 🔄 system → application으로 변경
 
-# 📈 HPA 설정 (OAuth 세션 안정성을 위해 임시 비활성화)
+# 📈 HPA 설정 (카펜터 환경에서 활성화 고려)
 autoscaling:
-  enabled: false  # OAuth 문제 해결까지 임시 비활성화
+  enabled: true  # 🔄 카펜터 환경에서는 HPA 활성화 권장
   minReplicas: 1
   maxReplicas: 3
   targetCPUUtilizationPercentage: 75
@@ -103,14 +103,14 @@ secretEnv: []
 volumes: []
 volumeMounts: []
 
-# 🏷️ System 노드의 taint 허용을 위한 toleration 설정
+# 🏷️ 카펜터 노드의 스팟 인스턴스 taint 허용을 위한 toleration 설정
 tolerations:
-  - key: node-type
+  - key: spot-instance  # 🔄 스팟 인스턴스 toleration 추가
     operator: Equal
-    value: system
+    value: "true"
     effect: NoSchedule
 
-# 📁 어피니티 설정 (시스템 노드 선호)
+# 📁 어피니티 설정 (카펜터 애플리케이션 노드 선호)
 affinity:
   nodeAffinity:
     requiredDuringSchedulingIgnoredDuringExecution:
@@ -118,7 +118,14 @@ affinity:
         - matchExpressions:
             - key: node-type
               operator: In
-              values: ["system"]
+              values: ["application"]  # 🔄 system → application으로 변경
+    preferredDuringSchedulingIgnoredDuringExecution:  # 🔄 스팟 인스턴스 선호 설정 추가
+      - weight: 100
+        preference:
+          matchExpressions:
+            - key: capacity-type
+              operator: In
+              values: ["spot"]  # 스팟 인스턴스 선호
 
 # 🔐 보안 컨텍스트 기본값
 podSecurityContext: {}
