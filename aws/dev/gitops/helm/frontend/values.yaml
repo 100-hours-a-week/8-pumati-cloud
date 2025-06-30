@@ -65,4 +65,32 @@ env:
 # 보안 컨텍스트
 securityContext:
   runAsNonRoot: true  # 루트가 아닌 사용자로 실행
-  runAsUser: 1000     # 사용자 ID 
+  runAsUser: 1000     # 사용자 ID
+
+# 🎯 노드 선택 설정 (카펜터 노드에만 배포)
+nodeSelector:
+  node-type: application  # 카펜터 애플리케이션 노드에만 배포
+
+# 🏷️ 카펜터 노드의 스팟 인스턴스 taint 허용을 위한 toleration 설정
+tolerations:
+  - key: spot-instance
+    operator: Equal
+    value: "true"
+    effect: NoSchedule
+
+# 📍 어피니티 설정 (애플리케이션 노드 선호)
+affinity:
+  nodeAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: node-type
+              operator: In
+              values: ["application"]
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        preference:
+          matchExpressions:
+            - key: capacity-type
+              operator: In
+              values: ["spot"]  # 스팟 인스턴스 선호 
