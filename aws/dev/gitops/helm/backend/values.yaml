@@ -8,7 +8,7 @@ fullnameOverride: "pumati-backend"
 image:
   repository: 236450698266.dkr.ecr.ap-northeast-2.amazonaws.com/pumati-dev-backend-ecr
   pullPolicy: Always
-  tag: optimize-ranking-cache-redis-4
+  tag: optimize-ranking-cache-redis-5
 
 # 📊 기본 배포 설정 (OAuth 세션 안정성을 위해 1개 고정)
 replicaCount: 1  # OAuth 문제 해결까지 고정
