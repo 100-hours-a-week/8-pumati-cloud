@@ -2,7 +2,7 @@
 # 2. prod vpc와의 피어링 연결
 
 module "vpc" {
-  source = "../../common/module/vpc"
+  source = "../../common/module/vpc_single_az"
 
   project_name = local.project_name
   environment  = local.environment

@@ -1,15 +1,10 @@
 resource "aws_iam_role" "this" {
-  name = "${var.project_name}-${var.environment}-${var.service_name}-role"
-  assume_role_policy = data.aws_iam_policy_document.ec2_assume_role_policy.json
+  name               = "${var.project_name}-${var.environment}-${var.service_name}-role"
+  assume_role_policy = data.aws_iam_policy_document.assume_role_policy.json
 
   tags = merge(var.tags, {
     Name = "${var.project_name}-${var.environment}-${var.service_name}-role"
   })
-}
-
-resource "aws_iam_instance_profile" "this" {
-  name = "${var.project_name}-${var.environment}-${var.service_name}-profile"
-  role = aws_iam_role.this.name
 }
 
 resource "aws_iam_role_policy" "this" {
@@ -18,15 +13,20 @@ resource "aws_iam_role_policy" "this" {
   policy = var.inline_policy_json
 }
 
-# 지금 iam-role은 instance 전용이므로 신뢰정책은 이 모듈 내부에 작성함
-# 만약 ECS나 Lambda 등 다른 서비스에서 사용할 경우 신뢰정책은 외부에 작성해야 함
-data "aws_iam_policy_document" "ec2_assume_role_policy" {
+resource "aws_iam_instance_profile" "this" {
+  count = var.instance_profile_enabled ? 1 : 0
+
+  name = "${var.project_name}-${var.environment}-${var.service_name}-profile"
+  role = aws_iam_role.this.name
+}
+
+data "aws_iam_policy_document" "assume_role_policy" {
   statement {
     effect = "Allow"
     actions = ["sts:AssumeRole"]
     principals {
       type        = "Service"
-      identifiers = ["ec2.amazonaws.com"]
+      identifiers = [var.assume_role_service]
     }
   }
 }

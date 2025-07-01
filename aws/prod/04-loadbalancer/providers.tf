@@ -30,21 +30,21 @@ data "terraform_remote_state" "common" {
 }
 
 # Network 모듈의 상태를 참조
-data "terraform_remote_state" "network_test" {
+data "terraform_remote_state" "network" {
   backend = "s3"
   config = {
     bucket = "s3-pumati-tfstate"
-    key    = "aws/prod/network-test/terraform.tfstate"
+    key    = "aws/prod/network/terraform.tfstate"
     region = "ap-northeast-2"
   }
 }
 
 # Security 모듈의 상태를 참조
-data "terraform_remote_state" "security_test" {
+data "terraform_remote_state" "security" {
   backend = "s3"
   config = {
     bucket = "s3-pumati-tfstate"
-    key    = "aws/prod/security-test/terraform.tfstate"
+    key    = "aws/prod/security/terraform.tfstate"
     region = "ap-northeast-2"
   }
 }
@@ -60,10 +60,10 @@ locals {
   environment  = data.terraform_remote_state.common.outputs.environment
   common_tags  = data.terraform_remote_state.common.outputs.common_tags
       
-  # network-test 모듈 : vpc_id, public_subnet_id
-  vpc_id_test       = data.terraform_remote_state.network_test.outputs.vpc_id
-  public_subnet_ids_test = data.terraform_remote_state.network_test.outputs.public_subnet_ids
+  # network 모듈 : vpc_id, public_subnet_id
+  vpc_id            = data.terraform_remote_state.network.outputs.vpc_id
+  public_subnet_ids = data.terraform_remote_state.network.outputs.public_subnet_ids
 
-  # security-test 모듈 : 보안 그룹 정보
-  alb_sg_id    = data.terraform_remote_state.security_test.outputs.alb_sg_id
+  # security 모듈 : 보안 그룹 정보
+  alb_sg_id    = data.terraform_remote_state.security.outputs.alb_sg_id
 } 

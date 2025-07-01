@@ -8,7 +8,7 @@ module "alb_sg" {
   project_name  = local.project_name
   environment   = local.environment
   tags          = local.common_tags
-  service_name  = "alb-test"
+  service_name  = "alb"
 
   vpc_id        = local.vpc_id
 
@@ -37,7 +37,7 @@ module "frontend_sg" {
   project_name  = local.project_name
   environment   = local.environment
   tags          = local.common_tags
-  service_name  = "frontend-test"
+  service_name  = "frontend"
 
   vpc_id        = local.vpc_id
 
@@ -66,7 +66,7 @@ module "backend_sg" {
   project_name  = local.project_name
   environment   = local.environment
   tags          = local.common_tags
-  service_name  = "backend-test"
+  service_name  = "backend"
 
   vpc_id        = local.vpc_id
 
@@ -102,7 +102,7 @@ module "db_sg" {
   project_name  = local.project_name
   environment   = local.environment
   tags          = local.common_tags
-  service_name  = "db-test"
+  service_name  = "db"
 
   vpc_id        = local.vpc_id
 
@@ -131,7 +131,9 @@ module "frontend_iam" {
   source        = "../../common/module/iam_role"
   project_name  = local.project_name
   environment   = local.environment
-  service_name  = "frontend-test"
+  service_name  = "frontend"
+  assume_role_service     = "ec2.amazonaws.com"
+  instance_profile_enabled = true
   tags          = local.common_tags
 
   # 인라인 정책 정의
@@ -176,7 +178,9 @@ module "backend_iam" {
   source        = "../../common/module/iam_role"
   project_name  = local.project_name
   environment   = local.environment
-  service_name  = "backend-test"
+  service_name  = "backend"
+  assume_role_service     = "ec2.amazonaws.com"
+  instance_profile_enabled = true
   tags          = local.common_tags
 
   # 인라인 정책 정의
@@ -213,7 +217,9 @@ module "db_iam" {
   source        = "../../common/module/iam_role"
   project_name  = local.project_name
   environment   = local.environment
-  service_name  = "db-test"
+  service_name  = "db"
+  assume_role_service     = "ec2.amazonaws.com"
+  instance_profile_enabled = true
   tags          = local.common_tags
 
   inline_policy_json = jsonencode({
@@ -235,6 +241,45 @@ module "db_iam" {
   })
 }
 
+module "firehose_iam" {
+  source        = "../../common/module/iam_role"
+  project_name  = local.project_name
+  environment   = local.environment
+  service_name  = "firehose"
+  assume_role_service     = "firehose.amazonaws.com"
+  instance_profile_enabled = false
+  tags          = local.common_tags
+
+  inline_policy_json = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "AllowPutToMonitoringS3"
+        Effect = "Allow"
+        Action = [
+          "s3:PutObject",
+          "s3:GetObject",
+          "s3:ListBucket",
+          "s3:PutObjectAcl",
+          "s3:GetBucketLocation"
+        ]
+        Resource = [
+          "arn:aws:s3:::s3-pumati-monitoring-logs",
+          "arn:aws:s3:::s3-pumati-monitoring-logs/*"
+        ]
+      },
+      {
+        Sid    = "AllowCWLogs"
+        Effect = "Allow"
+        Action = [
+          "logs:PutLogEvents"
+        ]
+        Resource = "*"
+      }
+    ]
+  })
+}
+
 #---------------------------------------------------------------------------------------------------------------------
 # Secrets Manager
 #---------------------------------------------------------------------------------------------------------------------
@@ -243,7 +288,7 @@ module "frontend_env_secret_prod" {
 
   project_name  = local.project_name
   environment   = "prod"
-  service_name  = "frontend-test"
+  service_name  = "frontend"
   tags          = local.common_tags
   env_file_path = "../../common/envs/frontend/prod/.env"
   kms_key_id    = "arn:aws:kms:ap-northeast-2:236450698266:key/93a8affe-a6f3-4f22-bdcc-dfafac23e42d"
@@ -253,7 +298,7 @@ module "backend_env_secret_prod" {
 
   project_name  = local.project_name
   environment   = "prod"
-  service_name  = "backend-test"
+  service_name  = "backend"
   tags          = local.common_tags
   env_file_path = "../../common/envs/backend/prod/.env"
   kms_key_id    = "arn:aws:kms:ap-northeast-2:236450698266:key/93a8affe-a6f3-4f22-bdcc-dfafac23e42d"

@@ -2,7 +2,7 @@
 terraform {
   backend "s3" {
     bucket       = "s3-pumati-tfstate"
-    key          = "aws/prod/compute-test/terraform.tfstate"
+    key          = "aws/prod/security/terraform.tfstate"
     region       = "ap-northeast-2"
     encrypt      = true
     use_lockfile = true

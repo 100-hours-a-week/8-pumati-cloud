@@ -1,7 +1,7 @@
 module "vpc" {
-  source = "../../common/module/vpc_test"
+  source = "../../common/module/vpc_multi_az_3tier"
 
-  project_name = "${local.project_name}-test"
+  project_name = local.project_name
   environment  = local.environment
   tags         = local.common_tags
 
@@ -29,7 +29,7 @@ module "nat_sg" {
   project_name  = local.project_name
   environment   = local.environment
   tags          = local.common_tags
-  service_name  = "nat-test"
+  service_name  = "nat"
 
   # 리소스 고유값
   vpc_id        = module.vpc.vpc_id
@@ -66,7 +66,7 @@ module "nat_instance" {
   project_name  = local.project_name
   environment   = local.environment
   tags          = local.common_tags
-  service_name  = "nat-test"
+  service_name  = "nat"
 
   # 인스턴스 고유 설정
   instance_ami           = "ami-01ad0c7a4930f0e43"

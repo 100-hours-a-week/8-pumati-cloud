@@ -19,7 +19,18 @@ variable "tags" {
   default     = {}
 }
 
+variable "instance_profile_enabled" {
+  description = "EC2 등에서 사용 시 true로 설정, Firehose 등은 false"
+  type        = bool
+  default     = false
+}
+
 variable "inline_policy_json" {
   description = "IAM Role에 추가할 인라인 정책의 JSON"
+  type        = string
+}
+
+variable "assume_role_service" {
+  description = "Assume role 대상 서비스 (예: ec2.amazonaws.com, firehose.amazonaws.com)"
   type        = string
 }

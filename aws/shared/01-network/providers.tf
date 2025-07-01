@@ -27,7 +27,7 @@ data "terraform_remote_state" "prod_network" {
 
   config = {
     bucket = "s3-pumati-tfstate"
-    key    = "aws/prod/network-test/terraform.tfstate"
+    key    = "aws/prod/network/terraform.tfstate"
     region = "ap-northeast-2"
   }
 }

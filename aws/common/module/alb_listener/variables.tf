@@ -28,13 +28,8 @@ variable "certificate_arn" {
   type = string
 }
 
-variable "default_target_group_arn" {
-  description = "기본 Target Group ARN"
-  type = string
-}
-
-variable "api_target_group_arn" {
-  description = "API 포워딩할 Target Group ARN"
+variable "backend_target_group_arn" {
+  description = "백엔드로 포워딩할 Target Group ARN"
   type = string
 }
 
@@ -50,7 +45,23 @@ variable "enable_redirect" {
   default = true
 }
 
+variable "host_header" {
+  description = "요청 허용할 호스트 헤더 (예: tebutebu.com)"
+  type        = list(string)
+}
+
+
 variable "backend_path_patterns" {
   description = "/api/*, /oauth2/* 등 백엔드로 포워딩할 경로 목록"
   type        = list(string)
+}
+
+variable "frontend_path_patterns" {
+  description = "프론트엔드로 포워딩할 경로 목록"
+  type        = list(string)
+}
+
+variable "frontend_target_group_arn" {
+  description = "프론트엔드로 포워딩할 Target Group ARN"
+  type = string
 }

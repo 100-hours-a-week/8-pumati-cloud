@@ -22,22 +22,22 @@ data "terraform_remote_state" "common" {
   }
 }
 
-# Network-test 모듈의 상태를 참조
-data "terraform_remote_state" "network_test" {
+# Network 모듈의 상태를 참조
+data "terraform_remote_state" "network" {
   backend = "s3"
   config = {
     bucket = "s3-pumati-tfstate"
-    key    = "aws/prod/network-test/terraform.tfstate"
+    key    = "aws/prod/network/terraform.tfstate"
     region = "ap-northeast-2"
   }
 }
 
 # Security 모듈의 상태를 참조
-data "terraform_remote_state" "security_test" {
+data "terraform_remote_state" "security" {
   backend = "s3"
   config = {
     bucket = "s3-pumati-tfstate"
-    key    = "aws/prod/security-test/terraform.tfstate"
+    key    = "aws/prod/security/terraform.tfstate"
     region = "ap-northeast-2"
   }
 }
@@ -61,20 +61,20 @@ locals {
   common_tags  = data.terraform_remote_state.common.outputs.common_tags
 
   # network-test 모듈 : vpc_id, public_subnet_id
-  vpc_id_test             = data.terraform_remote_state.network_test.outputs.vpc_id
-  public_subnet_ids_test  = data.terraform_remote_state.network_test.outputs.public_subnet_ids[0]
-  service_subnet_ids_test = data.terraform_remote_state.network_test.outputs.service_subnet_ids[0]
-  db_subnet_ids_test      = data.terraform_remote_state.network_test.outputs.db_subnet_ids[0]
+  vpc_id             = data.terraform_remote_state.network.outputs.vpc_id
+  public_subnet_ids  = data.terraform_remote_state.network.outputs.public_subnet_ids[0]
+  service_subnet_ids = data.terraform_remote_state.network.outputs.service_subnet_ids[0]
+  db_subnet_ids      = data.terraform_remote_state.network.outputs.db_subnet_ids[0]
 
   # security-test 모듈 : 보안 그룹 ID
-  frontend_sg_id = data.terraform_remote_state.security_test.outputs.frontend_sg_id
-  backend_sg_id  = data.terraform_remote_state.security_test.outputs.backend_sg_id
-  db_sg_id       = data.terraform_remote_state.security_test.outputs.db_sg_id
+  frontend_sg_id = data.terraform_remote_state.security.outputs.frontend_sg_id
+  backend_sg_id  = data.terraform_remote_state.security.outputs.backend_sg_id
+  db_sg_id       = data.terraform_remote_state.security.outputs.db_sg_id
   
   # security-test 모듈 : IAM 인스턴스 프로파일 이름
-  frontend_instance_profile_name = data.terraform_remote_state.security_test.outputs.frontend_instance_profile_name
-  backend_instance_profile_name  = data.terraform_remote_state.security_test.outputs.backend_instance_profile_name
-  db_instance_profile_name       = data.terraform_remote_state.security_test.outputs.db_instance_profile_name
+  frontend_instance_profile_name = data.terraform_remote_state.security.outputs.frontend_instance_profile_name
+  backend_instance_profile_name  = data.terraform_remote_state.security.outputs.backend_instance_profile_name
+  db_instance_profile_name       = data.terraform_remote_state.security.outputs.db_instance_profile_name
 
   # loadbalancer 모듈 : 타겟 그룹 ARN
   frontend_target_group_arn = data.terraform_remote_state.loadbalancer.outputs.frontend_target_group_arn

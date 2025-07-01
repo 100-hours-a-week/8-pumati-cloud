@@ -23,11 +23,11 @@ data "terraform_remote_state" "common" {
 }
 
 # Network 모듈의 상태를 참조
-data "terraform_remote_state" "network_test" {
+data "terraform_remote_state" "network" {
   backend = "s3"
   config = {
     bucket = "s3-pumati-tfstate"
-    key    = "aws/prod/network-test/terraform.tfstate"
+    key    = "aws/prod/network/terraform.tfstate"
     region = "ap-northeast-2"
   }
 }
@@ -41,5 +41,5 @@ locals {
   common_tags  = data.terraform_remote_state.common.outputs.common_tags
 
   # network 모듈 : vpc_id
-  vpc_id       = data.terraform_remote_state.network_test.outputs.vpc_id
+  vpc_id       = data.terraform_remote_state.network.outputs.vpc_id
 } 

@@ -57,7 +57,7 @@ module "management_sg" {
   project_name  = local.project_name
   environment   = local.environment
   tags          = local.common_tags
-  service_name  = "management-test"
+  service_name  = "management"
 
   # 리소스 고유값
   vpc_id        = local.vpc_id
@@ -96,7 +96,7 @@ module "management_iam" {
   source        = "../../common/module/iam_role"
   project_name  = local.project_name
   environment   = local.environment
-  service_name  = "management-test"
+  service_name  = "management"
   tags          = local.common_tags
 
   # 인라인 정책 정의
@@ -121,8 +121,8 @@ module "management_iam" {
         "secretsmanager:GetSecretValue"
       ]
       Resource = [
-        "arn:aws:secretsmanager:ap-northeast-2:236450698266:secret:pumati-prod-frontend-test-.env*",
-        "arn:aws:secretsmanager:ap-northeast-2:236450698266:secret:pumati-prod-backend-test-.env*"
+        "arn:aws:secretsmanager:ap-northeast-2:236450698266:secret:pumati-prod-frontend-.env*",
+        "arn:aws:secretsmanager:ap-northeast-2:236450698266:secret:pumati-prod-backend-.env*"
       ]
       },
       {

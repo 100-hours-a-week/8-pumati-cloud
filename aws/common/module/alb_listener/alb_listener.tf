@@ -1,4 +1,4 @@
-# HTTPS 리스너
+# HTTPS 리스너 - 기본은 404 반환
 resource "aws_lb_listener" "https" {
   count             = var.enable_https ? 1 : 0
   load_balancer_arn = var.load_balancer_arn
@@ -8,8 +8,12 @@ resource "aws_lb_listener" "https" {
   certificate_arn   = var.certificate_arn
 
   default_action {
-    type             = "forward"
-    target_group_arn = var.default_target_group_arn
+    type = "fixed-response"
+    fixed_response {
+      content_type = "text/plain"
+      message_body = "Not Found"
+      status_code  = "404"
+    }
   }
 
   tags = merge(var.tags, {
@@ -38,11 +42,17 @@ resource "aws_lb_listener" "http_redirect" {
   })
 }
 
-# /api/* 요청은 백엔드로 포워딩
-resource "aws_lb_listener_rule" "api_to_backend" {
+# [1] 백엔드로 라우팅
+resource "aws_lb_listener_rule" "backend" {
   count        = var.enable_https ? 1 : 0
   listener_arn = aws_lb_listener.https[0].arn
   priority     = 10
+
+  condition {
+    host_header {
+      values = var.host_header
+    }
+  }
 
   condition {
     path_pattern {
@@ -52,6 +62,30 @@ resource "aws_lb_listener_rule" "api_to_backend" {
 
   action {
     type             = "forward"
-    target_group_arn = var.api_target_group_arn
+    target_group_arn = var.backend_target_group_arn
+  }
+}
+
+# [2] 프론트엔드로 라우팅
+resource "aws_lb_listener_rule" "frontend" {
+  count        = var.enable_https ? 1 : 0
+  listener_arn = aws_lb_listener.https[0].arn
+  priority     = 20
+
+  condition {
+    host_header {
+      values = var.host_header
+    }
+  }
+
+  condition {
+    path_pattern {  
+      values = var.frontend_path_patterns
+    }
+  }
+
+  action {
+    type             = "forward"
+    target_group_arn = var.frontend_target_group_arn
   }
 }

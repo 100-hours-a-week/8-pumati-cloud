@@ -34,3 +34,4 @@ output "db_instance_profile_name" {
   description = "DB 인스턴스 IAM 프로파일 이름"
   value       = module.db_iam.instance_profile_name
 }
+
