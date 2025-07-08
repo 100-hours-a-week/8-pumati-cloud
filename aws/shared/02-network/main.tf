@@ -2,17 +2,17 @@
 # 2. prod vpc와의 피어링 연결
 
 module "vpc" {
-  source = "../../common/module/vpc_single_az"
+  source = "../../common/module/vpc_multi_az_3tier"
 
   project_name = local.project_name
   environment  = local.environment
   tags         = local.common_tags
 
   vpc_cidr              = "10.0.0.0/16"
-  az                    = "ap-northeast-2a"
-  public_subnet_cidr    = "10.0.0.0/24"
-  service_subnet_cidr   = "10.0.1.0/24"
-  db_subnet_cidr        = "10.0.2.0/24"
+  azs                   = ["ap-northeast-2a", "ap-northeast-2c"]
+  public_subnet_cidrs   = ["10.0.0.0/24", "10.0.10.0/24"]
+  service_subnet_cidrs  = ["10.0.1.0/24", "10.0.20.0/24"]
+  db_subnet_cidrs       = ["10.0.2.0/24", "10.0.30.0/24"]
 
   enable_service_subnet   = false
   enable_db_subnet        = false
@@ -21,7 +21,6 @@ module "vpc" {
   service_subnet_map_public_ip = false
   db_subnet_map_public_ip      = false
 }
-
 # ----------------------------------------------------------------------------------------------------------------------
 # prod vpc와의 피어링 연결
 # ----------------------------------------------------------------------------------------------------------------------

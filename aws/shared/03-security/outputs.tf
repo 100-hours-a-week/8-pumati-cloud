@@ -1,3 +1,8 @@
+output "alb_sg_id" {
+  value       = module.alb_sg.security_group_id
+  description = "ALB 보안 그룹 ID"
+}
+
 output "openvpn_sg_id" {
   value       = module.openvpn_sg.security_group_id
   description = "OpenVPN 인스턴스 보안 그룹 ID"

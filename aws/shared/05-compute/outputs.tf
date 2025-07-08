@@ -14,7 +14,7 @@ output "management_instance_id" {
   value       = module.management_instance.instance_id
 }
 
-output "management_public_ip" {
-  description = "Management 인스턴스의 퍼블릭 IP"
-  value       = module.management_instance.public_ip
+output "management_private_ip" {
+  description = "Management 인스턴스의 프라이빗 IP"
+  value       = module.management_instance.private_ip
 }

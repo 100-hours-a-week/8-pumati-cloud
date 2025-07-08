@@ -4,29 +4,29 @@
 module "alb" {
   source = "../../common/module/alb"
 
-  # 공통 변수
   project_name = local.project_name
   environment  = local.environment
   service_name = "alb"
   tags         = local.common_tags
 
-  # 네트워크
   vpc_id             = local.vpc_id
   public_subnet_ids  = local.public_subnet_ids
   security_group_ids = [local.alb_sg_id]
 
-  # ALB 설정
   internal                   = false
   enable_deletion_protection = false
   idle_timeout               = 60
 
-  # 프론트 Target Group 설정
-  frontend_port                = 3000
-  frontend_health_check_path   = "/"
-
-  # 백엔드 Target Group 설정
-  backend_port                 = 8080
-  backend_health_check_path    = "/api/actuator/health"
+  target_groups = {
+    frontend = {
+      port        = 3000
+      health_path = "/"
+    },
+    backend = {
+      port        = 8080
+      health_path = "/api/actuator/health"
+    }
+  }
 }
 
 module "alb_listener" {
@@ -37,28 +37,28 @@ module "alb_listener" {
   service_name  = "alb"
   tags          = local.common_tags
 
-  load_balancer_arn          = module.alb.alb_arn
-  certificate_arn            = local.certificate_arn
-  frontend_target_group_arn  = module.alb.frontend_target_group_arn
-  backend_target_group_arn   = module.alb.backend_target_group_arn
+  load_balancer_arn = module.alb.alb_arn
+  certificate_arn   = local.certificate_arn
 
-  # 백엔드 경로 조건
-  backend_path_patterns = [
-    "/api/*",
-    "/oauth2/*",
-    "/api/*/chatbot*"
-  ]
-
-  # 프론트엔드 경로 조건
-  frontend_path_patterns = [
-    "/*"
-  ]
-
-  # 호스트 헤더 조건
-  host_header = [
-    "tebutebu.com"
-  ]
-
-  enable_https   = true
+  enable_https    = true
   enable_redirect = true
+
+  listener_rules = {
+    frontend = {
+      priority         = 10
+      host_headers     = ["tebutebu.com"]
+      path_patterns    = ["/*"]
+      target_group_arn = module.alb.target_group_arns["frontend"]
+    },
+    backend = {
+      priority         = 20
+      host_headers     = ["tebutebu.com"]
+      path_patterns    = [
+        "/api/*",
+        "/oauth2/*",
+        "/api/*/chatbot*"
+      ]
+      target_group_arn = module.alb.target_group_arns["backend"]
+    }
+  }
 }

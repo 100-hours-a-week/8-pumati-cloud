@@ -52,7 +52,17 @@ data "terraform_remote_state" "loadbalancer" {
   }
 }
 
-# Common, Network, Security, Loadbalancer 모듈의 출력 값 사용
+# Compute 모듈의 상태를 참조
+data "terraform_remote_state" "compute" {
+  backend = "s3"
+  config = {
+    bucket = "s3-pumati-tfstate"
+    key    = "aws/prod/compute/terraform.tfstate"
+    region = "ap-northeast-2"
+  }
+}
+
+# Common, Network, Security, Loadbalancer, Compute 모듈의 출력 값 사용
 locals {
   # common 모듈 : 프로젝트 이름, 리전, 환경, 공통 태그
   project_name = data.terraform_remote_state.common.outputs.project_name
@@ -60,23 +70,22 @@ locals {
   environment  = data.terraform_remote_state.common.outputs.environment
   common_tags  = data.terraform_remote_state.common.outputs.common_tags
 
-  # network 모듈 : vpc_id, public_subnet_ids, service_subnet_ids, db_subnet_ids
+  # network 모듈 : vpc_id, subnet_ids
   vpc_id             = data.terraform_remote_state.network.outputs.vpc_id
-  public_subnet_ids  = data.terraform_remote_state.network.outputs.public_subnet_ids[0]
-  service_subnet_ids = data.terraform_remote_state.network.outputs.service_subnet_ids[0]
-  db_subnet_ids      = data.terraform_remote_state.network.outputs.db_subnet_ids[0]
+  public_subnet_ids  = data.terraform_remote_state.network.outputs.public_subnet_ids
+  service_subnet_ids = data.terraform_remote_state.network.outputs.service_subnet_ids
+  db_subnet_ids      = data.terraform_remote_state.network.outputs.db_subnet_ids
 
   # security 모듈 : 보안 그룹 ID
   frontend_sg_id = data.terraform_remote_state.security.outputs.frontend_sg_id
   backend_sg_id  = data.terraform_remote_state.security.outputs.backend_sg_id
   db_sg_id       = data.terraform_remote_state.security.outputs.db_sg_id
   
-  # security 모듈 : IAM 인스턴스 프로파일 이름
-  frontend_instance_profile_name = data.terraform_remote_state.security.outputs.frontend_instance_profile_name
-  backend_instance_profile_name  = data.terraform_remote_state.security.outputs.backend_instance_profile_name
-  db_instance_profile_name       = data.terraform_remote_state.security.outputs.db_instance_profile_name
-
-  # loadbalancer 모듈 : 타겟 그룹 ARN
-  frontend_target_group_arn = data.terraform_remote_state.loadbalancer.outputs.target_group_arns["frontend"]
-  backend_target_group_arn  = data.terraform_remote_state.loadbalancer.outputs.target_group_arns["backend"]
+  # loadbalancer 모듈 : ALB ARN
+  alb_arn = data.terraform_remote_state.loadbalancer.outputs.alb_arn
+  
+  # compute 모듈 : 인스턴스 ID
+  frontend_instance_id = data.terraform_remote_state.compute.outputs.frontend_instance_id
+  backend_instance_id  = data.terraform_remote_state.compute.outputs.backend_instance_id
+  db_instance_id       = data.terraform_remote_state.compute.outputs.db_instance_id
 } 

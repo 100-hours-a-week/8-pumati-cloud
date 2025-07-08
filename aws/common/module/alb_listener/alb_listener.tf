@@ -42,50 +42,26 @@ resource "aws_lb_listener" "http_redirect" {
   })
 }
 
-# [1] 백엔드로 라우팅
-resource "aws_lb_listener_rule" "backend" {
-  count        = var.enable_https ? 1 : 0
+# 리스너 규칙
+resource "aws_lb_listener_rule" "this" {
+  for_each     = var.enable_https ? var.listener_rules : {}
   listener_arn = aws_lb_listener.https[0].arn
-  priority     = 10
+  priority     = each.value.priority
 
   condition {
     host_header {
-      values = var.host_header
+      values = each.value.host_headers
     }
   }
 
   condition {
     path_pattern {
-      values = var.backend_path_patterns
+      values = each.value.path_patterns
     }
   }
 
   action {
     type             = "forward"
-    target_group_arn = var.backend_target_group_arn
-  }
-}
-
-# [2] 프론트엔드로 라우팅
-resource "aws_lb_listener_rule" "frontend" {
-  count        = var.enable_https ? 1 : 0
-  listener_arn = aws_lb_listener.https[0].arn
-  priority     = 20
-
-  condition {
-    host_header {
-      values = var.host_header
-    }
-  }
-
-  condition {
-    path_pattern {  
-      values = var.frontend_path_patterns
-    }
-  }
-
-  action {
-    type             = "forward"
-    target_group_arn = var.frontend_target_group_arn
+    target_group_arn = each.value.target_group_arn
   }
 }

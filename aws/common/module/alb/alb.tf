@@ -14,16 +14,19 @@ resource "aws_lb" "this" {
   })
 }
 
-# 프론트 Target Group
-resource "aws_lb_target_group" "frontend" {
-  name     = "${var.project_name}-${var.environment}-frontend-tg" 
-  port        = var.frontend_port
+# Target Group
+resource "aws_lb_target_group" "this" {
+  for_each = var.target_groups
+
+  name        = "${var.project_name}-${var.environment}-${each.key}-tg"
+  port        = each.value.port
   protocol    = "HTTP"
   target_type = "instance"
   vpc_id      = var.vpc_id
 
   health_check {
-    path                = var.frontend_health_check_path
+    path                = each.value.health_path
+    matcher             = lookup(each.value, "matcher", "200") # 기본값은 200
     protocol            = "HTTP"
     port                = "traffic-port"
     interval            = 30
@@ -33,29 +36,6 @@ resource "aws_lb_target_group" "frontend" {
   }
 
   tags = merge(var.tags, {
-    Name = "${var.project_name}-${var.environment}-frontend-tg"
-  })
-}
-
-# 백엔드 Target Group
-resource "aws_lb_target_group" "backend" {
-  name     = "${var.project_name}-${var.environment}-backend-tg" 
-  port        = var.backend_port
-  protocol    = "HTTP"
-  target_type = "instance"
-  vpc_id      = var.vpc_id
-
-  health_check {
-    path                = var.backend_health_check_path
-    protocol            = "HTTP"
-    port                = "traffic-port"
-    interval            = 30
-    timeout             = 5
-    healthy_threshold   = 2
-    unhealthy_threshold = 2
-  }
-
-  tags = merge(var.tags, {
-    Name = "${var.project_name}-${var.environment}-backend-tg"
+    Name = "${var.project_name}-${var.environment}-${each.key}-tg"
   })
 }

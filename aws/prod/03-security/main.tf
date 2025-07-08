@@ -55,6 +55,13 @@ module "frontend_sg" {
       protocol         = "tcp"
       security_groups  = [module.alb_sg.security_group_id]  # ALB에서의 접근 허용
       description      = "Allow frontend access from ALB"
+    },
+    {
+      from_port        = 9100
+      to_port          = 9100
+      protocol         = "tcp"
+      cidr_blocks      = ["10.0.0.0/16"]  # Prometheus가 있는 shared VPC CIDR
+      description      = "Allow Prometheus (node_exporter) access from Shared VPC"
     }
   ]
 }
@@ -91,6 +98,13 @@ module "backend_sg" {
       protocol         = "tcp"
       security_groups  = [module.frontend_sg.security_group_id]  # 프론트에서의 API 호출 허용
       description      = "Allow API call from frontend"
+    },
+    {
+      from_port        = 9100
+      to_port          = 9100
+      protocol         = "tcp"
+      cidr_blocks      = ["10.0.0.0/16"]  # Prometheus가 있는 shared VPC CIDR
+      description      = "Allow Prometheus (node_exporter) access from Shared VPC"
     }
   ]
 }
@@ -120,6 +134,13 @@ module "db_sg" {
       protocol         = "tcp"
       security_groups  = [module.backend_sg.security_group_id]
       description      = "Allow MySQL from backend SG"
+    },
+    {
+      from_port        = 9104
+      to_port          = 9104
+      protocol         = "tcp"
+      cidr_blocks      = ["10.0.0.0/16"]  # Prometheus가 있는 shared VPC CIDR
+      description      = "Allow Prometheus (mysqld_exporter) access from Shared VPC"
     }
   ]
 }

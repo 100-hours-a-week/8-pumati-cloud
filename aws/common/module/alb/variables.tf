@@ -58,25 +58,14 @@ variable "vpc_id" {
   type = string
 }
 
-variable "frontend_port" {
-  description = "프론트엔드 포트"
-  type    = number
-}
-
-variable "backend_port" {
-  description = "백엔드 포트"
-  type    = number
-}
-
-# 헬스 체크 경로
-variable "frontend_health_check_path" {
-  description = "프론트엔드 헬스 체크 경로"
-  type    = string
-}
-
-variable "backend_health_check_path" {
-  description = "백엔드 헬스 체크 경로"
-  type    = string
+# 여러 Target Group을 동적으로 정의
+variable "target_groups" {
+  description = "생성할 Target Group 목록 (key는 서비스 이름)"
+  type = map(object({
+    port        = number
+    health_path = string
+    matcher     = optional(string, "200")  # 기본값 200
+  }))
 }
 
 

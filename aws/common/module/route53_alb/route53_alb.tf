@@ -4,9 +4,10 @@ data "aws_route53_zone" "this" {
 }
 
 resource "aws_route53_record" "this" {
-  zone_id = data.aws_route53_zone.this.zone_id
-  name    = var.record_name
-  type    = "A"
+  zone_id         = data.aws_route53_zone.this.zone_id
+  name            = var.record_name
+  type            = "A"
+  allow_overwrite = true
 
   alias {
     name                   = var.alias_name     # ALB의 DNS name

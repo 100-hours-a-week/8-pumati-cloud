@@ -24,7 +24,7 @@ data "terraform_remote_state" "common" {
   backend = "s3"
   config = {
     bucket = "s3-pumati-tfstate"
-    key    = "aws/prod/common/terraform.tfstate"
+    key    = "aws/shared/common/terraform.tfstate"
     region = "ap-northeast-2"
   }
 }
@@ -34,7 +34,7 @@ data "terraform_remote_state" "network" {
   backend = "s3"
   config = {
     bucket = "s3-pumati-tfstate"
-    key    = "aws/prod/network/terraform.tfstate"
+    key    = "aws/shared/network/terraform.tfstate"
     region = "ap-northeast-2"
   }
 }
@@ -44,7 +44,7 @@ data "terraform_remote_state" "security" {
   backend = "s3"
   config = {
     bucket = "s3-pumati-tfstate"
-    key    = "aws/prod/security/terraform.tfstate"
+    key    = "aws/shared/security/terraform.tfstate"
     region = "ap-northeast-2"
   }
 }
@@ -64,6 +64,6 @@ locals {
   vpc_id            = data.terraform_remote_state.network.outputs.vpc_id
   public_subnet_ids = data.terraform_remote_state.network.outputs.public_subnet_ids
 
-  # security 모듈 : 보안 그룹 정보
+  # security 모듈 : 보안 그룹 정보 (alb_sg_id 사용)
   alb_sg_id    = data.terraform_remote_state.security.outputs.alb_sg_id
-} 
+}

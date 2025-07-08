@@ -10,7 +10,7 @@ module "openvpn_instance" {
   instance_type          = "t2.micro"
   instance_key_name      = "pumati-full-master"
   # iam_instance_profile   = X
-  subnet_id              = local.public_subnet_id
+  subnet_id              = local.public_subnet_ids
   security_group_ids     = [local.openvpn_sg_id]
 
   root_volume_size       = 20
@@ -37,7 +37,7 @@ module "management_instance" {
   instance_type          = "t3.small"
   instance_key_name      = "pumati-full-master"
   iam_instance_profile   = local.management_instance_profile_name
-  subnet_id              = local.public_subnet_id
+  subnet_id              = local.public_subnet_ids
   security_group_ids     = [local.management_sg_id]
 
   root_volume_size       = 30
@@ -49,5 +49,33 @@ module "management_instance" {
   disable_api_termination       = false
   shutdown_behavior             = "stop"
 
-  enable_eip = true
+  enable_eip = false
+}
+
+# ---------------------------------------------------------------------------------------------------------------------
+# Target Group Attachment - EC2 인스턴스를 타겟 그룹에 연결
+# ---------------------------------------------------------------------------------------------------------------------
+
+module "jenkins_target_attachment" {
+  source = "../../common/module/alb_target_attachment"
+
+  target_group_arn = local.jenkins_target_group_arn
+  target_id        = module.management_instance.instance_id
+  port             = 8080
+}
+
+module "grafana_target_attachment" {
+  source = "../../common/module/alb_target_attachment"
+
+  target_group_arn = local.grafana_target_group_arn
+  target_id        = module.management_instance.instance_id
+  port             = 3000
+}
+
+module "prometheus_target_attachment" {
+  source = "../../common/module/alb_target_attachment"
+
+  target_group_arn = local.prometheus_target_group_arn
+  target_id        = module.management_instance.instance_id
+  port             = 9090
 }

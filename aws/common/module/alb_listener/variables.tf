@@ -18,6 +18,9 @@ variable "tags" {
   type = map(string)
 }
 
+# ----------------------------------------------------------------------------------------------------------------------
+# 리스너 설정
+# ----------------------------------------------------------------------------------------------------------------------
 variable "load_balancer_arn" {
   description = "ALB ARN"
   type = string
@@ -25,11 +28,6 @@ variable "load_balancer_arn" {
 
 variable "certificate_arn" {
   description = "ACM 인증서 ARN"
-  type = string
-}
-
-variable "backend_target_group_arn" {
-  description = "백엔드로 포워딩할 Target Group ARN"
   type = string
 }
 
@@ -45,23 +43,12 @@ variable "enable_redirect" {
   default = true
 }
 
-variable "host_header" {
-  description = "요청 허용할 호스트 헤더 (예: tebutebu.com)"
-  type        = list(string)
-}
-
-
-variable "backend_path_patterns" {
-  description = "/api/*, /oauth2/* 등 백엔드로 포워딩할 경로 목록"
-  type        = list(string)
-}
-
-variable "frontend_path_patterns" {
-  description = "프론트엔드로 포워딩할 경로 목록"
-  type        = list(string)
-}
-
-variable "frontend_target_group_arn" {
-  description = "프론트엔드로 포워딩할 Target Group ARN"
-  type = string
+variable "listener_rules" {
+  description = "리스너 룰 설정: key는 룰 이름, value는 조건 및 타겟 그룹 정보"
+  type = map(object({
+    priority         = number
+    host_headers     = list(string)
+    path_patterns    = list(string)
+    target_group_arn = string
+  }))
 }
