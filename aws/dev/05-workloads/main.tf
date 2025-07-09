@@ -714,11 +714,10 @@ spec:
     - name: "amazon-eks-node-1.31-v*"  # 검색 결과 기반 올바른 패턴
 #==============================================================================
   
-  # 서브넷 선택 - 태그 기반으로 프라이빗 서브넷 선택 (더 안정적)
+  # 서브넷 선택 - Type 태그로 프라이빗 서브넷 선택
   subnetSelectorTerms:
     - tags:
-        karpenter.sh/discovery: "${local.cluster_name}"
-        Type: "private"
+        Type: "private"  # 실제 존재하는 태그 사용
   
   # 보안 그룹 선택 - 04-eks에서 생성한 노드 보안 그룹 직접 지정
   securityGroupSelectorTerms:
@@ -818,7 +817,6 @@ spec:
           values: ["t3.medium", "t3a.medium", "t3.large", "t3a.large", "t3.xlarge", "t3a.xlarge"]  # 🔧 인스턴스 타입 확장
       
       # ✅ 노드 수명 관리 (올바른 위치)
-      expireAfter: 1h  # 1시간 미사용시 제거
       terminationGracePeriod: 5m
       
       # 스팟 인스턴스 Taints (필요시 주석 해제)

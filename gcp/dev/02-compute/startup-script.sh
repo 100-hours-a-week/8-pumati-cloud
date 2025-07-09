@@ -101,6 +101,13 @@ if [ -n "$DISK_DEVICE" ]; then
     log_message "✅ 영구 디스크 마운트 완료: $MOUNT_PATH"
     df -h $MOUNT_PATH >> $LOGFILE
 
+    # 💡 전체 pd 디렉토리 권한 설정 추가
+    log_message "▶ 영구 디스크 접근 권한 설정 중..."
+    chmod 777 "$MOUNT_PATH"                    # 모든 사용자가 읽기/쓰기/실행 가능
+    chown root:users "$MOUNT_PATH"             # users 그룹에 소유권 부여
+    
+    log_message "✅ 영구 디스크 권한 설정 완료 (777 권한으로 모든 사용자 접근 가능)"
+
     #############################################
     # 1-1. Docker 데이터 경로 PD로 설정 (추가됨)
     #############################################

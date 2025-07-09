@@ -35,19 +35,19 @@
 resource "google_compute_instance_template" "g2_standard_4" {
   name_prefix  = "l4-spot-g2std4-"
   project      = local.project_id
-  machine_type = "n1-standard-4"
+  machine_type = "g2-standard-4"
 
-  # GPU 설정
+  # GPU 설정 - L4 24GB로 변경
   guest_accelerator {
-    type  = "nvidia-tesla-t4"
+    type  = "nvidia-l4"
     count = 1
   }
 
-  # 스팟 인스턴스 설정
+  # GPU 인스턴스용 온디맨드 설정
   scheduling {
-    preemptible        = true
-    automatic_restart  = false
-    provisioning_model = "SPOT"
+    preemptible                = false  # 스팟 비활성화
+    automatic_restart          = true   # 자동 재시작 활성화
+    on_host_maintenance        = "TERMINATE"  # GPU는 라이브 마이그레이션 불가, 종료 후 재시작
   }
 
   # 부팅 디스크 설정
@@ -64,6 +64,7 @@ resource "google_compute_instance_template" "g2_standard_4" {
     "install-gpu-driver" = "true"
     "enable-osconfig"    = "true"
     "machine-type"       = "g2-standard-4"
+    "ssh-keys"          = "hyunsik:${file("/Users/hyunsik/.ssh/key-dev-anna.pub")}"  # 생성한 SSH 공개키 추가
   }
 
   metadata_startup_script = local.final_startup_script
@@ -94,11 +95,11 @@ resource "google_compute_instance_template" "g2_standard_8" {
   project      = local.project_id
   machine_type = "g2-standard-12"
 
-  # 스팟 인스턴스 설정
+  # GPU 인스턴스용 온디맨드 설정
   scheduling {
-    preemptible        = true
-    automatic_restart  = false
-    provisioning_model = "SPOT"
+    preemptible                = false
+    automatic_restart          = true
+    on_host_maintenance        = "TERMINATE"
   }
 
   # 부팅 디스크 설정
@@ -121,6 +122,7 @@ resource "google_compute_instance_template" "g2_standard_8" {
     "install-gpu-driver" = "true"
     "enable-osconfig"    = "true"
     "machine-type"       = "g2-standard-8"
+    "ssh-keys"          = "hyunsik:${file("/Users/hyunsik/.ssh/key-dev-anna.pub")}"  # 생성한 SSH 공개키 추가
   }
 
   metadata_startup_script = local.final_startup_script
