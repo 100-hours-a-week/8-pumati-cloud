@@ -271,6 +271,33 @@ resource "aws_security_group" "nat_instance" {
     cidr_blocks = ["10.10.11.0/24", "10.10.12.0/24", "10.10.21.0/24", "10.10.22.0/24"]
   }
 
+  # SMTP 트래픽 허용 (포트 25)
+  ingress {
+    description = "SMTP from Private Subnets"
+    from_port   = 25
+    to_port     = 25
+    protocol    = "tcp"
+    cidr_blocks = ["10.10.11.0/24", "10.10.12.0/24", "10.10.21.0/24", "10.10.22.0/24"]
+  }
+
+  # SMTPS 트래픽 허용 (포트 465)
+  ingress {
+    description = "SMTPS from Private Subnets"
+    from_port   = 465
+    to_port     = 465
+    protocol    = "tcp"
+    cidr_blocks = ["10.10.11.0/24", "10.10.12.0/24", "10.10.21.0/24", "10.10.22.0/24"]
+  }
+
+  # SMTP with STARTTLS 트래픽 허용 (포트 587)
+  ingress {
+    description = "SMTP STARTTLS from Private Subnets"
+    from_port   = 587
+    to_port     = 587
+    protocol    = "tcp"
+    cidr_blocks = ["10.10.11.0/24", "10.10.12.0/24", "10.10.21.0/24", "10.10.22.0/24"]
+  }
+
   # SSH 접근 허용 (관리용)
   ingress {
     description = "SSH for management"
