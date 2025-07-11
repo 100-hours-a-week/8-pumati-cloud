@@ -1067,17 +1067,18 @@ EOF
 # 스크립트 실행 권한 부여
 chmod +x /opt/crawling/run-crawling.sh
 
-# cron 작업 설정 (매일 오전 10시에 실행 - 한국 시간 기준)
-log_message "▶ 크롤링 cron 작업 설정 중 (매일 오전 10시, 한국시간)..."
-(crontab -l 2>/dev/null || echo "") | grep -v "run-crawling" | { cat; echo "0 1 * * * /opt/crawling/run-crawling.sh"; } | crontab -
+# cron 작업 설정 (매일 오전 10시에 실행 - 한국 시간 기준) - 주석처리됨
+# log_message "▶ 크롤링 cron 작업 설정 중 (매일 오전 10시, 한국시간)..."
+# (crontab -l 2>/dev/null || echo "") | grep -v "run-crawling" | { cat; echo "0 1 * * * /opt/crawling/run-crawling.sh"; } | crontab -
 
 # 크롤링 로그 파일 생성
 touch /var/log/crawling-cron.log
 chmod 666 /var/log/crawling-cron.log
 
-log_message "✅ 크롤링 cron 작업 설정 완료 (매일 오전 10시 실행, 한국시간)"
+log_message "✅ 크롤링 스크립트 생성 완료 (자동 실행 비활성화)"
 log_message "   • 로그 파일: /var/log/crawling-cron.log"
 log_message "   • 수동 실행: /opt/crawling/run-crawling.sh"
+log_message "   • 자동 실행을 원할 경우 cron 작업 설정 주석을 해제하세요"
 
 
 ###################################
