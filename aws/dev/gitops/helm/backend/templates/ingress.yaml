@@ -28,6 +28,14 @@ spec:
                 name: pumati-backend
                 port:
                   number: 80
+          # ✅ actuator 경로 추가 (/actuator/* 모든 경로를 백엔드로)
+          - path: /actuator
+            pathType: Prefix
+            backend:
+              service:
+                name: pumati-backend
+                port:
+                  number: 80
           # /api 경로 → 백엔드 서비스
           - path: /api
             pathType: Prefix

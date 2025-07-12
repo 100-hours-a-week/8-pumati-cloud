@@ -282,8 +282,8 @@ log_message "▶ cloudflared 디렉토리 생성 중"
 mkdir -p /etc/cloudflared /root/.cloudflared /var/log/cloudflared
 
 log_message "▶ cloudflared 인증 파일 GCS에서 다운로드 중"
-gsutil cp gs://ktb8team-static-storage-dev/cloudflare/${TUNNEL_UUID}.json /etc/cloudflared/llm-tunnel.json
-gsutil cp gs://ktb8team-static-storage-dev/cloudflare/cert.pem /root/.cloudflared/cert.pem
+gsutil cp gs://ktb8team-static-storage-dev-anna/cloudflare/${TUNNEL_UUID}.json /etc/cloudflared/llm-tunnel.json
+gsutil cp gs://ktb8team-static-storage-dev-anna/cloudflare/cert.pem /root/.cloudflared/cert.pem
 
 log_message "▶ config.yml 설정 파일 생성"
 cat <<EOF > /etc/cloudflared/config.yml
@@ -293,6 +293,8 @@ credentials-file: /etc/cloudflared/llm-tunnel.json
 ingress:
   - hostname: dev.mydairy.my
     service: http://localhost:8080
+  - hostname: ssh.dev.mydairy.my    # SSH 전용 서브도메인 추가
+    service: ssh://localhost:22
   - service: http_status:404
 EOF
 

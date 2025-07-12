@@ -16,13 +16,13 @@ gcloud iam service-accounts create terraform \
   --display-name="Terraform Service Account"
 
 # 서비스 계정에 소유자 역할 부여
-gcloud projects add-iam-policy-binding ambient-topic-459110-e6 \
-  --member="serviceAccount:terraform@ambient-topic-459110-e6.iam.gserviceaccount.com" \
+gcloud projects add-iam-policy-binding dev-anna-465601 \
+  --member="serviceAccount:terraform@dev-anna-465601.iam.gserviceaccount.com" \
   --role="roles/owner"
 
 # 서비스 계정 키 생성 및 저장
 gcloud iam service-accounts keys create ~/terraform-key-dev.json \
-  --iam-account="terraform@ambient-topic-459110-e6.iam.gserviceaccount.com"
+  --iam-account="terraform@dev-anna-465601.iam.gserviceaccount.com"
 
 # 클라우드플레어 설정
 json과 pem 

@@ -2,7 +2,8 @@
 
 # GCP 프로젝트 관련 설정
 project_name = "ktb8team"
-project_id   = "ambient-topic-459110-e6"  # 실제 GCP 프로젝트 ID로 변경 필요
+#project_id   = "ambient-topic-459110-e6"  # 실제 GCP 프로젝트 ID로 변경 필요
+project_id   = "dev-anna-465601"  # 실제 GCP 프로젝트 ID로 변경 필요
 
 # 환경 설정
 environment  = "dev"  # dev, staging, prod 중 선택

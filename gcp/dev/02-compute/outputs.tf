@@ -30,3 +30,14 @@ output "health_check_id" {
   description = "헬스 체크 ID"
   value       = google_compute_health_check.l4_spot.id
 }
+
+# 고정 IP 정보 추가
+output "static_ip_address" {
+  description = "T4 스팟 인스턴스용 고정 IP 주소"
+  value       = google_compute_address.t4_static_ip.address
+}
+
+output "static_ip_name" {
+  description = "T4 스팟 인스턴스용 고정 IP 이름"
+  value       = google_compute_address.t4_static_ip.name
+}
