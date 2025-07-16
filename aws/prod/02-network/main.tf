@@ -6,7 +6,7 @@ module "vpc" {
   tags         = local.common_tags
 
   vpc_cidr              = "10.1.0.0/16"
-  azs                   = ["ap-northeast-2a", "ap-northeast-2c"]
+  azs                   = ["a", "c"]
   public_subnet_cidrs   = ["10.1.1.0/24", "10.1.10.0/24"]
   service_subnet_cidrs  = ["10.1.2.0/24", "10.1.20.0/24"]
   db_subnet_cidrs       = ["10.1.3.0/24", "10.1.30.0/24"]

@@ -12,6 +12,9 @@ provider "aws" {
   region = "ap-northeast-2"
 }
 
+# 현재 AWS 계정 정보 가져오기 (IAM 역할 ARN에 필요)
+data "aws_caller_identity" "current" {}
+
 # Common 모듈의 상태를 참조
 data "terraform_remote_state" "common" {
   backend = "s3"
@@ -61,6 +64,7 @@ data "terraform_remote_state" "compute" {
     region = "ap-northeast-2"
   }
 }
+
 
 # Common, Network, Security, Loadbalancer, Compute 모듈의 출력 값 사용
 locals {

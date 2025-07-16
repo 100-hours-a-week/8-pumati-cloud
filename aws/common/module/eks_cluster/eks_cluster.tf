@@ -12,6 +12,10 @@ resource "aws_eks_cluster" "this" {
     public_access_cidrs     = var.public_access_cidrs
   }
 
+  upgrade_policy {
+    support_type = var.support_type
+  }
+
   tags = merge(var.tags, {
     Name = "${var.project_name}-${var.environment}-${var.service_name}"
   })

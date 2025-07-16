@@ -18,3 +18,15 @@ variable "tags" {
   type        = map(string)
   default     = {}
 }
+
+# --------------------------------------------------------------------------------------
+variable "managed_policy_arns" {
+  description = "List of managed policy ARNs to attach"
+  type        = list(string)
+  default     = []
+}
+
+variable "assume_role_policy_json" {
+  description = "IRSA용 Assume Role 정책 (WebIdentity)"
+  type        = string
+}

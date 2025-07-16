@@ -70,6 +70,7 @@ module "eks_cluster" {
   service_name  = "eks-cluster"                    
 
   kubernetes_version = "1.31"                         # 클러스터 버전 1.31 
+  support_type       = "STANDARD"                     # 지원 정책: STANDARD(표준) 또는 EXTENDED(확장)
 
   cluster_role_arn = module.eks_cluster_role.role_arn # EKS에 연결된 IAM 역할 ARN
   cluster_security_group_id = module.eks_cluster_sg.security_group_id
@@ -108,13 +109,6 @@ module "eks_node_sg" {
       protocol    = "-1"
       self        = true
       description = "All traffic between worker nodes"
-    },
-    {
-      from_port                = 0
-      to_port                  = 0
-      protocol                 = "-1"
-      source_security_group_id = module.eks_cluster_sg.security_group_id
-      description              = "Allow traffic from EKS Control Plane to Worker Nodes"
     },
     # Prometheus가 Node Exporter(9100), Kubelet(10250) 메트릭 수집을 위해 접근
     {
@@ -213,7 +207,7 @@ module "eks_system_node_group" {
     
   capacity_type = "ON_DEMAND"
   ami_type      = "AL2_x86_64"
-  instance_types = ["t3.small"]
+  instance_types = ["t3a.medium"]
 
   desired_size   = 1
   min_size       = 1
@@ -239,203 +233,159 @@ module "eks_system_node_group" {
 # VPC CNI : Pod들이 VPC IP 주소를 받아 서로 통신할 수 있도록 하는 핵심 컴포넌트
 # CoreDNS : Kubernetes 클러스터 내부 DNS 서비스 Pod들이 서비스 이름으로 서로를 찾을 수 있도록 하는 DNS 해석 서비스
 # kube-proxy : Service 라우팅 담당 Service로 들어오는 트래픽을 적절한 Pod로 전달하는 네트워크 프록시
+# EBS CSI Driver Add-on : 아래 따로 추가함
 
-# module "addon_vpc_cni" {
-#   source = "../../common/module/eks_addons"
-#   project_name  = local.project_name
-#   environment   = local.environment
-#   tags          = local.common_tags
+module "addon_vpc_cni" {
+  source = "../../common/module/eks_addons"
+  project_name  = local.project_name
+  environment   = local.environment
+  tags          = local.common_tags
 
-#   service_name  = "eks-addon"
-#   cluster_name = module.eks_cluster.cluster_name
-#   addon_name   = "vpc-cni"
+  service_name  = "eks-addon"
+  cluster_name = module.eks_cluster.cluster_name
+  addon_name   = "vpc-cni"
 
-#   resolve_conflicts_on_create = "OVERWRITE"
-#   resolve_conflicts_on_update = "OVERWRITE"
+  resolve_conflicts_on_create = "OVERWRITE"
+  resolve_conflicts_on_update = "OVERWRITE"
 
-#   purpose       = "Pod Networking"
-#   component     = "EKS-Networking"
+  purpose       = "Pod Networking"
+  component     = "EKS-Networking"
 
-#   depends_on = [
-#     module.eks_system_node_group
-#   ]
-# }
+  depends_on = [
+    module.eks_system_node_group
+  ]
+}
 
-# module "addon_coredns" {
-#   source = "../../common/module/eks_addons"
+module "addon_coredns" {
+  source = "../../common/module/eks_addons"
 
-#   project_name  = local.project_name
-#   environment   = local.environment
-#   tags          = local.common_tags
+  project_name  = local.project_name
+  environment   = local.environment
+  tags          = local.common_tags
 
-#   service_name  = "eks-addon"
-#   cluster_name  = module.eks_cluster.cluster_name
-#   addon_name    = "coredns"
-#   addon_version = "v1.11.3-eksbuild.1"
+  service_name  = "eks-addon"
+  cluster_name  = module.eks_cluster.cluster_name
+  addon_name    = "coredns"
+  addon_version = "v1.11.3-eksbuild.1"
 
-#   resolve_conflicts_on_create = "OVERWRITE"
-#   resolve_conflicts_on_update = "OVERWRITE"
+  resolve_conflicts_on_create = "OVERWRITE"
+  resolve_conflicts_on_update = "OVERWRITE"
 
-#   purpose       = "Internal DNS Resolution"
-#   component     = "EKS-DNS"
+  purpose       = "Internal DNS Resolution"
+  component     = "EKS-DNS"
 
-#   depends_on = [
-#     module.addon_vpc_cni,
-#     module.eks_system_node_group
-#   ]
-# }
+  depends_on = [
+    module.addon_vpc_cni,
+    module.eks_system_node_group
+  ]
+}
 
-# module "addon_kube_proxy" {
-#   source = "../../common/module/eks_addons"
+module "addon_kube_proxy" {
+  source = "../../common/module/eks_addons"
 
-#   project_name  = local.project_name
-#   environment   = local.environment
-#   tags          = local.common_tags
+  project_name  = local.project_name
+  environment   = local.environment
+  tags          = local.common_tags
 
-#   service_name  = "eks-addon"
-#   cluster_name = module.eks_cluster.cluster_name
-#   addon_name   = "kube-proxy"
+  service_name  = "eks-addon"
+  cluster_name = module.eks_cluster.cluster_name
+  addon_name   = "kube-proxy"
 
-#   resolve_conflicts_on_create = "OVERWRITE"
-#   resolve_conflicts_on_update = "OVERWRITE"
+  resolve_conflicts_on_create = "OVERWRITE"
+  resolve_conflicts_on_update = "OVERWRITE"
 
-#   purpose       = "Service Traffic Routing"
-#   component     = "EKS-Proxy"
+  purpose       = "Service Traffic Routing"
+  component     = "EKS-Proxy"
 
-#   depends_on = [
-#     module.eks_system_node_group
-#   ]
-# }
+  depends_on = [
+    module.eks_system_node_group
+  ]
+}
 
-# #------------------------------------------------------------------------------
-# # 9. EKS OIDC Identity Provider 생성
-# #------------------------------------------------------------------------------
-# # OIDC (OpenID Connect)는 인증(Authenticate)을 위한 표준 프로토콜
-# # EKS에서 사용하는 OIDC는 Kubernetes의 ServiceAccount와 AWS IAM을 연결하기 위해 사용 -> IRSA (IAM Roles for Service Accounts) 기능
-# # 모든 Pod가 같은 권한을 공유하지 않도록 세밀한 권한 제어 가능 -> 워커 노드에서 실행되는 Pod들이 AWS 리소스에 접근할 때 필요 
+#------------------------------------------------------------------------------
+# 8-1. EBS CSI Driver Add-on 설치
+#------------------------------------------------------------------------------
+# Amazon EBS Container Storage Interface Driver용 IAM 역할
+# Pod들이 EBS 볼륨을 영구 저장소로 사용할 수 있도록 하는 드라이버에 필요한 권한
+# 내부적으로 kube-system 네임스페이스의 ebs-csi-controller-sa 서비스 어카운트를 사용해 EBS 볼륨을 관리하므로 EBS API 권한이 필요
+# IRSA = IAM Roles for Service Accounts : EKS에서 Pod(컨테이너)가 AWS 리소스(EBS, S3 등)에 안전하게 접근할 수 있게 해주는 IAM 연결 방식 -> Pod 단위로 IAM Role 부여
 
-# module "eks_oidc" {
-#   source        = "../../common/module/eks_oidc"
-#   project_name  = local.project_name
-#   environment   = local.environment
-#   tags          = local.common_tags
+module "ebs_csi_driver_role" {
+  source       = "../../common/module/eks_irsa_iam_role"
 
-#   service_name  = "eks-oidc"
-#   oidc_url      = module.eks_cluster.oidc_issuer_url
+  project_name = local.project_name
+  environment  = local.environment
+  tags         = local.common_tags
 
-#   depends_on = [
-#     module.eks_cluster
-#   ]
-# }
+  service_name = "ebs-csi-driver"
 
-# #------------------------------------------------------------------------------
-# # EBS CSI Driver를 위한 IAM 역할 생성
-# #------------------------------------------------------------------------------
-# # Amazon EBS Container Storage Interface Driver용 IAM 역할
-# # Pod들이 EBS 볼륨을 영구 저장소로 사용할 수 있도록 하는 드라이버에 필요한 권한
+  managed_policy_arns = [
+    "arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy"
+  ]
 
-# # 현재 AWS 계정 정보 가져오기 (IAM 역할 ARN에 필요)
-# data "aws_caller_identity" "current" {}
+  assume_role_policy_json = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Principal = {
+          Federated = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:oidc-provider/${replace(module.eks_cluster.oidc_issuer_url, "https://", "")}"
+        }
+        Action = "sts:AssumeRoleWithWebIdentity"
+        Condition = {
+          StringEquals = {
+            "${replace(module.eks_cluster.oidc_issuer_url, "https://", "")}:sub" = "system:serviceaccount:kube-system:ebs-csi-controller-sa",
+            "${replace(module.eks_cluster.oidc_issuer_url, "https://", "")}:aud" = "sts.amazonaws.com"
+          }
+        }
+      }
+    ]
+  })
+}
 
-# resource "aws_iam_role" "ebs_csi_driver_role" {
-#   name = "${local.project_name}-${local.environment}-ebs-csi-driver-role"
+module "addon_ebs_csi_driver" {
+  source = "../../common/module/eks_addons"
 
-#   # EKS의 Service Account가 이 역할을 assume할 수 있도록 설정
-#   # IRSA (IAM Roles for Service Accounts) 패턴 사용
-#   assume_role_policy = jsonencode({
-#     Version = "2012-10-17"
-#     Statement = [
-#       {
-#         Effect = "Allow"
-#         Principal = {
-#           Federated = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:oidc-provider/${replace(aws_eks_cluster.main.identity[0].oidc[0].issuer, "https://", "")}"
-#         }
-#         Action = "sts:AssumeRoleWithWebIdentity"
-#         Condition = {
-#           StringEquals = {
-#             "${replace(aws_eks_cluster.main.identity[0].oidc[0].issuer, "https://", "")}:sub" = "system:serviceaccount:kube-system:ebs-csi-controller-sa"
-#             "${replace(aws_eks_cluster.main.identity[0].oidc[0].issuer, "https://", "")}:aud" = "sts.amazonaws.com"
-#           }
-#         }
-#       }
-#     ]
-#   })
+  project_name  = local.project_name
+  environment   = local.environment
+  tags          = local.common_tags
 
-#   tags = merge(
-#     local.common_tags,
-#     {
-#       Name      = "${local.project_name}-${local.environment}-ebs-csi-driver-role"
-#       Purpose   = "EBS Volume Management"
-#       Component = "EKS-Storage"
-#     }
-#   )
-# }
-
-# #------------------------------------------------------------------------------
-# # EBS CSI Driver에 필요한 AWS 관리형 정책 연결
-# #------------------------------------------------------------------------------
-# # EBS CSI Driver가 EBS 볼륨을 생성, 삭제, 연결, 분리하는데 필요한 권한
-# resource "aws_iam_role_policy_attachment" "ebs_csi_driver_policy" {
-#   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy"
-#   role       = aws_iam_role.ebs_csi_driver_role.name
-# }
-
-# #------------------------------------------------------------------------------
-# # EBS CSI Driver Add-on 설치
-# #------------------------------------------------------------------------------
-# # Amazon EBS Container Storage Interface Driver Add-on
-# # 데이터베이스, 파일 저장 등에 필요한 영구 볼륨 지원
-# resource "aws_eks_addon" "ebs_csi_driver" {
-#   cluster_name = aws_eks_cluster.main.name
-#   addon_name   = "aws-ebs-csi-driver"
+  service_name  = "eks-addon"
+  cluster_name  = module.eks_cluster.cluster_name
+  addon_name    = "aws-ebs-csi-driver"
   
-#   # EBS CSI Driver가 사용할 Service Account의 IAM 역할 지정
-#   service_account_role_arn = aws_iam_role.ebs_csi_driver_role.arn
-  
-#   resolve_conflicts_on_create = "OVERWRITE"
-#   resolve_conflicts_on_update = "OVERWRITE"
-  
-#   # IAM 역할과 정책이 연결된 후 설치
-#   depends_on = [
-#     aws_iam_role_policy_attachment.ebs_csi_driver_policy,
-#     aws_eks_node_group.system
-#   ]
+  # IRSA로 생성한 IAM Role 연결
+  service_account_role_arn = module.ebs_csi_driver_role.iam_role_arn
 
-#   tags = merge(
-#     local.common_tags,
-#     {
-#       Name      = "${local.project_name}-${local.environment}-ebs-csi-driver"
-#       Purpose   = "Persistent Volume Support"
-#       Component = "EKS-Storage"
-#     }
-#   )
-# }
+  resolve_conflicts_on_create = "OVERWRITE"
+  resolve_conflicts_on_update = "OVERWRITE"
 
-# #------------------------------------------------------------------------------
-# # 22. EKS 관리형 노드와 Karpenter 노드 간 통신 허용
-# #------------------------------------------------------------------------------
-# # EKS가 시스템 노드 그룹에 자동 생성한 보안 그룹과 
-# # Karpenter 노드가 사용하는 우리 보안 그룹 간의 통신 허용
+  purpose   = "Persistent Volume Support"
+  component = "EKS-Storage"
 
-# # 시스템 노드 → Karpenter 노드 (모든 트래픽)
-# resource "aws_security_group_rule" "system_to_karpenter_all" {
-#   type                     = "ingress"
-#   from_port                = 0
-#   to_port                  = 0
-#   protocol                 = "-1"
-#   source_security_group_id = aws_eks_cluster.main.vpc_config[0].cluster_security_group_id
-#   security_group_id        = aws_security_group.eks_node_sg.id
-#   description              = "All traffic from EKS managed system nodes to Karpenter nodes"
-# }
+  depends_on = [
+    module.eks_system_node_group,
+    module.ebs_csi_driver_role
+  ]
+}
 
-# # Karpenter 노드 → 시스템 노드 (모든 트래픽)
-# # 04에서 추가한 규칙임.
-# # resource "aws_security_group_rule" "karpenter_to_system_all" {
-# #   type                     = "ingress"
-# #   from_port                = 0
-# #   to_port                  = 0
-# #   protocol                 = "-1"
-# #   source_security_group_id = aws_security_group.eks_node_sg.id
-# #   security_group_id        = aws_eks_cluster.main.vpc_config[0].cluster_security_group_id
-# #   description              = "All traffic from Karpenter nodes to EKS managed system nodes"
-# # }
+#------------------------------------------------------------------------------
+# 9. EKS OIDC Identity Provider 생성
+#------------------------------------------------------------------------------
+# OIDC (OpenID Connect)는 인증(Authenticate)을 위한 표준 프로토콜
+# EKS에서 사용하는 OIDC는 Kubernetes의 ServiceAccount와 AWS IAM을 연결하기 위해 사용 -> IRSA (IAM Roles for Service Accounts) 기능
+# 모든 Pod가 같은 권한을 공유하지 않도록 세밀한 권한 제어 가능 -> 워커 노드에서 실행되는 Pod들이 AWS 리소스에 접근할 때 필요 
+
+module "eks_oidc" {
+  source        = "../../common/module/eks_oidc"
+  project_name  = local.project_name
+  environment   = local.environment
+  tags          = local.common_tags
+
+  service_name  = "eks-oidc"
+  oidc_url      = module.eks_cluster.oidc_issuer_url
+
+  depends_on = [
+    module.eks_cluster
+  ]
+}

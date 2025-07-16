@@ -27,6 +27,17 @@ variable "kubernetes_version" {
   type        = string
 }
 
+variable "support_type" {
+  description = "EKS 클러스터 지원 정책 (STANDARD 또는 EXTENDED)"
+  type        = string
+  default     = "STANDARD"
+  
+  validation {
+    condition     = contains(["STANDARD", "EXTENDED"], var.support_type)
+    error_message = "support_type은 STANDARD 또는 EXTENDED 중 하나여야 합니다."
+  }
+}
+
 variable "cluster_role_arn" {
   description = "EKS 클러스터 IAM Role ARN"
   type        = string
