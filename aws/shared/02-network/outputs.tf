@@ -29,7 +29,7 @@ output "public_subnet_cidrs" {
 
 output "public_route_table_id" {
   description = "퍼블릭 라우팅 테이블 ID"
-  value       = module.vpc.public_route_table_id
+  value       = module.vpc.public_route_table_ids
 }
 # ----------------------------------------------------------------------------------------------------------------------
 # VPC Peering 정보

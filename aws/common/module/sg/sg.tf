@@ -10,6 +10,7 @@ resource "aws_security_group" "this" {
       protocol         = ingress.value.protocol
       cidr_blocks      = lookup(ingress.value, "cidr_blocks", null)
       security_groups  = lookup(ingress.value, "security_groups", null)
+      self             = lookup(ingress.value, "self", null)
       description      = lookup(ingress.value, "description", null)
     }
   }

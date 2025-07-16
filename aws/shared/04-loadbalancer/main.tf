@@ -32,6 +32,11 @@ module "alb" {
       port        = 3000
       health_path = "/"
       matcher     = "200-399"
+    },
+    kibana = {
+      port        = 5601
+      health_path = "/"
+      matcher     = "200-399"
     }
   }
 }
@@ -71,6 +76,12 @@ module "alb_listener" {
       host_headers     = ["grafana.tebutebu.com"]
       path_patterns    = ["/*"]
       target_group_arn = module.alb.target_group_arns["grafana"]
+    },
+    kibana = {
+      priority         = 40
+      host_headers     = ["kibana.tebutebu.com"]
+      path_patterns    = ["/*"]
+      target_group_arn = module.alb.target_group_arns["kibana"]
     }
   }
 }

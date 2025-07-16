@@ -23,7 +23,7 @@ variable "instance_type" {
   type        = string
 }
 
-variable "instance_key_name" {
+variable "ec2_ssh_key" {
   description = "SSH 키 이름"
   type        = string
 }

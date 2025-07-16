@@ -32,6 +32,7 @@ variable "ingress_rules" {
     protocol        = string
     cidr_blocks     = optional(list(string))
     security_groups = optional(list(string))
+    self            = optional(bool)
     description     = optional(string)
   }))
 }

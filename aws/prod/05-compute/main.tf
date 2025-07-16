@@ -8,7 +8,7 @@ module "frontend_instance" {
 
   instance_ami           = "ami-0d5bb3742db8fc264"
   instance_type          = "t3.small"
-  instance_key_name      = "pumati-full-master"
+  ec2_ssh_key            = "pumati-full-master"
   iam_instance_profile   = local.frontend_instance_profile_name
   subnet_id              = local.service_subnet_ids
   security_group_ids     = [local.frontend_sg_id]
@@ -35,7 +35,7 @@ module "backend_instance" {
 
   instance_ami           = "ami-0d5bb3742db8fc264"
   instance_type          = "t3.small"
-  instance_key_name      = "pumati-full-master"
+  ec2_ssh_key            = "pumati-full-master"
   iam_instance_profile   = local.backend_instance_profile_name
   subnet_id              = local.service_subnet_ids
   security_group_ids     = [local.backend_sg_id]
@@ -62,7 +62,7 @@ module "db_instance" {
 
   instance_ami           = "ami-0d5bb3742db8fc264"
   instance_type          = "t3.small"
-  instance_key_name      = "pumati-full-master"
+  ec2_ssh_key            = "pumati-full-master"
   iam_instance_profile   = local.db_instance_profile_name
   subnet_id              = local.db_subnet_ids
   security_group_ids     = [local.db_sg_id]

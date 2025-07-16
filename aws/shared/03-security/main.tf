@@ -122,6 +122,13 @@ module "management_sg" {
       description     = "Prometheus via ALB from VPN"
     },
     {
+      from_port       = 5601
+      to_port         = 5601
+      protocol        = "tcp"
+      security_groups = [module.alb_sg.security_group_id]
+      description     = "Kibana via ALB from VPN"
+    },
+    {
       from_port   = 50000
       to_port     = 50000
       protocol    = "tcp"
@@ -142,6 +149,9 @@ module "management_iam" {
   assume_role_service     = "ec2.amazonaws.com"
   instance_profile_enabled = true
   tags          = local.common_tags
+
+  enable_inline_policy  = true    
+  enable_managed_policy = false   
 
   # 인라인 정책 정의
   inline_policy_json = jsonencode({

@@ -24,14 +24,14 @@ output "public_subnet_ids" {
   value       = module.vpc.public_subnet_ids
 }
 
-output "public_subnet_cidrs" {
+output "public_subnet_cidr_blocks" {
   description = "퍼블릭 서브넷 CIDR 블록 리스트"
   value       = module.vpc.public_subnet_cidr_blocks
 }
 
-output "public_route_table_id" {
+output "public_route_table_ids" {
   description = "퍼블릭 라우팅 테이블 ID"
-  value       = module.vpc.public_route_table_id
+  value       = module.vpc.public_route_table_ids
 }
 
 # ----------------------------------------------------------------------------------------------------------------------

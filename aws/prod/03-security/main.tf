@@ -79,6 +79,13 @@ module "backend_sg" {
 
   ingress_rules = [
     {
+      from_port   = -1
+      to_port     = -1
+      protocol    = "icmp"
+      cidr_blocks = ["10.0.0.0/16"]
+      description = "Allow ICMP (ping) from Shared VPC"
+    },
+    {
       from_port   = 22
       to_port     = 22
       protocol    = "tcp"
@@ -149,13 +156,16 @@ module "db_sg" {
 # IAM 규칙
 # ---------------------------------------------------------------------------------------------------------------------
 module "frontend_iam" {
-  source        = "../../common/module/iam_role"
-  project_name  = local.project_name
-  environment   = local.environment
-  service_name  = "frontend"
-  assume_role_service     = "ec2.amazonaws.com"
+  source                   = "../../common/module/iam_role"
+  project_name             = local.project_name
+  environment              = local.environment
+  service_name             = "frontend"
+  assume_role_service      = "ec2.amazonaws.com"
   instance_profile_enabled = true
-  tags          = local.common_tags
+  tags                     = local.common_tags
+
+  enable_inline_policy  = true    
+  enable_managed_policy = false   
 
   # 인라인 정책 정의
   inline_policy_json = jsonencode({
@@ -196,13 +206,16 @@ module "frontend_iam" {
 }
 
 module "backend_iam" {
-  source        = "../../common/module/iam_role"
-  project_name  = local.project_name
-  environment   = local.environment
-  service_name  = "backend"
-  assume_role_service     = "ec2.amazonaws.com"
+  source                   = "../../common/module/iam_role"
+  project_name             = local.project_name
+  environment              = local.environment
+  service_name             = "backend" 
+  assume_role_service      = "ec2.amazonaws.com"
   instance_profile_enabled = true
-  tags          = local.common_tags
+  tags                     = local.common_tags 
+
+  enable_inline_policy  = true    
+  enable_managed_policy = false   
 
   # 인라인 정책 정의
   inline_policy_json = jsonencode({
@@ -243,6 +256,9 @@ module "db_iam" {
   instance_profile_enabled = true
   tags          = local.common_tags
 
+  enable_inline_policy  = true    
+  enable_managed_policy = false   
+
   inline_policy_json = jsonencode({
     Version = "2012-10-17"
     Statement = [
@@ -270,6 +286,9 @@ module "firehose_iam" {
   assume_role_service     = "firehose.amazonaws.com"
   instance_profile_enabled = false
   tags          = local.common_tags
+
+  enable_inline_policy  = true    
+  enable_managed_policy = false   
 
   inline_policy_json = jsonencode({
     Version = "2012-10-17"

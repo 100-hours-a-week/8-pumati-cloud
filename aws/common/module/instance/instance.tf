@@ -1,7 +1,7 @@
 resource "aws_instance" "this" {
   ami                    = var.instance_ami
   instance_type          = var.instance_type
-  key_name               = var.instance_key_name
+  key_name               = var.ec2_ssh_key
   subnet_id              = var.subnet_id
   iam_instance_profile   = var.iam_instance_profile
   vpc_security_group_ids = var.security_group_ids

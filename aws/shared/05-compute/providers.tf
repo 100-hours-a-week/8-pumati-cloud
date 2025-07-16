@@ -75,5 +75,6 @@ locals {
   jenkins_target_group_arn    = data.terraform_remote_state.loadbalancer.outputs.target_group_arns["jenkins"]
   prometheus_target_group_arn = data.terraform_remote_state.loadbalancer.outputs.target_group_arns["prometheus"]
   grafana_target_group_arn    = data.terraform_remote_state.loadbalancer.outputs.target_group_arns["grafana"]
+  kibana_target_group_arn     = data.terraform_remote_state.loadbalancer.outputs.target_group_arns["kibana"]
 }
 

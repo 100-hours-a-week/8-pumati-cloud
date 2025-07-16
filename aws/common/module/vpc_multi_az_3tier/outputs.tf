@@ -26,9 +26,9 @@ output "public_subnet_cidr_blocks" {
   description = "퍼블릭 서브넷 CIDR 블록 목록"
   value       = aws_subnet.public[*].cidr_block
 }
-output "public_route_table_id" {
+output "public_route_table_ids" {
   description = "퍼블릭 라우팅 테이블 ID"
-  value       = aws_route_table.public.id
+  value       = aws_route_table.public[*].id
 }
 
 # ----------------------------------------------------------------------------------------------------------------------

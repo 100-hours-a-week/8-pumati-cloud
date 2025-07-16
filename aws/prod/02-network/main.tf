@@ -55,6 +55,13 @@ module "nat_sg" {
       protocol    = "tcp"
       cidr_blocks = ["10.1.0.0/16"]
       description = "HTTPS from private subnets"
+    },
+    {
+      from_port   = 587
+      to_port     = 587
+      protocol    = "tcp"
+      cidr_blocks = ["10.1.0.0/16"]
+      description = "SMTP (Gmail) from private subnets"
     }
   ]
 }
@@ -71,7 +78,7 @@ module "nat_instance" {
   # 인스턴스 고유 설정
   instance_ami           = "ami-01ad0c7a4930f0e43"
   instance_type          = "t2.micro"
-  instance_key_name      = "pumati-full-master"
+  ec2_ssh_key            = "pumati-full-master"
   iam_instance_profile   = null
   subnet_id              = module.vpc.public_subnet_ids[0]
   security_group_ids     = [module.nat_sg.security_group_id]

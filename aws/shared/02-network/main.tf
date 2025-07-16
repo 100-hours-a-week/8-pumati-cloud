@@ -33,7 +33,7 @@ module "vpc_peering_shared_to_prod" {
 
   requester_vpc_id         = module.vpc.vpc_id
   requester_vpc_cidr       = "10.0.0.0/16"
-  requester_route_table_id = module.vpc.public_route_table_id
+  requester_route_table_id = module.vpc.public_route_table_ids[0]
 
   accepter_vpc_id          = "vpc-04ef97a693f3b7790"
   accepter_vpc_cidr        = "10.1.0.0/16"

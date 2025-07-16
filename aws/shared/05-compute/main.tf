@@ -8,7 +8,7 @@ module "openvpn_instance" {
 
   instance_ami           = "ami-09a093fa2e3bfca5a"
   instance_type          = "t2.micro"
-  instance_key_name      = "pumati-full-master"
+  ec2_ssh_key            = "pumati-full-master"
   # iam_instance_profile   = X
   subnet_id              = local.public_subnet_ids
   security_group_ids     = [local.openvpn_sg_id]
@@ -35,7 +35,7 @@ module "management_instance" {
 
   instance_ami           = "ami-0d5bb3742db8fc264"
   instance_type          = "t3.small"
-  instance_key_name      = "pumati-full-master"
+  ec2_ssh_key            = "pumati-full-master"
   iam_instance_profile   = local.management_instance_profile_name
   subnet_id              = local.public_subnet_ids
   security_group_ids     = [local.management_sg_id]
@@ -78,4 +78,12 @@ module "prometheus_target_attachment" {
   target_group_arn = local.prometheus_target_group_arn
   target_id        = module.management_instance.instance_id
   port             = 9090
+}
+
+module "kibana_target_attachment" {
+  source = "../../common/module/alb_target_attachment"
+
+  target_group_arn = local.kibana_target_group_arn
+  target_id        = module.management_instance.instance_id
+  port             = 5601
 }

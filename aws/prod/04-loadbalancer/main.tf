@@ -45,17 +45,18 @@ module "alb_listener" {
 
   listener_rules = {
     frontend = {
-      priority         = 10
+      priority         = 20
       host_headers     = ["tebutebu.com"]
       path_patterns    = ["/*"]
       target_group_arn = module.alb.target_group_arns["frontend"]
     },
     backend = {
-      priority         = 20
+      priority         = 10
       host_headers     = ["tebutebu.com"]
       path_patterns    = [
         "/api/*",
         "/oauth2/*",
+        "/actuator/*",
         "/api/*/chatbot*"
       ]
       target_group_arn = module.alb.target_group_arns["backend"]
