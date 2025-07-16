@@ -8,9 +8,9 @@ variable "environment" {
   type        = string
 }
 
-variable "instance_name" {
-  description = "인스턴스 이름"
-  type        = string
+variable "service_name" {
+  description = "서비스 이름(예: frontend, service, db)"
+  type = string
 }
 
 variable "instance_ami" {
@@ -38,9 +38,15 @@ variable "security_group_ids" {
   type        = list(string)
 }
 
+variable "source_dest_check" {
+  description = "소스/대상 체크 설정 (NAT 인스턴스의 경우 false로 설정)"
+  type        = bool
+  default     = true
+}
 variable "iam_instance_profile" {
   description = "IAM 인스턴스 프로파일 이름"
   type        = string
+  default     = ""
 }
 
 variable "root_volume_size" {
@@ -59,33 +65,28 @@ variable "user_data" {
   default     = ""
 }
 
-variable "tags" {
-  description = "공통 태그"
-  type        = map(string)
-  default     = {}
-}
-
 variable "enable_monitoring" {
   description = "CloudWatch 상세 모니터링 활성화 여부"
   type        = bool
-  default     = false
 }
 
 variable "disable_api_termination" {
   description = "인스턴스 종료 보호 설정"
   type        = bool
-  default     = false
 }
 
 variable "shutdown_behavior" {
   description = "인스턴스 내부 종료 시 동작 (stop 또는 terminate)"
   type        = string
-  default     = "stop"
 }
 
 variable "enable_eip" {
   description = "EIP를 할당할지 여부"
   type        = bool
-  default     = false
 }
 
+variable "tags" {
+  description = "공통 태그"
+  type        = map(string)
+  default     = {}
+}

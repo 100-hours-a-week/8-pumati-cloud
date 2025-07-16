@@ -1,6 +1,5 @@
 resource "aws_security_group" "this" {
-  name        = "${var.project_name}-${var.environment}-${var.service_name}-sg"
-  description = "Security group for ${var.name} service"
+  description = "Security group for ${var.project_name}-${var.environment}-${var.service_name} service"
   vpc_id      = var.vpc_id
 
   dynamic "ingress" {

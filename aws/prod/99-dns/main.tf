@@ -1,9 +1,8 @@
-module "route53_record" {
-  source = "../modules/route53"
+module "route53_test_subdomain" {
+  source = "../../common/module/route53_alb"
 
-  zone_name   = "tebutebu.com"
-  record_name = "tebutebu.v2.com"
-  record_type = "A"
-  ttl         = 60
-  records     = [local.frontend_public_ip]
+  zone_name       = "tebutebu.com"
+  record_name     = "test.tebutebu.com"
+  alias_name      = local.alb_dns_name
+  alias_zone_id   = local.alb_zone_id
 }

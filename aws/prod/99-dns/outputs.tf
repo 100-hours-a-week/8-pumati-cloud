@@ -1,4 +1,4 @@
-output "frontend_domain_fqdn" {
-  description = "프론트엔드 서비스의 도메인 이름 (FQDN)"
-  value       = module.route53_record.record_fqdn
+output "record_fqdn" {
+  description = "생성된 Route 53 레코드의 도메인 이름"
+  value       = module.route53_test_subdomain.record_fqdn
 }

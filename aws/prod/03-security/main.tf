@@ -1,117 +1,146 @@
 # ---------------------------------------------------------------------------------------------------------------------
 # 보안 그룹
 # ---------------------------------------------------------------------------------------------------------------------
-module "frontend_sg" {
+# ALB Security Group
+module "alb_sg" {
   source        = "../../common/module/sg"
 
-  # 공통 입력값
   project_name  = local.project_name
   environment   = local.environment
   tags          = local.common_tags
-  service_name  = "frontend"
+  service_name  = "alb"
 
-  # 리소스 고유값
-  name          = "${local.project_name}-${local.environment}-frontend-sg"
-  description   = "프론트엔드 서비스용 보안 그룹"
   vpc_id        = local.vpc_id
 
   ingress_rules = [
-    {
-      from_port   = 22
-      to_port     = 22
-      protocol    = "tcp"
-      # ssh는 cidr 내ip로 수정할 것
-      cidr_blocks = ["0.0.0.0/0"]
-      description = "SSH"
-    },
     {
       from_port   = 80
       to_port     = 80
       protocol    = "tcp"
       cidr_blocks = ["0.0.0.0/0"]
-      description = "HTTP"
+      description = "Allow HTTP from anywhere"
     },
     {
       from_port   = 443
       to_port     = 443
       protocol    = "tcp"
       cidr_blocks = ["0.0.0.0/0"]
-      description = "HTTPS"
+      description = "Allow HTTPS from anywhere"
     }
   ]
 }
 
+# Frontend Security Group
+module "frontend_sg" {
+  source        = "../../common/module/sg"
+
+  project_name  = local.project_name
+  environment   = local.environment
+  tags          = local.common_tags
+  service_name  = "frontend"
+
+  vpc_id        = local.vpc_id
+
+  ingress_rules = [
+    {
+      from_port   = 22
+      to_port     = 22
+      protocol    = "tcp"
+      cidr_blocks = ["10.0.0.0/16"]  # shared VPC에서 SSH 허용
+      description = "Allow SSH from Shared VPC via OpenVPN"
+    },
+    {
+      from_port        = 3000
+      to_port          = 3000
+      protocol         = "tcp"
+      security_groups  = [module.alb_sg.security_group_id]  # ALB에서의 접근 허용
+      description      = "Allow frontend access from ALB"
+    },
+    {
+      from_port        = 9100
+      to_port          = 9100
+      protocol         = "tcp"
+      cidr_blocks      = ["10.0.0.0/16"]  # Prometheus가 있는 shared VPC CIDR
+      description      = "Allow Prometheus (node_exporter) access from Shared VPC"
+    }
+  ]
+}
+
+# Backend Security Group
 module "backend_sg" {
   source        = "../../common/module/sg"
 
-  # 공통 값
   project_name  = local.project_name
   environment   = local.environment
   tags          = local.common_tags
   service_name  = "backend"
 
-  # 리소스 고유값
-  name          = "${local.project_name}-${local.environment}-backend-sg"
-  description   = "백엔드 서비스용 보안 그룹"
   vpc_id        = local.vpc_id
 
-  # 인바운드 규칙
   ingress_rules = [
     {
-      # ssh는 cidr 내ip로 수정할 것
       from_port   = 22
       to_port     = 22
       protocol    = "tcp"
-      cidr_blocks = ["0.0.0.0/0"]
-      description = "SSH"
+      cidr_blocks = ["10.0.0.0/16"]  # shared VPC에서 SSH 허용
+      description = "Allow SSH from Shared VPC via OpenVPN"
     },
     {
-      from_port       = 8080
-      to_port         = 8080
-      protocol        = "tcp"
-      security_groups = [module.frontend_sg.security_group_id]
-      description     = "Frontend to Backend"
+      from_port        = 8080
+      to_port          = 8080
+      protocol         = "tcp"
+      security_groups  = [module.alb_sg.security_group_id]  # ALB 접근 허용
+      description      = "Allow backend API from ALB"
+    },
+    {
+      from_port        = 8080
+      to_port          = 8080
+      protocol         = "tcp"
+      security_groups  = [module.frontend_sg.security_group_id]  # 프론트에서의 API 호출 허용
+      description      = "Allow API call from frontend"
+    },
+    {
+      from_port        = 9100
+      to_port          = 9100
+      protocol         = "tcp"
+      cidr_blocks      = ["10.0.0.0/16"]  # Prometheus가 있는 shared VPC CIDR
+      description      = "Allow Prometheus (node_exporter) access from Shared VPC"
     }
   ]
 }
 
-module "management_sg" {
+# DB Security Group
+module "db_sg" {
   source        = "../../common/module/sg"
 
-  # 공통 값
   project_name  = local.project_name
   environment   = local.environment
   tags          = local.common_tags
-  service_name  = "management"
+  service_name  = "db"
 
-  # 리소스 고유값
-  name          = "${local.project_name}-${local.environment}-management-sg"
-  description   = "Management 서비스용 보안 그룹"
   vpc_id        = local.vpc_id
 
-  # 인바운드 규칙
   ingress_rules = [
     {
-      # ssh는 cidr 내ip로 수정할 것
       from_port   = 22
       to_port     = 22
       protocol    = "tcp"
-      cidr_blocks = ["0.0.0.0/0"]
-      description = "SSH"
+      cidr_blocks = ["10.0.0.0/16"]  # shared VPC에서 SSH 허용
+      description = "Allow SSH from Shared VPC via OpenVPN"
     },
     {
-      from_port   = 8080
-      to_port     = 8080
-      protocol    = "tcp"
-      cidr_blocks = ["0.0.0.0/0"]
-      description = "Management UI"
+      from_port        = 3306
+      to_port          = 3306
+      protocol         = "tcp"
+      security_groups  = [module.backend_sg.security_group_id]
+      description      = "Allow MySQL from backend SG"
     },
     {
-      from_port   = 50000
-      to_port     = 50000
-      protocol    = "tcp"
-      cidr_blocks = ["0.0.0.0/0"]
-      description = "Management Agent (optional)"
+      from_port        = 9104
+      to_port          = 9104
+      protocol         = "tcp"
+      cidr_blocks      = ["10.0.0.0/16"]  # Prometheus가 있는 shared VPC CIDR
+      description      = "Allow Prometheus (mysqld_exporter) access from Shared VPC"
     }
   ]
 }
@@ -120,10 +149,12 @@ module "management_sg" {
 # IAM 규칙
 # ---------------------------------------------------------------------------------------------------------------------
 module "frontend_iam" {
-  source        = "../../common/module/iam-role"
+  source        = "../../common/module/iam_role"
   project_name  = local.project_name
   environment   = local.environment
   service_name  = "frontend"
+  assume_role_service     = "ec2.amazonaws.com"
+  instance_profile_enabled = true
   tags          = local.common_tags
 
   # 인라인 정책 정의
@@ -165,10 +196,12 @@ module "frontend_iam" {
 }
 
 module "backend_iam" {
-  source        = "../../common/module/iam-role"
+  source        = "../../common/module/iam_role"
   project_name  = local.project_name
   environment   = local.environment
   service_name  = "backend"
+  assume_role_service     = "ec2.amazonaws.com"
+  instance_profile_enabled = true
   tags          = local.common_tags
 
   # 인라인 정책 정의
@@ -201,14 +234,15 @@ module "backend_iam" {
   })
 }
 
-module "management_iam" {
-  source        = "../../common/module/iam-role"
+module "db_iam" {
+  source        = "../../common/module/iam_role"
   project_name  = local.project_name
   environment   = local.environment
-  service_name  = "management"
+  service_name  = "db"
+  assume_role_service     = "ec2.amazonaws.com"
+  instance_profile_enabled = true
   tags          = local.common_tags
 
-  # 인라인 정책 정의
   inline_policy_json = jsonencode({
     Version = "2012-10-17"
     Statement = [
@@ -223,34 +257,50 @@ module "management_iam" {
           "arn:aws:s3:::s3-pumati-common-storage",
           "arn:aws:s3:::s3-pumati-common-storage/*"
         ]
-      },
-      {
-        Effect = "Allow"
-        Action = [
-        "secretsmanager:GetSecretValue"
-      ]
-      Resource = [
-        "arn:aws:secretsmanager:ap-northeast-2:236450698266:secret:pumati-dev-frontend-.env*",
-        "arn:aws:secretsmanager:ap-northeast-2:236450698266:secret:pumati-prod-frontend-.env*",
-        "arn:aws:secretsmanager:ap-northeast-2:236450698266:secret:pumati-dev-backend-.env*",
-        "arn:aws:secretsmanager:ap-northeast-2:236450698266:secret:pumati-prod-backend-.env*"
-      ]
-      },
-      {
-      Effect = "Allow"
-      Action = [
-        "ecr:GetAuthorizationToken",
-        "ecr:BatchCheckLayerAvailability",
-        "ecr:PutImage",
-        "ecr:InitiateLayerUpload",
-        "ecr:UploadLayerPart",
-        "ecr:CompleteLayerUpload"
-      ]
-      Resource = "*"
       }
     ]
   })
 }
+
+module "firehose_iam" {
+  source        = "../../common/module/iam_role"
+  project_name  = local.project_name
+  environment   = local.environment
+  service_name  = "firehose"
+  assume_role_service     = "firehose.amazonaws.com"
+  instance_profile_enabled = false
+  tags          = local.common_tags
+
+  inline_policy_json = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "AllowPutToMonitoringS3"
+        Effect = "Allow"
+        Action = [
+          "s3:PutObject",
+          "s3:GetObject",
+          "s3:ListBucket",
+          "s3:PutObjectAcl",
+          "s3:GetBucketLocation"
+        ]
+        Resource = [
+          "arn:aws:s3:::s3-pumati-monitoring-logs",
+          "arn:aws:s3:::s3-pumati-monitoring-logs/*"
+        ]
+      },
+      {
+        Sid    = "AllowCWLogs"
+        Effect = "Allow"
+        Action = [
+          "logs:PutLogEvents"
+        ]
+        Resource = "*"
+      }
+    ]
+  })
+}
+
 #---------------------------------------------------------------------------------------------------------------------
 # Secrets Manager
 #---------------------------------------------------------------------------------------------------------------------

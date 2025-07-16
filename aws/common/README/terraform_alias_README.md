@@ -1,0 +1,8 @@
+alias t="terraform"
+alias ti="terraform init"
+alias tp="terraform plan"
+alias ta="terraform apply"
+alias td="terraform destroy"
+alias tv="terraform validate"
+alias tfmt="terraform fmt"
+alias tgraph="terraform graph | dot -Tsvg > graph.svg && open graph.svg"

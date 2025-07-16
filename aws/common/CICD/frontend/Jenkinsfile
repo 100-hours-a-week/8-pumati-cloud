@@ -7,8 +7,8 @@ pipeline {
     S3_BUCKET        = "s3-pumati-common-storage"     // S3 버킷
     AWS_REGION       = "ap-northeast-2"               // 리전
     AWS_ACCOUNT_ID   = "236450698266"                 // 계정 ID
-    CONTAINER_PORT   = "3000"                        // 컨테이너 포트
-    HOST_PORT        = "3000"                        // 호스트 포트
+    HOST_PORT        = "3000"                         // 호스트 포트
+    CONTAINER_PORT   = "3000"                         // 컨테이너 포트
     CONTAINER_NAME   = "pumati-frontend"              // 컨테이너 이름
   }
 
@@ -21,12 +21,12 @@ pipeline {
         ============================================
         """
         script {
-          // 브랜치명 추출 및 환경 설정
+          // 브랜치명 추출 및 환경 설정 
           env.BRANCH = (env.BRANCH_NAME ?: env.GIT_BRANCH)?.replaceFirst(/^origin\//, '') ?: 'unknown'
 
           if (env.BRANCH == 'main') {
             env.ENV_LABEL = 'prod'
-            env.FE_PRIVATE_IP = '10.3.0.228'
+            env.FE_PRIVATE_IP = '10.1.2.165'
           } else {
             echo "지원되지 않는 브랜치입니다: ${env.BRANCH}. 빌드를 중단합니다."
             currentBuild.result = 'NOT_BUILT'
@@ -102,7 +102,7 @@ pipeline {
             def secret = sh(
               script: """
                 set -e
-                aws secretsmanager get-secret-value \
+                /usr/local/bin/aws secretsmanager get-secret-value \
                   --secret-id ${env.PROJECT_NAME}-${env.ENV_LABEL}-${env.SERVICE_NAME}-.env \
                   --region ${env.AWS_REGION} \
                   --query SecretString \
@@ -198,7 +198,7 @@ pipeline {
             gzip -c ${tarFile} > ${gzipFile}
 
             echo "S3에 업로드 중..."
-            aws s3 cp ${gzipFile} s3://${env.S3_BUCKET}/CICD/${env.ENV_LABEL}/${env.SERVICE_NAME}/${gzipFile} --region ${env.AWS_REGION}
+            aws s3 cp ${gzipFile} s3://${env.S3_BUCKET}/CI/${env.ENV_LABEL}/${env.SERVICE_NAME}/${gzipFile} --region ${env.AWS_REGION}
 
             echo "로컬 파일 정리"
             rm -f ${tarFile} ${gzipFile}
@@ -225,35 +225,33 @@ pipeline {
             sshUserPrivateKey(credentialsId: 'PUMATI_FULL_MASTER', keyFileVariable: 'KEY_FILE', usernameVariable: 'SSH_USER')
           ]) {
             sh """
+echo "[단계1] SSH 접속하여 Docker 배포 실행"
 ssh -o StrictHostKeyChecking=no -i \$KEY_FILE \$SSH_USER@${env.FE_PRIVATE_IP} << 'EOF'
   set -e
 
-  echo "기존 컨테이너 중지 및 제거"
-  CONTAINER_ID=\$(docker ps -aqf "name=^/${env.SERVICE_NAME}\$")
+  echo "[단계1-1] 기존 컨테이너 중지 및 제거"
+  sudo docker stop ${env.CONTAINER_NAME} || true
+  sudo docker rm ${env.CONTAINER_NAME} || true
 
-  if [ -n "\$CONTAINER_ID" ]; then
-    docker stop \$CONTAINER_ID || true
-    docker rm \$CONTAINER_ID || true
-  else
-    echo "삭제할 기존 컨테이너 없음"
-  fi
-
-  echo "ECR 인증"
+  echo "[단계1-2] ECR 인증"
   aws ecr get-login-password --region ${env.AWS_REGION} | \\
     docker login --username AWS --password-stdin ${env.AWS_ACCOUNT_ID}.dkr.ecr.${env.AWS_REGION}.amazonaws.com
 
-  echo "ECR 이미지 Pull: ${ECR_LATEST_IMAGE}"
+  echo "[단계1-3] ECR 이미지 Pull: ${ECR_LATEST_IMAGE}"
   docker pull ${ECR_LATEST_IMAGE}
 
-  echo "새 컨테이너 실행"
-  docker run -d --name ${env.SERVICE_NAME} -p ${env.HOST_PORT}:${env.CONTAINER_PORT} ${ECR_LATEST_IMAGE}
+  echo "[단계1-4] 새 컨테이너 실행"
+  docker run -d \\
+    -p ${env.HOST_PORT}:${env.CONTAINER_PORT} \\
+    --name ${env.CONTAINER_NAME} \\
+    ${ECR_LATEST_IMAGE}
 
-  echo "사용하지 않는 이미지 정리"
+  echo "[단계1-5] 사용하지 않는 이미지 정리"
   docker image prune -a -f
 
   echo "배포 완료"
 EOF
-            """
+        """
           }
         }
       }
