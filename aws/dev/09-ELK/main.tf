@@ -52,9 +52,25 @@ resource "helm_release" "elasticsearch" {
       
       # 📊 클러스터 기본 설정
       clusterName        = "elasticsearch"
-      nodeGroup          = "master"
+      nodeGroup          = "master" 
       replicas           = 1
-      minimumMasterNodes = 1
+      singleNode         = true
+      
+      # 🔧 이 라인 꼭 추가: Helm 내부 템플릿이 설정 안 하게 막음
+      clusterInitialMasterNodes = []
+      
+      # 🎯 단일 노드 클러스터 설정 (수정됨)
+      esConfig = {
+        "elasticsearch.yml" = <<-EOF
+          # 단일 노드 클러스터 설정
+          discovery.type: single-node
+          
+          # 보안 설정
+          xpack.security.enabled: true
+          xpack.security.http.ssl.enabled: true
+          xpack.security.transport.ssl.enabled: true
+        EOF
+      }
       
       # 🔧 리소스 설정 (백엔드 서버 1개 모니터링용으로 축소)
       resources = {

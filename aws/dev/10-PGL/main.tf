@@ -170,13 +170,44 @@ resource "kubernetes_config_map" "grafana_dashboards" {
   depends_on = [helm_release.kube_prometheus_stack]
 }
 
-# ServiceMonitor와 PrometheusRule 리소스들을 주석 처리
-/*
-resource "kubernetes_manifest" "app_service_monitor" {
-  # ... 기존 코드 ...
-}
+#==============================================================================
+# 백엔드 애플리케이션 ServiceMonitor
+#==============================================================================
+# Prometheus가 백엔드 애플리케이션의 메트릭을 자동으로 수집하도록 설정
+resource "kubernetes_manifest" "pumati_backend_service_monitor" {
+  manifest = {
+    apiVersion = "monitoring.coreos.com/v1"
+    kind       = "ServiceMonitor"
+    metadata = {
+      name      = "pumati-backend-metrics"
+      namespace = "pgl-system"  # ✅ Prometheus와 같은 네임스페이스
+      labels = {
+        # ✅ kube-prometheus-stack이 인식할 수 있는 레이블
+        release = "kube-prometheus-stack"
+        app = "pumati-backend"
+      }
+    }
+    spec = {
+      # ✅ 다른 네임스페이스의 서비스도 모니터링 가능하도록 설정
+      namespaceSelector = {
+        matchNames = ["pumati"]
+      }
+      selector = {
+        matchLabels = {
+          # ✅ 실제 서비스 레이블과 일치
+          "app.kubernetes.io/name" = "pumati-backend"
+        }
+      }
+      endpoints = [
+        {
+          port = "http"  # ✅ 서비스 포트 이름과 일치
+          path = "/actuator/prometheus"  # ✅ 메트릭 엔드포인트 경로
+          interval = "30s"  # ✅ 수집 간격
+          scrapeTimeout = "10s"  # ✅ 스크레이핑 타임아웃
+        }
+      ]
+    }
+  }
 
-resource "kubernetes_manifest" "custom_prometheus_rules" {
-  # ... 기존 코드 ...
+  depends_on = [helm_release.kube_prometheus_stack]
 }
-*/

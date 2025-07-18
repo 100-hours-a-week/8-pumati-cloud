@@ -58,11 +58,11 @@ resource "google_compute_instance_template" "g2_standard_4" {
     count = 1
   }
 
-  # 스팟 인스턴스 설정 - 방법 1: preemptible 방식 (권장)
+  # 온디맨드 인스턴스 설정 - 스팟에서 온디맨드로 변경
   scheduling {
-    preemptible                = true    # 스팟 인스턴스 활성화
-    automatic_restart          = false   # 스팟 인스턴스는 자동 재시작 불가
-    on_host_maintenance        = "TERMINATE"  # GPU 인스턴스는 라이브 마이그레이션 불가
+    preemptible                = false   # 온디맨드 인스턴스 활성화 (스팟 비활성화)
+    automatic_restart          = true    # 온디맨드 인스턴스는 자동 재시작 가능
+    on_host_maintenance        = "TERMINATE"  # GPU 인스턴스는 여전히 라이브 마이그레이션 불가
   }
 
   # 부팅 디스크 설정
@@ -118,11 +118,11 @@ resource "google_compute_instance_template" "g2_standard_8" {
     count = 1
   }
 
-  # 스팟 인스턴스 설정 - 방법 1: preemptible 방식 (권장)
+  # 온디맨드 인스턴스 설정 - 스팟에서 온디맨드로 변경
   scheduling {
-    preemptible                = true    # 스팟 인스턴스 활성화
-    automatic_restart          = false   # 스팟 인스턴스는 자동 재시작 불가
-    on_host_maintenance        = "TERMINATE"  # GPU 인스턴스는 라이브 마이그레이션 불가
+    preemptible                = false   # 온디맨드 인스턴스 활성화 (스팟 비활성화)
+    automatic_restart          = true    # 온디맨드 인스턴스는 자동 재시작 가능
+    on_host_maintenance        = "TERMINATE"  # GPU 인스턴스는 여전히 라이브 마이그레이션 불가
   }
 
   # 부팅 디스크 설정
@@ -191,27 +191,28 @@ resource "google_compute_instance_group_manager" "l4_spot_zonal" {
   zone               = local.pd_zone  # dev 환경의 zone 설정
   base_instance_name = "t4-spot"
 
-  depends_on = [
-    google_compute_instance_template.g2_standard_4,
-    google_compute_instance_template.g2_standard_8,
-    google_compute_health_check.l4_spot
-  ]
+  # depends_on 제거 - Terraform이 자동으로 의존성 감지
+  # depends_on = [
+  #   google_compute_instance_template.g2_standard_4,
+  #   google_compute_instance_template.g2_standard_8,
+  #   google_compute_health_check.l4_spot
+  # ]
 
-  # 여러 버전 설정 - 스팟 인스턴스 가용성 최적화
+  # 여러 버전 설정 - 하나는 기본 버전(target_size 없음), 나머지는 0
   version {
     instance_template = google_compute_instance_template.g2_standard_4.id
-    # target_size 없음 = 기본 버전 (우선 시도)
+    # target_size 없음 = 기본 버전 (전체 target_size 값을 따름)
   }
 
   version {
     instance_template = google_compute_instance_template.g2_standard_8.id
     target_size {
-      fixed = 0 # 대체 버전으로만 사용
+      fixed = 0  # 대체 버전은 0개
     }
   }
 
-  target_size        = 1
-  wait_for_instances = true
+  target_size        = 1  # 1로 변경
+  wait_for_instances = false
 
   # 업데이트 정책 - 스팟 인스턴스 최적화
   update_policy {
@@ -251,11 +252,7 @@ resource "google_compute_instance_group_manager" "l4_spot_zonal" {
   }
 
   lifecycle {
-    ignore_changes = [
-      version[0].instance_template,
-      version[1].instance_template,
-      target_size,
-    ]
     create_before_destroy = false
+    # ignore_changes 완전 제거
   }
 }
