@@ -50,52 +50,28 @@ resource "helm_release" "elasticsearch" {
         }
       ]
       
-      # 📊 클러스터 기본 설정
+      # 📊 클러스터 기본 설정 (원래대로)
       clusterName        = "elasticsearch"
-      nodeGroup          = "master" 
+      nodeGroup          = "master"
       replicas           = 1
-      singleNode         = true
+      minimumMasterNodes = 1  # 원래 설정 복구
       
-      # 🔧 이 라인 꼭 추가: Helm 내부 템플릿이 설정 안 하게 막음
-      clusterInitialMasterNodes = []
-      
-      # 🎯 단일 노드 클러스터 설정 (수정됨)
-      esConfig = {
-        "elasticsearch.yml" = <<-EOF
-          # 단일 노드 클러스터 설정
-          discovery.type: single-node
-          
-          # 보안 설정
-          xpack.security.enabled: true
-          xpack.security.http.ssl.enabled: true
-          xpack.security.transport.ssl.enabled: true
-        EOF
-      }
-      
-      # 🔧 리소스 설정 (백엔드 서버 1개 모니터링용으로 축소)
+      # 🔧 리소스 설정 (그대로 유지)
       resources = {
         requests = {
-          cpu    = "200m"    # 500m → 200m으로 축소
-          memory = "512Mi"   # 1Gi → 512Mi로 축소
+          cpu    = "200m"
+          memory = "512Mi"
         }
         limits = {
-          cpu    = "500m"    # 1000m → 500m으로 축소
-          memory = "1Gi"     # 2Gi → 1Gi로 축소
+          cpu    = "500m"
+          memory = "1Gi"
         }
       }
       
-      # 💾 스토리지 설정 (크기 축소)
-      persistence = {
-        enabled      = true
-        size         = "10Gi"   # 30Gi → 10Gi로 축소 (백엔드 1개 모니터링용)
-        storageClass = "gp2"
-      }
-      
-      # 🔐 보안 설정 (8.x 표준 - 공식 문서 기반)
-      # Elasticsearch 8.x 보안 활성화 (secret 자동 생성)
+      # 🔐 보안 설정 (그대로 유지)
       secret = {
         enabled  = true
-        password = "pumati123"  # elastic 사용자 기본 비밀번호
+        password = "pumati123"
       }
       
       # 🌐 프로토콜 설정 (HTTPS 활성화)
@@ -165,11 +141,15 @@ resource "helm_release" "kibana" {
       # 🔗 Elasticsearch 연결
       elasticsearchHosts = "https://elasticsearch-master:9200"
       
-      # 🔐 최종 해결: Helm 차트 공식 방식 + 문제 원인(initContainer) 명시적 비활성화
-      # 1. 공식적인 `elasticsearchCredentials`를 사용하여 인증 정보를 전달합니다.
+      # 🔐 인증 정보
       elasticsearchCredentials = {
         username = "elastic"
-        password = "pumati123" # Elasticsearch에 설정된 비밀번호와 일치해야 합니다.
+        password = "pumati123"
+      }
+
+      # 🔒 SSL 설정 추가 (중요!)
+      elasticsearchSSL = {
+        verificationMode = "none"  # 인증서 검증 비활성화
       }
       
       createServiceAccount = true
@@ -308,32 +288,31 @@ resource "helm_release" "apm_server" {
         }
       }
       
-      # 🔗 개선된 APM Server 설정 (공식 권장 방식)
+      # 🔗 개선된 APM Server 설정 (SSL 검증 비활성화)
       apmConfig = {
         "apm-server.yml" = <<-EOF
           # APM 서버 기본 설정
           apm-server:
             host: "0.0.0.0:8200"
             
-          # Elasticsearch 출력 설정 (권장 방식)
+          # Elasticsearch 출력 설정 (SSL 검증 비활성화)
           output.elasticsearch:
             hosts: ["https://elasticsearch-master:9200"]
             username: "elastic"
             password: "$${ELASTICSEARCH_PASSWORD}"
             ssl:
-              certificate_authorities: ["/usr/share/apm-server/config/certs/ca.crt"]
-              verification_mode: "certificate"
+              verification_mode: "none"  # 인증서 검증 비활성화
               
           # Kibana 연동 설정
           setup.kibana:
             host: "http://kibana-kibana:5601"
             
-          # 로깅 설정 (콘솔 로깅만 사용)
+          # 로깅 설정
           logging:
             level: info
             to_stderr: true
             
-          # APM 보안 설정 (개선된 방식)
+          # APM 보안 설정
           apm-server.auth:
             secret_token: "$${APM_SECRET_TOKEN}"
         EOF
