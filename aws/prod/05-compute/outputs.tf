@@ -21,12 +21,12 @@ output "backend_private_ip" {
 }
 
 # DB 인스턴스 출력
-output "db_instance_id" {
-  description = "DB 인스턴스 ID"
-  value       = module.db_instance.instance_id
-}
+# output "db_instance_id" {
+#   description = "DB 인스턴스 ID"
+#   value       = module.db_instance.instance_id
+# }
 
-output "db_private_ip" {
-  description = "DB 인스턴스의 프라이빗 IP"
-  value       = module.db_instance.private_ip
-}
+# output "db_private_ip" {
+#   description = "DB 인스턴스의 프라이빗 IP"
+#   value       = module.db_instance.private_ip
+# }

@@ -1,17 +1,17 @@
 #---------------------------------------------------------------------------------------------------------------------
 # 1. Discord Secrets Manager
 #---------------------------------------------------------------------------------------------------------------------
-module "discord_env_secret_prod" {
-  source = "../../common/module/secretsmanager"
+# module "discord_env_secret_prod" {
+#   source = "../../common/module/secretsmanager"
 
-  project_name  = local.project_name
-  environment   = local.environment
-  tags          = local.common_tags
+#   project_name  = local.project_name
+#   environment   = local.environment
+#   tags          = local.common_tags
 
-  service_name  = "discord-webhook"
-  env_file_path = "../../common/envs/discord/.env"
-  kms_key_id    = "arn:aws:kms:ap-northeast-2:236450698266:key/93a8affe-a6f3-4f22-bdcc-dfafac23e42d"
-}
+#   service_name  = "discord-webhook"
+#   env_file_path = "../../common/envs/discord/.env"
+#   kms_key_id    = "arn:aws:kms:ap-northeast-2:236450698266:key/93a8affe-a6f3-4f22-bdcc-dfafac23e42d"
+# }
 
 #---------------------------------------------------------------------------------------------------------------------
 # 2. Lambda Scheduler Role
@@ -37,16 +37,28 @@ module "lambda_scheduler_role" {
           "ec2:StartInstances",
           "ec2:StopInstances"
         ],
-        Resource = "arn:aws:ec2:ap-northeast-2:236450698266:instance/${local.backend_instance_id},${local.frontend_instance_id},${local.db_instance_id}"
+        Resource = [
+          format("arn:aws:ec2:ap-northeast-2:%s:instance/%s", "236450698266", local.backend_instance_id),
+          format("arn:aws:ec2:ap-northeast-2:%s:instance/%s", "236450698266", local.frontend_instance_id)
+        ]
       },
+      # {
+      #   Effect = "Allow"
+      #   Action = [
+      #   "secretsmanager:GetSecretValue"
+      #   ]
+      #   Resource = [
+      #     "arn:aws:secretsmanager:ap-northeast-2:236450698266:secret:pumati-prod-discord-webhook-.env*"
+      #   ]
+      # },
       {
-        Effect = "Allow"
+        Effect = "Allow",
         Action = [
-        "secretsmanager:GetSecretValue"
-      ]
-      Resource = [
-        "arn:aws:secretsmanager:ap-northeast-2:236450698266:secret:pumati-prod-discord-webhook-.env*"
-      ]
+          "logs:CreateLogGroup",
+          "logs:CreateLogStream",
+          "logs:PutLogEvents"
+          ],
+        Resource = "arn:aws:logs:*:*:*"
       }
     ]
   })
@@ -73,8 +85,8 @@ module "ec2_scheduler_lambda" {
   timeout         = 30
 
   environment_variables = {
-    INSTANCE_IDS        = "${local.backend_instance_id},${local.frontend_instance_id},${local.db_instance_id}"
-    DISCORD_WEBHOOK_URL = "pumati-prod-discord-webhook-.env"
+    INSTANCE_IDS        = "${local.backend_instance_id},${local.frontend_instance_id}"
+    # DISCORD_WEBHOOK_URL = "pumati-prod-discord-webhook-.env"
   }
 }
 
@@ -91,9 +103,8 @@ module "start_ec2_schedule" {
   service_name         = "ec2-start"
 
   rule_name            = "start-ec2-schedule"
-  schedule_expression  = "cron(0 0 * * ? *)"  # UTC 0시 → KST 오전 9시
-  description          = "Start EC2 every day at 9AM KST"
-  target_id            = "StartEC2"
+  schedule_expression  = "cron(50 23 * * ? *)"
+  target_id            = "StartEC2" 
 
   lambda_arn           = module.ec2_scheduler_lambda.lambda_arn
   lambda_function_name = module.ec2_scheduler_lambda.lambda_function_name
@@ -110,11 +121,25 @@ module "stop_ec2_schedule" {
   service_name         = "ec2-stop"
 
   rule_name            = "stop-ec2-schedule"
-  schedule_expression  = "cron(0 12 * * ? *)"  # UTC 12시 → KST 오후 9시
-  description          = "Stop EC2 every day at 9PM KST"
+  schedule_expression  = "cron(0 12 * * ? *)"
   target_id            = "StopEC2"
 
   lambda_arn           = module.ec2_scheduler_lambda.lambda_arn
   lambda_function_name = module.ec2_scheduler_lambda.lambda_function_name
   input_json           = jsonencode({ action = "stop" })
+}
+
+#---------------------------------------------------------------------------------------------------------------------
+# 5. CloudWatch Log Group for Lambda
+#---------------------------------------------------------------------------------------------------------------------
+module "ec2_scheduler_logs" {
+  source = "../../common/module/cloudwatch"
+
+  project_name     = local.project_name
+  environment      = local.environment
+  tags             = local.common_tags
+  
+  service_name     = "ec2-scheduler"
+  log_group_name   = "/aws/lambda/${module.ec2_scheduler_lambda.lambda_function_name}"
+  retention_in_days = 7
 }
