@@ -1,41 +1,11 @@
 # load-test-dev/03-compute/variables.tf
-# Compute 리소스 설정 변수
+# Compute 리소스 설정 변수 - 백엔드 전용
 
-# Auto Scaling Groups 설정
-variable "backend_asg_desired" {
-  description = "백엔드 ASG 기본 인스턴스 수"
+# 백엔드 인스턴스 설정 (오토 힐링 전용)
+variable "backend_instance_count" {
+  description = "백엔드 인스턴스 수 (고정 5개, 오토 힐링만 활용)"
   type        = number
-  default     = 5  # 복원: 5개 인스턴스
-}
-
-variable "backend_asg_min" {
-  description = "백엔드 ASG 최소 인스턴스 수"
-  type        = number
-  default     = 1  # 복원: 최소 1개
-}
-
-variable "backend_asg_max" {
-  description = "백엔드 ASG 최대 인스턴스 수"
-  type        = number
-  default     = 15
-}
-
-variable "frontend_asg_desired" {
-  description = "프론트엔드 ASG 기본 인스턴스 수"
-  type        = number
-  default     = 5  # 복원: 5개 인스턴스
-}
-
-variable "frontend_asg_min" {
-  description = "프론트엔드 ASG 최소 인스턴스 수"
-  type        = number
-  default     = 1  # 복원: 최소 1개
-}
-
-variable "frontend_asg_max" {
-  description = "프론트엔드 ASG 최대 인스턴스 수"
-  type        = number
-  default     = 15
+  default     = 5
 }
 
 # 인스턴스 설정
@@ -46,34 +16,16 @@ variable "instance_type" {
 }
 
 variable "custom_backend_ami" {
-  description = "백엔드용 커스텀 AMI ID"
+  description = "백엔드용 커스텀 AMI ID (CI/CD로 생성)"
   type        = string
-  default     = "ami-0a875fa7e9ee1ba3d"  # 커스텀 AMI (Node.js + PM2 + CloudWatch Agent)
+  default     = "ami-04d5a0c96750aca25"  # CI/CD로 생성된 AMI (KTB Chat Backend)
 }
 
-variable "custom_frontend_ami" {
-  description = "프론트엔드용 커스텀 AMI ID"
-  type        = string
-  default     = "ami-0a875fa7e9ee1ba3d"  # 커스텀 AMI (Next.js + PM2 + CloudWatch Agent)
-}
-
-# 로드밸런서 설정
-variable "enable_nlb" {
-  description = "NLB 활성화 여부 (로드테스트에서는 불필요한 복잡성)"
-  type        = bool
-  default     = false  # ALB 단독 사용으로 변경
-}
-
+# 백엔드 애플리케이션 설정
 variable "backend_app_port" {
   description = "백엔드 애플리케이션 포트"
   type        = number
-  default     = 3000
-}
-
-variable "frontend_app_port" {
-  description = "프론트엔드 애플리케이션 포트"
-  type        = number
-  default     = 3000
+  default     = 5001  # 실제 백엔드 서버 포트
 }
 
 # 모니터링 설정
@@ -117,7 +69,12 @@ variable "healthy_threshold" {
 variable "unhealthy_threshold" {
   description = "비정상 임계값"
   type        = number
-  default     = 3
+  default     = 2
 }
 
-# 로컬 변수는 providers.tf에서 정의됨 
+# IAM 설정
+variable "iam_instance_profile_name" {
+  description = "IAM Instance Profile 이름 (CloudWatch Agent용)"
+  type        = string
+  default     = ""  # 빈 값 = IAM 역할 사용 안 함
+} 

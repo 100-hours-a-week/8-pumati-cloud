@@ -1,60 +1,45 @@
-# Load Test Compute Infrastructure
+# Load Test Backend Infrastructure
 
-로드테스트용 Compute 인프라 구성입니다.
+로드테스트용 백엔드 인프라 구성입니다. (프론트엔드는 S3로 별도 구성)
 
 ## 아키텍처 개요
 
-### 선택된 구성: ALB → EC2
+### 현재 구성: ALB → 고정 인스턴스 + 오토 힐링
 ```
-Internet → ALB → Target Groups → Auto Scaling Groups → EC2 Instances
+Internet → ALB → Target Group → 고정 5개 EC2 인스턴스 (오토 힐링)
 ```
 
-### NLB를 사용하지 않는 이유
-
-**NLB + ALB 조합의 문제점:**
-- ❌ **불필요한 홉**: 인터넷 → NLB → ALB → EC2 (3단계)
-- ❌ **비용 증가**: NLB + ALB 이중 과금 
-- ❌ **레이턴시 증가**: 로드밸런서 2단계 통과
-- ❌ **복잡성 증가**: 관리 포인트 증가
-
-**ALB 단독 사용의 장점:**
-- ✅ **단순한 경로**: 인터넷 → ALB → EC2 (2단계)
-- ✅ **비용 절약**: ALB만 과금
-- ✅ **낮은 레이턴시**: 홉 수 최소화
-- ✅ **HTTP 최적화**: 로드테스트에 적합한 기능들
-- ✅ **관리 단순화**: 하나의 로드밸런서만 관리
+### 설계 원칙
+- ✅ **단순성**: 복잡한 오토 스케일링 제거
+- ✅ **안정성**: 고정된 수의 인스턴스로 예측 가능한 성능
+- ✅ **신뢰성**: 오토 힐링으로 인스턴스 장애 시 자동 교체
+- ✅ **비용 효율**: 불필요한 스케일링 방지
 
 ## 구성 요소
 
 ### 1. Application Load Balancer (ALB)
 - **백엔드 ALB**: 백엔드 API 트래픽 처리
-- **프론트엔드 ALB**: 프론트엔드 웹 트래픽 처리
-- **헬스체크**: HTTP 기반 정교한 헬스체크
-- **경로 기반 라우팅**: 필요시 다양한 라우팅 규칙 적용 가능
+- **헬스체크**: HTTP 기반 정교한 헬스체크 (`/health`)
+- **고가용성**: 여러 AZ에 분산된 인스턴스로 트래픽 분산
 
-### 2. Auto Scaling Groups
-- **백엔드 ASG**: 기본 5개, 최대 15개 인스턴스
-- **프론트엔드 ASG**: 기본 5개, 최대 15개 인스턴스
-- **탄력적 확장**: 부하에 따른 자동 스케일링
-- **헬스체크**: ELB 기반 인스턴스 교체
+### 2. 고정 인스턴스 + 오토 힐링
+- **인스턴스 수**: 고정 5개 (min=max=desired=5)
+- **오토 힐링**: 인스턴스 장애 시 자동 교체
+- **스케일링 없음**: 예측 가능한 성능과 비용
+- **헬스체크**: ELB 기반 인스턴스 상태 감지
 
 ### 3. 보안 그룹
-- **계층별 분리**: 인스턴스용 / ALB용 보안 그룹
+- **백엔드 인스턴스**: ALB에서 3000번 포트, SSH 22번 포트
+- **백엔드 ALB**: 인터넷에서 80번, 443번 포트
 - **최소 권한**: 필요한 포트만 개방
-- **VPC 내부 통신**: SSH는 VPC 내부에서만
 
 ## 성능 특성
 
-### ALB 성능 지표
-- **처리량**: 수천~수만 RPS 처리 가능
-- **레이턴시**: <100ms (일반적)
-- **연결 처리**: HTTP/2, WebSocket 지원
-- **헬스체크**: HTTP 기반 정교한 감지
-
-### 확장성
-- **수평 확장**: ASG를 통한 인스턴스 증가
-- **빠른 반응**: ALB는 자동으로 새 인스턴스 감지
-- **부하 분산**: 가중치 기반 정교한 분산
+### 처리 용량
+- **고정 5개 인스턴스**: 예측 가능한 성능
+- **t3.small**: 각 인스턴스당 적절한 처리 능력
+- **ALB**: 수천~수만 RPS 처리 가능
+- **오토 힐링**: 장애 시 자동 복구 (5분 이내)
 
 ## 배포 및 관리
 
@@ -66,149 +51,146 @@ terraform plan
 terraform apply
 ```
 
-### 실시간 확장
+### 인스턴스 수 변경 (필요시)
 ```bash
-# 백엔드 10개로 확장
-aws autoscaling update-auto-scaling-group \
-  --auto-scaling-group-name ktb-load-test-dev-backend-asg \
-  --desired-capacity 10
-
-# 프론트엔드 10개로 확장
-aws autoscaling update-auto-scaling-group \
-  --auto-scaling-group-name ktb-load-test-dev-frontend-asg \
-  --desired-capacity 10
+# variables.tf에서 backend_instance_count 변경 후
+terraform apply -var='backend_instance_count=10'
 ```
 
-### 대회 당일 긴급 확장
+### 인스턴스 교체 (Rolling Update)
 ```bash
-# Terraform 변수로 한번에 확장
-terraform apply \
-  -var='backend_asg_desired=15' \
-  -var='frontend_asg_desired=15' \
-  -var='backend_asg_max=20' \
-  -var='frontend_asg_max=20'
+# Launch Template 업데이트 후 Rolling 교체
+aws autoscaling start-instance-refresh \
+  --auto-scaling-group-name pumati-load-test-backend-asg \
+  --preferences MinHealthyPercentage=80
 ```
 
 ## 모니터링
 
 ### CloudWatch 메트릭
-- **네임스페이스**: LoadTest/Backend, LoadTest/Frontend  
-- **주요 메트릭**: CPU, 메모리, 네트워크, 연결 수
-- **로그 그룹**: 애플리케이션 로그 실시간 수집
+- **네임스페이스**: LoadTest/Backend
+- **주요 메트릭**: CPU, 메모리, 네트워크, 디스크
+- **로그 그룹**: `/aws/ec2/pumati-load-test-backend`
 
 ### ALB 메트릭
 - **요청 수**: RequestCount
-- **응답 시간**: TargetResponseTime  
+- **응답 시간**: TargetResponseTime
 - **에러율**: HTTPCode_Target_4XX_Count, 5XX_Count
 - **활성 연결**: ActiveConnectionCount
 
-## NLB 활성화 (선택사항)
+### 오토 힐링 모니터링
+- **ASG 이벤트**: CloudWatch Events를 통한 인스턴스 교체 알림
+- **헬스체크**: Target Group의 Healthy/Unhealthy 상태
+- **그레이스 피리어드**: 5분 (300초)
 
-극한의 성능이 필요한 경우에만 NLB를 활성화할 수 있습니다:
+## 오토 힐링 작동 원리
 
-```bash
-# variables.tf에서 enable_nlb = true로 변경 후
-terraform apply
+### 1. 헬스체크 실패 감지
+```
+ALB Target Group → 인스턴스 `/health` 호출
+↓ (2회 연속 실패)
+Unhealthy 상태로 마킹
 ```
 
-**NLB 활성화 시나리오:**
-- 초당 10만+ 요청 필요
-- TCP 레벨 최적화 필요  
-- 정적 IP 필요
-- 극도로 낮은 레이턴시 필요
+### 2. ASG 오토 힐링 발동
+```
+ASG → Unhealthy 인스턴스 감지
+↓ (5분 그레이스 피리어드 후)
+기존 인스턴스 종료 + 새 인스턴스 생성
+```
 
-하지만 대부분의 로드테스트에서는 ALB만으로도 충분합니다.
+### 3. 복구 과정
+```
+새 인스턴스 부팅 → User Data 실행 → 애플리케이션 시작
+↓ (헬스체크 통과 후)
+ALB Target Group에 Healthy 상태로 등록
+```
 
 ## 리소스 사용량
 
-### 현재 구성 (ALB 단독)
-- **EC2 인스턴스**: 10개 (백엔드 5 + 프론트엔드 5)
-- **로드밸런서**: 2개 (ALB 백엔드 + ALB 프론트엔드)
-- **총 t3.small 사용량**: 10/30 (33.3%)
+### 현재 구성
+- **EC2 인스턴스**: 5개 (t3.small)
+- **로드밸런서**: 1개 (ALB)
+- **오토 스케일링**: 제거 (고정 인스턴스)
 
-### 최대 확장 시
-- **EC2 인스턴스**: 30개 (백엔드 15 + 프론트엔드 15)  
-- **총 t3.small 사용량**: 30/30 (100%)
+### 비용 최적화
+- **스케일링 오버헤드 제거**: 불필요한 인스턴스 생성/제거 없음
+- **예측 가능한 비용**: 고정된 인스턴스 수
+- **단순한 관리**: 복잡한 스케일링 정책 불필요
 
-## 비용 최적화
+## 배포 후 확인 방법
 
-ALB 단독 사용으로 다음과 같은 비용 절약:
-- **NLB 비용 제거**: 월 $16-20 절약
-- **데이터 처리 비용**: NLB 추가 홉 제거
-- **관리 복잡성**: 운영 비용 감소
-
-로드테스트는 단기간 사용이므로 단순하고 효율적인 구성이 최적입니다. 
-
-## 🔍 **배포 후 확인 방법**
-
-### 1. **인스턴스 목록 확인**
+### 1. 인스턴스 상태 확인
 ```bash
 # 백엔드 인스턴스 확인
 aws ec2 describe-instances \
-  --filters "Name=tag:Name,Values=backend" \
+  --filters "Name=tag:Service,Values=Backend" \
           "Name=instance-state-name,Values=running" \
-  --query 'Reservations[*].Instances[*].[InstanceId,PublicIpAddress,PrivateIpAddress,Tags[?Key==`Name`].Value|[0]]' \
-  --output table
-
-# 프론트엔드 인스턴스 확인  
-aws ec2 describe-instances \
-  --filters "Name=tag:Name,Values=frontend" \
-          "Name=instance-state-name,Values=running" \
-  --query 'Reservations[*].Instances[*].[InstanceId,PublicIpAddress,PrivateIpAddress,Tags[?Key==`Name`].Value|[0]]' \
+  --query 'Reservations[*].Instances[*].[Tags[?Key==`Name`].Value|[0],InstanceId,PublicIpAddress,PrivateIpAddress]' \
   --output table
 ```
 
-### 2. **SSH 접속**
+### 2. ASG 상태 확인
 ```bash
-# 백엔드 인스턴스 접속
-ssh -i ~/.ssh/8-ktb-chat-keypair.pem ubuntu@<BACKEND_PUBLIC_IP>
-
-# 프론트엔드 인스턴스 접속
-ssh -i ~/.ssh/8-ktb-chat-keypair.pem ubuntu@<FRONTEND_PUBLIC_IP>
+# Auto Scaling Group 상태
+aws autoscaling describe-auto-scaling-groups \
+  --auto-scaling-group-names "pumati-load-test-backend-asg" \
+  --query 'AutoScalingGroups[*].[AutoScalingGroupName,DesiredCapacity,MinSize,MaxSize,Instances[].HealthStatus]' \
+  --output table
 ```
 
-### 3. **애플리케이션 상태 확인**
+### 3. ALB Target 상태 확인
 ```bash
-# SSH 접속 후 확인
-pm2 status                    # PM2 프로세스 상태
-pm2 logs                      # 애플리케이션 로그
-curl localhost:3000/health    # 헬스체크 (백엔드)
-curl localhost:3000/          # 프론트엔드 페이지
+# Target Group의 인스턴스 헬스 상태
+aws elbv2 describe-target-health \
+  --target-group-arn $(terraform output -raw backend_target_group_arn)
 ```
 
-### 4. **ALB 엔드포인트 테스트**
+### 4. 백엔드 API 테스트
 ```bash
 # Terraform 출력에서 URL 확인
-terraform output | grep -E "(backend_url|frontend_url)"
+BACKEND_URL=$(terraform output -raw backend_url)
 
-# 백엔드 API 테스트
-curl http://<BACKEND_ALB_DNS>/health
+# 헬스체크 테스트
+curl ${BACKEND_URL}/health
 
-# 프론트엔드 페이지 테스트
-curl http://<FRONTEND_ALB_DNS>/
+# API 테스트
+curl ${BACKEND_URL}/api/test
 ```
 
-### 5. **Auto Scaling Group 상태 확인**
+### 5. SSH 접속 및 로그 확인
 ```bash
-# ASG 상태 확인
-aws autoscaling describe-auto-scaling-groups \
-  --auto-scaling-group-names \
-    "pumati-load-test-backend-asg" \
-    "pumati-load-test-frontend-asg" \
-  --query 'AutoScalingGroups[*].[AutoScalingGroupName,DesiredCapacity,MinSize,MaxSize,Instances[0].HealthStatus]' \
-  --output table
+# 인스턴스 접속
+ssh -i ~/.ssh/8-ktb-chat-keypair.pem ubuntu@<PUBLIC_IP>
+
+# 애플리케이션 상태 확인
+sudo pm2 status
+sudo pm2 logs
+sudo systemctl status cloudwatch-agent
 ```
 
-## 인스턴스 명명 규칙
+## 장애 시나리오 및 대응
 
-**인스턴스 이름:**
-- 백엔드: `backend` (AWS가 자동으로 번호 부여)
-- 프론트엔드: `frontend` (AWS가 자동으로 번호 부여)
+### 인스턴스 장애
+- **감지**: ALB 헬스체크 실패 (2회 연속)
+- **대응**: ASG에서 자동으로 새 인스턴스 생성
+- **복구 시간**: 약 5-10분
 
-**실제 인스턴스 이름 예시:**
-```
-backend (i-1234567890abcdef0)
-backend (i-0fedcba0987654321)
-frontend (i-abcdef1234567890)
-frontend (i-fedcba0987654321)
-``` 
+### ALB 장애
+- **감지**: 외부 모니터링 도구 필요
+- **대응**: AWS에서 자동 복구 (Multi-AZ)
+- **복구 시간**: 일반적으로 수 분 이내
+
+### 대량 트래픽 처리
+- **현재**: 고정 5개 인스턴스로 처리
+- **필요시**: `backend_instance_count` 변수 변경하여 인스턴스 수 증가
+- **권장**: 로드테스트 전 적절한 인스턴스 수 설정
+
+## 프론트엔드 관련 참고사항
+
+프론트엔드는 **S3 + CloudFront**로 별도 구성됩니다:
+- **정적 파일**: S3에 호스팅
+- **CDN**: CloudFront로 전세계 배포
+- **API 연동**: 이 백엔드 ALB URL 사용
+
+백엔드 URL은 프론트엔드 빌드 시 환경변수로 설정됩니다. 
