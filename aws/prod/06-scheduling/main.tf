@@ -39,7 +39,8 @@ module "lambda_scheduler_role" {
         ],
         Resource = [
           format("arn:aws:ec2:ap-northeast-2:%s:instance/%s", "236450698266", local.backend_instance_id),
-          format("arn:aws:ec2:ap-northeast-2:%s:instance/%s", "236450698266", local.frontend_instance_id)
+          format("arn:aws:ec2:ap-northeast-2:%s:instance/%s", "236450698266", local.frontend_instance_id),
+          format("arn:aws:ec2:ap-northeast-2:%s:instance/%s", "236450698266", local.db_instance_id)
         ]
       },
       # {
@@ -85,7 +86,7 @@ module "ec2_scheduler_lambda" {
   timeout         = 30
 
   environment_variables = {
-    INSTANCE_IDS        = "${local.backend_instance_id},${local.frontend_instance_id}"
+    INSTANCE_IDS        = "${local.backend_instance_id},${local.frontend_instance_id},${local.db_instance_id}"
     # DISCORD_WEBHOOK_URL = "pumati-prod-discord-webhook-.env"
   }
 }

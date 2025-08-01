@@ -4,21 +4,25 @@ services:
   zookeeper:
     image: confluentinc/cp-zookeeper:7.3.0
     container_name: zookeeper
+    restart: unless-stopped
+    networks:
+      - backend-net
     ports:
-      - "${ZOOKEEPER_PORT}:2181"
+      - "${ZOOKEEPER_PORT}:${ZOOKEEPER_PORT}"
     environment:
       ZOOKEEPER_CLIENT_PORT: ${ZOOKEEPER_PORT}
       ZOOKEEPER_TICK_TIME: 2000
-    networks:
-      - kafka-net
 
   kafka:
     image: confluentinc/cp-kafka:7.3.0
     container_name: kafka
+    restart: unless-stopped
     depends_on:
       - zookeeper
+    networks:
+      - backend-net 
     ports:
-      - "${KAFKA_PORT}:9092"
+      - "${KAFKA_PORT}:${KAFKA_PORT}"
     environment:
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:${ZOOKEEPER_PORT}
@@ -26,9 +30,44 @@ services:
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-    networks:
-      - kafka-net
+      KAFKA_DELETE_TOPIC_ENABLE: "true"
 
 networks:
-  kafka-net:
+  backend-net:
     external: true
+
+
+
+## 카프카 실행 자동화
+# #!/bin/bash
+# set -e
+
+# cd /home/ubuntu/kafka
+
+# # Kafka 컨테이너 준비 대기
+# echo "⏳ Waiting for Kafka to be ready..."
+# for i in {1..5}; do
+#   if docker exec kafka kafka-topics --bootstrap-server 127.0.0.1:9092 --list &>/dev/null; then
+#     echo "✅ Kafka is ready."
+#     break
+#   else
+#     echo "⏳ Kafka not ready yet, retrying ($i)..."
+#     sleep 1
+#   fi
+# done
+
+# # Kafka 토픽 생성
+# echo "📌 Checking and creating Kafka topics..."
+# EXISTING_TOPICS=$(docker exec kafka kafka-topics --bootstrap-server 127.0.0.1:9092 --list)
+
+# if ! echo "$EXISTING_TOPICS" | grep -q "mail.send.project"; then
+#   docker exec kafka kafka-topics --bootstrap-server 127.0.0.1:9092 \
+#     --create --topic mail.send.project --partitions 3 --replication-factor 1
+#   echo "✅ Created topic: mail.send.project"
+# fi
+
+# if ! echo "$EXISTING_TOPICS" | grep -q "mail.send.project.dlq"; then
+#   docker exec kafka kafka-topics --bootstrap-server 127.0.0.1:9092 \
+#     --create --topic mail.send.project.dlq --partitions 1 --replication-factor 1
+#   echo "✅ Created topic: mail.send.project.dlq"
+# fi

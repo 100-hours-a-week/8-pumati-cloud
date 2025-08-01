@@ -52,33 +52,33 @@ module "backend_instance" {
   enable_eip = false
 }
 
-# module "db_instance" {
-#   source = "../../common/module/instance"
+module "db_instance" {
+  source = "../../common/module/instance"
 
-#   project_name  = local.project_name
-#   environment   = local.environment
-#   tags          = local.common_tags
-#   service_name  = "db"
+  project_name  = local.project_name
+  environment   = local.environment
+  tags          = local.common_tags
+  service_name  = "db"
 
-#   instance_ami           = "ami-0d5bb3742db8fc264"
-#   instance_type          = "t3.small"
-#   ec2_ssh_key            = "pumati-full-master"
-#   iam_instance_profile   = local.db_instance_profile_name
-#   subnet_id              = local.db_subnet_ids
-#   security_group_ids     = [local.db_sg_id]
+  instance_ami           = "ami-0d5bb3742db8fc264"
+  instance_type          = "t3.small"
+  ec2_ssh_key            = "pumati-full-master"
+  iam_instance_profile   = local.db_instance_profile_name
+  subnet_id              = local.db_subnet_ids
+  security_group_ids     = [local.db_sg_id]
 
-#   root_volume_size       = 30
-#   root_volume_type       = "gp3"
+  root_volume_size       = 30
+  root_volume_type       = "gp3"
 
-#   # db는 스크립트에 대회형 UI 있어서 그냥 수동으로 하는게 좋음 
-#   # user_data            = file("${path.module}/scripts/db-user-data.sh")
+  # db는 스크립트에 대회형 UI 있어서 그냥 수동으로 하는게 좋음 
+  # user_data            = file("${path.module}/scripts/db-user-data.sh")
 
-#   enable_monitoring             = true
-#   disable_api_termination       = false
-#   shutdown_behavior             = "stop"
+  enable_monitoring             = true
+  disable_api_termination       = false
+  shutdown_behavior             = "stop"
 
-#   enable_eip = false
-# }
+  enable_eip = false
+}
 
 #----------------------------------------------------------------------------------------------------------------------
 # Target Group Attachment - EC2 인스턴스를 타겟 그룹에 연결

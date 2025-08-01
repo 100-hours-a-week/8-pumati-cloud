@@ -9,7 +9,7 @@ module "vpc" {
   tags         = local.common_tags
 
   vpc_cidr              = "10.0.0.0/16"
-  azs                   = ["ap-northeast-2a", "ap-northeast-2c"]
+  azs                   = ["a", "c"]
   public_subnet_cidrs   = ["10.0.0.0/24", "10.0.10.0/24"]
   service_subnet_cidrs  = ["10.0.1.0/24", "10.0.20.0/24"]
   db_subnet_cidrs       = ["10.0.2.0/24", "10.0.30.0/24"]
@@ -35,8 +35,8 @@ module "vpc_peering_shared_to_prod" {
   requester_vpc_cidr       = "10.0.0.0/16"
   requester_route_table_id = module.vpc.public_route_table_ids[0]
 
-  accepter_vpc_id          = "vpc-04ef97a693f3b7790"
-  accepter_vpc_cidr        = "10.1.0.0/16"
+  accepter_vpc_id          = local.prod_network_vpc_id
+  accepter_vpc_cidr        = local.prod_network_vpc_cidr
 
   accepter_route_table_ids = compact([
     local.prod_network_public_route_table_id,

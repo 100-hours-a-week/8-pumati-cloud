@@ -42,3 +42,13 @@ output "accepter_route_table_ids" {
   description = "Accepter 측에 설정된 라우팅 테이블 ID 목록"
   value       = module.vpc_peering_shared_to_prod.accepter_route_table_ids
 }
+
+output "requester_vpc_id" {
+  description = "VPC Peering 요청자(shared) VPC ID"
+  value       = module.vpc.vpc_id
+}
+
+output "accepter_vpc_id" {
+  description = "VPC Peering 수락자(prod) VPC ID"
+  value       = local.prod_network_vpc_id
+}

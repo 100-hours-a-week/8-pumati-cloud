@@ -39,8 +39,11 @@ locals {
   environment  = data.terraform_remote_state.common.outputs.environment
   common_tags  = data.terraform_remote_state.common.outputs.common_tags
 
-  # prod 모듈 : route table 정보
-  prod_network_public_route_table_id = data.terraform_remote_state.prod_network.outputs.public_route_table_ids[0]
+  # prod 모듈 : vpc id, route table 정보
+  prod_network_vpc_id                 = data.terraform_remote_state.prod_network.outputs.vpc_id
+  prod_network_vpc_cidr               = data.terraform_remote_state.prod_network.outputs.vpc_cidr
+  
+  prod_network_public_route_table_id  = data.terraform_remote_state.prod_network.outputs.public_route_table_ids[0]
   prod_network_service_route_table_id = data.terraform_remote_state.prod_network.outputs.service_route_table_ids[0]
-  prod_network_db_route_table_id = data.terraform_remote_state.prod_network.outputs.db_route_table_ids[0]
+  prod_network_db_route_table_id      = data.terraform_remote_state.prod_network.outputs.db_route_table_ids[0]
 }

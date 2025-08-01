@@ -42,5 +42,5 @@ locals {
   # compute 모듈 : 인스턴스 ID
   backend_instance_id  = data.terraform_remote_state.compute.outputs.backend_instance_id
   frontend_instance_id = data.terraform_remote_state.compute.outputs.frontend_instance_id
-  # db_instance_id       = data.terraform_remote_state.compute.outputs.db_instance_id
+  db_instance_id       = data.terraform_remote_state.compute.outputs.db_instance_id
 }
